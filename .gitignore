@@ -1,0 +1,12 @@
+uploads/
+tmp/
+webview/
+*.exe
+transfer-key
+fasttransfer.lock
+fasttransfer.log
+
+receive-check.bin
+*-check.bin
+*-check.txt
+ft-probe.*

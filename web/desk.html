@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="color-scheme" content="light dark" />
+  <title>FastTransfer</title>
+  <script>
+    (function () {
+      var mode = "system";
+      try { mode = localStorage.getItem("ft-theme") || "system"; } catch (e) {}
+      if (mode !== "light" && mode !== "dark") mode = "system";
+      var dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.choice = mode;
+    })();
+  </script>
+  <style>
+    [hidden] { display: none !important; }
+    :root {
+      --bar: #f3f3f3;
+      --list: #fafafa;
+      --ink: #1a1a1a;
+      --muted: #616161;
+      --line: #e5e5e5;
+      --hover: #ececec;
+      --press: #e2e2e2;
+      --sel: rgba(13, 110, 253, 0.14);
+      --accent: #0d6efd;
+      --menu: #ffffff;
+      --stage: #ececec;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+      color-scheme: light;
+    }
+    html[data-theme="dark"] {
+      --bar: #2b2b2b;
+      --list: #1c1c1c;
+      --ink: #f3f3f3;
+      --muted: #a6a6a6;
+      --line: #3a3a3a;
+      --hover: #333333;
+      --press: #3a3a3a;
+      --sel: rgba(13, 110, 253, 0.28);
+      --accent: #6ea8fe;
+      --menu: #2b2b2b;
+      --stage: #141414;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background: var(--list);
+      color: var(--ink);
+      font: 13px/1.35 "Segoe UI", system-ui, sans-serif;
+    }
+    button, select, input, textarea { font: inherit; color: inherit; }
+    button { background: none; border: 0; padding: 0; cursor: pointer; }
+    svg { display: block; }
+    #app { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+    #header {
+      height: 40px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding-left: 12px;
+      background: var(--bar);
+      border-bottom: 1px solid var(--line);
+      position: relative;
+      user-select: none;
+    }
+    #brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; margin-right: 8px; white-space: nowrap; }
+    #brand .mark { width: 16px; height: 16px; flex: none; }
+    #header button.tool, #quit, #phone {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 8px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+    #header button svg { width: 16px; height: 16px; }
+    #header button.tool:hover:not(:disabled), #quit:hover, #phone:hover { background: var(--hover); }
+    #header button.tool:active:not(:disabled), #quit:active, #phone:active { background: var(--press); }
+    #header button.tool:disabled { color: var(--muted); opacity: 0.45; }
+    .spacer { flex: 1; }
+    #theme {
+      height: 32px;
+      margin-right: 4px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+    }
+    #winbtns { display: flex; height: 40px; margin-left: 4px; flex: none; }
+    #winbtns button { width: 46px; height: 40px; border-radius: 0; display: flex; align-items: center; justify-content: center; }
+    #winbtns button:hover { background: var(--hover); }
+    #wclose:hover { background: #c42b1c; color: #fff; }
+    #winbtns svg { width: 12px; height: 12px; opacity: 0; }
+    #phonepop {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 8px;
+      z-index: 6;
+      width: 240px;
+      padding: 12px;
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    #phonepop img { display: block; width: 120px; height: 120px; margin: 0 auto 8px; background: #fff; border-radius: 4px; }
+    #phonelink { font-size: 12px; line-height: 1.35; word-break: break-all; margin: 0 0 8px; color: var(--muted); }
+    #copylink { width: 100%; height: 32px; border-radius: 8px; background: var(--accent); color: #fff; }
+    #ips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    #ips button { height: 24px; padding: 0 8px; border-radius: 6px; background: var(--hover); }
+    #addr {
+      flex: none;
+      display: flex;
+      align-items: center;
+      height: 32px;
+      margin: 8px 8px 0;
+      padding: 0 6px;
+      background: var(--list);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    #recv {
+      flex: none;
+      margin: 8px 8px 0;
+      padding: 8px 10px 10px;
+      background: var(--list);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    #recv .recvtop { display: flex; align-items: baseline; gap: 12px; min-width: 0; font-size: 12px; }
+    #recvname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #recvdest { color: var(--muted); white-space: nowrap; }
+    #recvpct { margin-left: auto; color: var(--muted); }
+    #recvtrack { height: 4px; margin-top: 8px; background: var(--hover); border-radius: 2px; overflow: hidden; }
+    #recvfill { height: 100%; width: 0; background: var(--accent); }
+    #crumbs { display: flex; align-items: center; min-width: 0; overflow: hidden; }
+    #crumbs button {
+      height: 24px;
+      max-width: 220px;
+      padding: 0 6px;
+      border-radius: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #crumbs button:hover { background: var(--hover); }
+    #crumbs .sep { display: flex; color: var(--muted); }
+    #crumbs .sep svg { width: 12px; height: 12px; }
+    #list { flex: 1; min-height: 0; margin-top: 8px; overflow: auto; outline: none; background: var(--list); }
+    .cols {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) 168px 120px 88px;
+      align-items: center;
+    }
+    .head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      height: 32px;
+      background: var(--list);
+      border-bottom: 1px solid var(--line);
+    }
+    .head button {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .head button.num { justify-content: flex-end; }
+    .head button.on { color: var(--ink); }
+    .head .mark { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; }
+    .head button.asc .mark { border-bottom: 5px solid var(--accent); }
+    .head button.desc .mark { border-top: 5px solid var(--accent); }
+    .row { height: 38px; cursor: default; user-select: none; color: var(--ink); }
+    .row > span { min-width: 0; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row .name { display: flex; align-items: center; gap: 8px; padding-left: 12px; }
+    .row .name > svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+    .row .thumb, #strip .thumb {
+      width: 32px;
+      height: 32px;
+      flex: none;
+      border-radius: 4px;
+      object-fit: cover;
+      background: var(--hover);
+    }
+    #strip .thumb { width: 100%; height: 100%; border-radius: 0; }
+    .row.dir .name > svg { color: var(--ink); }
+    .row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .row .info {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      flex: none;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .row .info svg { width: 16px; height: 16px; }
+    .row .info:hover { background: var(--hover); color: var(--ink); }
+    .row .num { text-align: right; }
+    .row:hover:not(.sel) { background: var(--hover); }
+    .row.sel { background: var(--sel); }
+    #empty { margin: 16px 12px; color: var(--muted); }
+    #status {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      height: 28px;
+      align-items: center;
+      padding: 0 12px;
+      border-top: 1px solid var(--line);
+      background: var(--list);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    #menu {
+      position: fixed;
+      z-index: 80;
+      min-width: 220px;
+      margin: 0;
+      padding: 4px;
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    #menu button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      width: 100%;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: 6px;
+      text-align: left;
+    }
+    #menu button:hover { background: var(--sel); }
+    #menu .mi { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+    #menu .mic { display: flex; }
+    #menu .mic svg { width: 16px; height: 16px; }
+    #menu .hint { color: var(--muted); font-size: 12px; }
+    #menu .sep { height: 1px; margin: 4px 6px; background: var(--line); }
+    #view {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      background: #0e0e0e;
+      color: #f3f3f3;
+    }
+    #ifoot button, #irenamerow button, #askbox button {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: transparent;
+    }
+    #ifoot button:hover, #irenamerow button:hover, #askbox button:hover { background: var(--hover); }
+    #iclose, #askyes { background: var(--accent); color: #fff; border-color: transparent; }
+    #iclose:hover, #askyes:hover { background: var(--accent); color: #fff; filter: brightness(1.08); }
+    #vstage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0e0e0e;
+      overflow: hidden;
+    }
+    #vstage.paper { background: #161616; align-items: stretch; }
+    #vimg, #vvid { max-width: 100%; max-height: 100%; object-fit: contain; touch-action: none; user-select: none; }
+    #view.cinema {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #view.cinema #vstage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #view.cinema #vvid {
+      position: absolute;
+      left: 0;
+      top: 48px;
+      width: 100%;
+      height: calc(100% - 120px);
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      object-fit: contain;
+      object-position: center center;
+      background: transparent;
+      z-index: 1;
+    }
+    #view.cinema #strip, #view.cinema .edge { display: none !important; }
+    #view.cinema #vtitle { bottom: 64px; z-index: 6; }
+    #view.cinema #vplayer {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 64px;
+      border-radius: 0;
+      box-sizing: border-box;
+    }
+    #view.cinema #vdrag,
+    #view.cinema #vtools,
+    #view.cinema #vplayer,
+    #view.cinema #ibar { z-index: 6; }
+    #vimg { transform-origin: center center; }
+    #vdrag {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 72px;
+      height: 28px;
+      z-index: 4;
+    }
+    #ibar {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      z-index: 4;
+      display: flex;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.55);
+    }
+    #ibar button {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #ibar button:hover { background: rgba(255, 255, 255, 0.16); }
+    #ibar button svg { width: 18px; height: 18px; }
+    #vtitle {
+      position: absolute;
+      left: 16px;
+      bottom: 64px;
+      max-width: 50%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      color: rgba(243, 243, 243, 0.72);
+      pointer-events: none;
+    }
+    #vtools {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #vtools button, .edge, #vplayer button {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      color: #f3f3f3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #vtools button:hover, .edge:hover, #vplayer button:hover { background: rgba(255, 255, 255, 0.12); }
+    #vtools button svg, .edge svg, #vplayer button svg { width: 20px; height: 20px; }
+    #vtools #vclose {
+      width: 36px;
+      height: 36px;
+      flex: none;
+      border: 0;
+      border-radius: 50%;
+      box-shadow: none;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+    }
+    #vtools #vclose:hover { background: rgba(255, 255, 255, 0.22); }
+    #vtools #vclose svg { width: 16px; height: 16px; }
+    .edge {
+      position: absolute;
+      top: 50%;
+      margin-top: -20px;
+      background: rgba(0, 0, 0, 0.28);
+    }
+    .edge.left { left: 12px; }
+    .edge.right { right: 12px; }
+    .edge:disabled { opacity: 0.28; }
+    #vpre, #veditor {
+      flex: 1;
+      margin: 0;
+      padding: 56px 24px 24px;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #161616;
+      color: #f3f3f3;
+      font: 13px/1.45 Consolas, "Cascadia Mono", ui-monospace, monospace;
+    }
+    #veditor { border: 0; resize: none; outline: none; }
+    #vnote { max-width: 640px; padding: 24px; }
+    #vnote p { margin: 0 0 16px; }
+    #vzip { margin: 0; padding: 16px 16px 16px 32px; width: 100%; box-sizing: border-box; }
+    #vzip li { margin: 4px 0; overflow-wrap: anywhere; }
+    #strip {
+      height: 84px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      overflow-x: auto;
+      background: #141414;
+    }
+    #strip button {
+      width: 48px;
+      height: 48px;
+      flex: none;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      overflow: hidden;
+      background: #1c1c1c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #strip button.on { width: 56px; height: 56px; border-color: #f3f3f3; }
+    #strip button svg { width: 16px; height: 16px; color: var(--muted); }
+    #vstage.from-right { animation: stageRight 200ms ease; }
+    #vstage.from-left { animation: stageLeft 200ms ease; }
+    @keyframes stageRight { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+    @keyframes stageLeft { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      #vstage.from-left, #vstage.from-right { animation: none; }
+    }
+    #vplayer {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 12px;
+      z-index: 4;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+    }
+    #vplayer button { color: #fff; }
+    #now, #dur { display: none; }
+    #view.music #strip, #view.music .edge, #view.music #vtitle { display: none !important; }
+    #view.music #vstage {
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 72px 24px 32px;
+      gap: 0;
+    }
+    #view.music #vaudio {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      width: min(480px, calc(100% - 48px));
+      max-width: 480px;
+      padding: 0;
+      color: #f3f3f3;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    #vplate {
+      width: min(320px, 70vw, 42vh);
+      aspect-ratio: 1;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #1c1c1c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      margin-bottom: 18px;
+    }
+    #view.music #vart {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      object-fit: cover;
+      border-radius: 0;
+      background: transparent;
+    }
+    #view.music #vglyph { width: 64px; height: 64px; color: rgba(255, 255, 255, 0.55); }
+    #vname, #vline, #vextra {
+      margin: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+    }
+    #vname { font: 600 22px/1.3 "Segoe UI", system-ui, sans-serif; color: #f5f5f5; }
+    #vline, #vextra { font: 14px/1.4 "Segoe UI", system-ui, sans-serif; color: rgba(243, 243, 243, 0.58); }
+    #view.music #vplayer {
+      position: relative;
+      left: auto;
+      right: auto;
+      bottom: auto;
+      width: min(480px, calc(100% - 48px));
+      height: auto;
+      margin-top: 22px;
+      padding: 0;
+      gap: 12px;
+      border-radius: 0;
+      background: transparent;
+    }
+    #view.music #play {
+      width: 44px;
+      height: 44px;
+      flex: none;
+      border-radius: 50%;
+      background: #fff;
+      color: #111;
+    }
+    #view.music #play:hover { background: #f3f3f3; }
+    #view.music #play svg { width: 16px; height: 16px; color: #111; }
+    #view.music #play .ic-play { margin-left: 2px; }
+    #view.music #now, #view.music #dur {
+      display: block;
+      flex: none;
+      min-width: 40px;
+      font: 12px/1 "Segoe UI", system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    #view.music #now { text-align: right; }
+    #view.music #dur { text-align: left; }
+    #view.music #clock { display: none; }
+    #view.music #vol { width: 56px; }
+    #view.music #mute { width: 32px; height: 32px; border-radius: 50%; }
+    #play .ic-pause { display: none !important; }
+    #play.playing .ic-play { display: none !important; }
+    #play.playing .ic-pause { display: block !important; }
+    #mute .spk-x { display: none; }
+    #mute.muted .spk-x { display: block; }
+    #seek {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      height: 20px;
+      cursor: pointer;
+      touch-action: none;
+    }
+    #seek .track, #seek .fill {
+      position: absolute;
+      left: 6px;
+      top: 9px;
+      height: 2px;
+      border-radius: 1px;
+      pointer-events: none;
+    }
+    #seek .track { right: 6px; background: rgba(255, 255, 255, 0.35); }
+    #seek .fill {
+      width: calc((100% - 12px) * var(--p, 0) / 100);
+      background: #fff;
+    }
+    #seek .knob {
+      position: absolute;
+      top: 4px;
+      left: calc(6px + (100% - 12px) * var(--p, 0) / 100);
+      width: 12px;
+      height: 12px;
+      margin-left: -6px;
+      border-radius: 50%;
+      background: #fff;
+      pointer-events: none;
+    }
+    #vol {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 72px;
+      height: 16px;
+      margin: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    #vol::-webkit-slider-runnable-track {
+      height: 2px;
+      border-radius: 1px;
+      background: linear-gradient(to right, #fff var(--p, 0%), rgba(255, 255, 255, 0.35) var(--p, 0%));
+    }
+    #vol::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      margin-top: -5px;
+      border: 0;
+      border-radius: 50%;
+      background: #fff;
+    }
+    #clock { min-width: 92px; color: rgba(255, 255, 255, 0.86); font-variant-numeric: tabular-nums; font-size: 12px; }
+    #infoscrim, #ask {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.48);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #ask { z-index: 60; }
+    #infobox, #askbox {
+      width: min(480px, 100%);
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    #ititle { margin: 0 0 12px; font-size: 13px; font-weight: 600; }
+    dl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 12px; margin: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+    #irenamerow { display: flex; gap: 8px; margin-top: 16px; }
+    #iname {
+      flex: 1;
+      min-width: 0;
+      height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--list);
+    }
+    #ifoot, #askbox .rowbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    #idelete { margin-right: auto; }
+    #asktext { margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <span id="brand"><svg class="mark" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect width="16" height="16" rx="3.5" fill="#1268d2"/><path d="M8 2.4v4.4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M5.2 5 8 7.8 10.8 5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.4 10.4v3h9.2v-3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>FastTransfer</span>
+      <button id="back" class="tool" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Back</span></button>
+      <button id="fwd" class="tool" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Forward</span></button>
+      <button id="up" class="tool" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12.5V4M4.5 7 8 3.5 11.5 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Up</span></button>
+      <button id="refresh" class="tool" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.4-3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Refresh</span></button>
+      <span class="spacer"></span>
+      <select id="theme" aria-label="Theme" title="Theme">
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+      <button id="phone" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Phone link</span></button>
+      <button id="quit" type="button">Quit</button>
+      <div id="winbtns">
+        <button id="wmin" type="button" aria-label="Minimize"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" stroke="currentColor" stroke-width="1.2"/></svg></button>
+        <button id="wmax" type="button" aria-label="Maximize"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.2" y="2.2" width="7.6" height="7.6" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
+        <button id="wclose" type="button" aria-label="Close"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
+      </div>
+      <div id="phonepop" hidden>
+        <img id="qr" alt="QR code for the phone link" width="120" height="120" />
+        <div id="ips"></div>
+        <p id="phonelink"></p>
+        <button id="copylink" type="button">Copy link</button>
+      </div>
+    </header>
+    <div id="addr"><div id="crumbs"></div></div>
+    <div id="recv" hidden>
+      <div class="recvtop">
+        <span id="recvname"></span>
+        <span id="recvdest"></span>
+        <span id="recvpct"></span>
+      </div>
+      <div id="recvtrack"><div id="recvfill"></div></div>
+    </div>
+    <div id="list" tabindex="0">
+      <div class="head cols">
+        <button type="button" data-key="name"><span class="lab">Name</span><span class="mark"></span></button>
+        <button type="button" data-key="modified"><span class="lab">Date modified</span><span class="mark"></span></button>
+        <button type="button" data-key="type"><span class="lab">Type</span><span class="mark"></span></button>
+        <button type="button" data-key="size" class="num"><span class="lab">Size</span><span class="mark"></span></button>
+      </div>
+      <div id="rows"></div>
+    </div>
+    <div id="status"><span id="count">0 items</span><span id="extra"></span></div>
+  </div>
+  <div id="menu" hidden></div>
+  <div id="view" hidden>
+    <div id="vstage">
+      <div id="vdrag"></div>
+      <img id="vimg" alt="" draggable="false" hidden />
+      <video id="vvid" hidden></video>
+      <pre id="vpre" hidden></pre>
+      <textarea id="veditor" hidden spellcheck="false"></textarea>
+      <div id="vnote" hidden></div>
+      <ul id="vzip" hidden></ul>
+      <div id="vaudio" hidden>
+        <div id="vplate">
+          <img id="vart" alt="" hidden>
+          <svg id="vglyph" viewBox="0 0 24 24" hidden aria-hidden="true"><path d="M9 17.5a2.5 2.5 0 1 1-1.7-2.37V5.2l10-1.7v9.3a2.5 2.5 0 1 1-1.6 2.33V6.3l-6.7 1.1v10.1z" fill="currentColor"/></svg>
+        </div>
+        <p id="vname"></p>
+        <p id="vline" hidden></p>
+        <p id="vextra" hidden></p>
+      </div>
+      <button id="vprev" class="edge left" type="button" aria-label="Previous"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button id="vnext" class="edge right" type="button" aria-label="Next"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <span id="vtitle"></span>
+      <div id="vtools">
+        <button id="vedit" type="button" title="Edit" aria-label="Edit" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.2 4.2 15.8 7.8 7 16.6H3.4V13L12.2 4.2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+        <button id="vsave" type="button" title="Save" aria-label="Save" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4.5h9.2L16 7.3V15.5H4V4.5zM7 4.5V8h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+        <button id="vcancel" type="button" title="Cancel" aria-label="Cancel" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button id="vclose" type="button" aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div id="ibar" hidden>
+        <button id="zout" type="button" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <button id="zin" type="button" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <button id="zfit" type="button" title="Fit" aria-label="Fit"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8V4h4M16 8V4h-4M4 12v4h4M16 12v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="rleft" type="button" title="Rotate left" aria-label="Rotate left"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7H4v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 8.5A6 6 0 1 1 5 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button id="rright" type="button" title="Rotate right" aria-label="Rotate right"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 7h3v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 8.5A6 6 0 1 0 15 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        <button id="fliph" type="button" title="Flip horizontal" aria-label="Flip horizontal"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M6 7 3 10l3 3M14 7l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="flipv" type="button" title="Flip vertical" aria-label="Flip vertical"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M7 6 10 3l3 3M7 14l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="zreset" type="button" title="Reset" aria-label="Reset"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8V5h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.2 10a5 5 0 1 0 1.2-3.2L5 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      </div>
+      <div id="vplayer" hidden>
+      <button id="play" type="button" aria-label="Play"><svg class="ic-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.2v9.6L15 10 7 5.2z" fill="currentColor"/></svg><svg class="ic-pause" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 5h2.2v10H6.5V5zm4.8 0H13.5v10h-2.2V5z" fill="currentColor"/></svg></button>
+      <span id="now">0:00</span>
+      <div id="seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><div class="track"></div><div class="fill"></div><div class="knob"></div></div>
+      <span id="dur">0:00</span>
+      <span id="clock">0:00 / 0:00</span>
+      <button id="mute" type="button" aria-label="Mute"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8h2.4L10 5.2v9.6L6.4 12H4V8zM13 8.2a3 3 0 0 1 0 3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path class="spk-x" d="M14.2 8.2l3.6 3.6M17.8 8.2l-3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+      <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+      </div>
+    </div>
+    <audio id="vaud" hidden></audio>
+    <div id="strip"></div>
+  </div>
+  <div id="infoscrim" hidden>
+    <div id="infobox" role="dialog" aria-modal="true" aria-labelledby="ititle">
+      <div id="ititle">Info</div>
+      <dl id="iinfo"></dl>
+      <div id="irenamerow">
+        <input id="iname" type="text" aria-label="File name" />
+        <button id="irename" type="button">Rename</button>
+      </div>
+      <div id="ifoot">
+        <button id="idelete" type="button">Delete</button>
+        <button id="icopy" type="button">Copy path</button>
+        <button id="iclose" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+  <div id="ask" hidden>
+    <div id="askbox" role="dialog" aria-modal="true">
+      <p id="asktext"></p>
+      <div class="rowbtns">
+        <button id="askno" type="button">Cancel</button>
+        <button id="askyes" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const list = document.getElementById("list");
+    const rowsEl = document.getElementById("rows");
+    const crumbsEl = document.getElementById("crumbs");
+    const menu = document.getElementById("menu");
+    const view = document.getElementById("view");
+    const phonepop = document.getElementById("phonepop");
+    const infoscrim = document.getElementById("infoscrim");
+    const ask = document.getElementById("ask");
+    const countEl = document.getElementById("count");
+    const extraEl = document.getElementById("extra");
+    const backBtn = document.getElementById("back");
+    const fwdBtn = document.getElementById("fwd");
+    const upBtn = document.getElementById("up");
+    const themeSel = document.getElementById("theme");
+    const textCap = 2 * 1024 * 1024;
+
+    let trail = [""];
+    let hist = 0;
+    let entries = [];
+    let dirPath = "";
+    let sortKey = "name";
+    let sortDir = 1;
+    let selectedRel = "";
+    let lastSig = "";
+    let loadId = 0;
+    let note = "";
+    let noteTimer = 0;
+    let previewRel = "";
+    let viewKind = "";
+    let editing = false;
+    let editOriginal = "";
+    let media = null;
+    let playMode = "direct";
+    let playOffset = 0;
+    let playDuration = 0;
+    let playRel = "";
+    let playGen = 0;
+    let playTriedFFmpeg = false;
+    let pdfPage = 1;
+    let pdfPages = 0;
+    let pdfRel = "";
+    let seeking = false;
+    let seekHold = 0;
+    let seekHoldUntil = 0;
+    let seekRaf = 0;
+    let infoEntry = null;
+    let links = [];
+    let currentIP = "";
+    let askResolve = null;
+
+    function current() { return trail[hist]; }
+
+    function fmt(n) {
+      if (n < 1024) return n + " bytes";
+      const units = ["KB", "MB", "GB"];
+      let v = n / 1024;
+      let u = 0;
+      while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
+      return (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + " " + units[u];
+    }
+
+    function fmtTime(seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const pad = (n) => String(n).padStart(2, "0");
+      return h ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
+    }
+
+    function when(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString(undefined, { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+
+    function kindOf(entry) {
+      if (!entry) return "file";
+      if (entry.kind) return entry.kind;
+      if (entry.dir) return "folder";
+      return entry.image ? "image" : "file";
+    }
+
+    async function getJSON(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }
+
+    function sorted() {
+      const copy = entries.slice();
+      const dir = sortDir;
+      copy.sort((a, b) => {
+        if (a.dir !== b.dir) return a.dir ? -1 : 1;
+        let av;
+        let bv;
+        if (sortKey === "modified") { av = a.modified; bv = b.modified; }
+        else if (sortKey === "type") { av = a.type.toLowerCase(); bv = b.type.toLowerCase(); }
+        else if (sortKey === "size") { av = a.size; bv = b.size; }
+        else { av = a.label.toLowerCase(); bv = b.label.toLowerCase(); }
+        if (av < bv) return -dir;
+        if (av > bv) return dir;
+        return a.label.localeCompare(b.label);
+      });
+      return copy;
+    }
+
+    function filesOnly() { return sorted().filter((entry) => !entry.dir); }
+
+    function updateNav() {
+      backBtn.disabled = hist <= 0;
+      fwdBtn.disabled = hist >= trail.length - 1;
+      upBtn.disabled = current() === "";
+      document.querySelectorAll(".head button").forEach((button) => {
+        const on = button.dataset.key === sortKey;
+        button.classList.toggle("on", on);
+        button.classList.toggle("asc", on && sortDir > 0);
+        button.classList.toggle("desc", on && sortDir < 0);
+      });
+    }
+
+    function updateStatus() {
+      const n = entries.length;
+      countEl.textContent = n === 1 ? "1 item" : n + " items";
+      if (note) { extraEl.textContent = note; return; }
+      const sel = entries.find((entry) => entry.rel === selectedRel);
+      extraEl.textContent = sel && !sel.dir ? fmt(sel.size) : "";
+    }
+
+    function flash(text, ms) {
+      note = text;
+      updateStatus();
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => { note = ""; updateStatus(); }, ms || 1600);
+    }
+
+    function folderName(dest) {
+      return { iphone: "iPhone", ipad: "iPad", android: "Android", other: "Other", files: "Files" }[dest] || "uploads";
+    }
+
+    function paint() {
+      document.querySelectorAll(".row").forEach((row) => {
+        row.classList.toggle("sel", row.dataset.rel === selectedRel);
+      });
+      updateStatus();
+    }
+
+    function chevron() {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 12 12");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "M4.5 2.5 8 6 4.5 9.5");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "1.4");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function renderCrumbs(crumbs) {
+      crumbsEl.replaceChildren();
+      (crumbs || [{ rel: "", label: "uploads" }]).forEach((crumb, i) => {
+        if (i) {
+          const sep = document.createElement("span");
+          sep.className = "sep";
+          sep.appendChild(chevron());
+          crumbsEl.appendChild(sep);
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = crumb.label;
+        button.addEventListener("click", () => go(crumb.rel, true));
+        crumbsEl.appendChild(button);
+      });
+    }
+
+    function fileGlyph(dir) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "1.4");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("d", dir
+        ? "M1.8 4.2h4l1.2 1.4H14.2V13H1.8V4.2z"
+        : "M4 1.8h5.2L12.8 5.4V14H4V1.8zM9 1.8V5.6h3.6");
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function filmGlyph() {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "1.4");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("d", "M2.5 3.5h11v9h-11v-9zM6 3.5v9M10 3.5v9M2.5 6.5h3.5M10 6.5h3.5M2.5 9.5h3.5M10 9.5h3.5");
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function thumbNode(entry) {
+      const kind = kindOf(entry);
+      if (kind === "image") {
+        const img = document.createElement("img");
+        img.className = "thumb";
+        img.alt = "";
+        img.loading = "lazy";
+        img.decoding = "async";
+        img.src = "/api/file?path=" + encodeURIComponent(entry.rel);
+        img.addEventListener("error", () => img.replaceWith(fileGlyph(false)));
+        return img;
+      }
+      if (kind === "video") return filmGlyph();
+      return fileGlyph(!!entry.dir);
+    }
+
+    function infoGlyph() {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("aria-hidden", "true");
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", "8");
+      circle.setAttribute("cy", "8");
+      circle.setAttribute("r", "6.1");
+      circle.setAttribute("fill", "none");
+      circle.setAttribute("stroke", "currentColor");
+      circle.setAttribute("stroke-width", "1.4");
+      const mark = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      mark.setAttribute("d", "M8 7.2V11.2M8 5.1v.2");
+      mark.setAttribute("fill", "none");
+      mark.setAttribute("stroke", "currentColor");
+      mark.setAttribute("stroke-width", "1.4");
+      mark.setAttribute("stroke-linecap", "round");
+      svg.append(circle, mark);
+      return svg;
+    }
+
+    function renderRows() {
+      const scroll = list.scrollTop;
+      const viewRows = sorted();
+      rowsEl.replaceChildren();
+      if (!viewRows.length) {
+        const empty = document.createElement("div");
+        empty.id = "empty";
+        empty.textContent = "This folder is empty";
+        rowsEl.appendChild(empty);
+      }
+      viewRows.forEach((entry) => {
+        const row = document.createElement("div");
+        row.className = "row cols" + (entry.dir ? " dir" : "") + (entry.rel === selectedRel ? " sel" : "");
+        row.dataset.rel = entry.rel;
+        const name = document.createElement("span");
+        name.className = "name";
+        const label = document.createElement("span");
+        label.className = "label";
+        label.textContent = entry.label;
+        const info = document.createElement("button");
+        info.type = "button";
+        info.className = "info";
+        info.title = "Info";
+        info.setAttribute("aria-label", "Info");
+        info.appendChild(infoGlyph());
+        info.addEventListener("click", (event) => {
+          event.stopPropagation();
+          selectedRel = entry.rel;
+          paint();
+          openInfo(entry, false);
+        });
+        info.addEventListener("dblclick", (event) => event.stopPropagation());
+        name.append(entry.dir ? fileGlyph(true) : thumbNode(entry), label, info);
+        const modified = document.createElement("span");
+        modified.textContent = when(entry.modified);
+        const type = document.createElement("span");
+        type.textContent = entry.type;
+        const size = document.createElement("span");
+        size.className = "num";
+        size.textContent = entry.dir ? "" : fmt(entry.size);
+        row.append(name, modified, type, size);
+        row.addEventListener("click", () => {
+          selectedRel = entry.rel;
+          paint();
+          list.focus();
+        });
+        row.addEventListener("dblclick", () => openEntry(entry, row));
+        rowsEl.appendChild(row);
+      });
+      list.scrollTop = scroll;
+      updateStatus();
+    }
+
+    function apply(data) {
+      const sig = data.rel + "\n" + (data.entries || []).map((entry) => [entry.rel, entry.size, entry.modified, entry.dir].join("|")).join("\n");
+      if (sig === lastSig) return;
+      lastSig = sig;
+      dirPath = data.path || "";
+      renderCrumbs(data.crumbs);
+      entries = data.entries || [];
+      if (selectedRel && !entries.some((entry) => entry.rel === selectedRel)) selectedRel = "";
+      if (previewRel && !view.hidden && !entries.some((entry) => entry.rel === previewRel)) closeView();
+      renderRows();
+    }
+
+    async function load() {
+      const id = ++loadId;
+      const path = current();
+      try {
+        const data = await getJSON("/api/dir?path=" + encodeURIComponent(path));
+        if (id !== loadId) return;
+        apply(data);
+        updateNav();
+      } catch (err) {
+        if (id !== loadId) return;
+        rowsEl.replaceChildren();
+        const line = document.createElement("div");
+        line.id = "empty";
+        line.textContent = "This folder is not available";
+        rowsEl.appendChild(line);
+        entries = [];
+        updateStatus();
+      }
+    }
+
+    function go(rel, push) {
+      hideMenu();
+      if (push) {
+        if (trail[hist] !== rel) {
+          trail = trail.slice(0, hist + 1);
+          trail.push(rel);
+          hist = trail.length - 1;
+        }
+      }
+      lastSig = "";
+      selectedRel = "";
+      load();
+      list.focus();
+    }
+
+    function back() {
+      if (hist <= 0) return;
+      hist--;
+      lastSig = "";
+      selectedRel = "";
+      load();
+    }
+
+    function forward() {
+      if (hist >= trail.length - 1) return;
+      hist++;
+      lastSig = "";
+      selectedRel = "";
+      load();
+    }
+
+    function up() {
+      const path = current();
+      if (!path) return;
+      const cut = path.lastIndexOf("/");
+      go(cut < 0 ? "" : path.slice(0, cut), true);
+    }
+
+    function selectedEntry() {
+      return entries.find((entry) => entry.rel === selectedRel) || null;
+    }
+
+    function rowFor(rel) {
+      return Array.from(rowsEl.querySelectorAll(".row")).find((row) => row.dataset.rel === rel) || null;
+    }
+
+    function openEntry(entry, source) {
+      if (!entry) return;
+      if (entry.dir) go(entry.rel, true);
+      else openPreview(entry.rel, source || rowFor(entry.rel));
+    }
+
+    function openSelected() { openEntry(selectedEntry()); }
+
+    function moveSel(delta) {
+      const viewRows = sorted();
+      if (!viewRows.length) return;
+      let i = viewRows.findIndex((entry) => entry.rel === selectedRel);
+      if (i < 0) i = delta > 0 ? 0 : viewRows.length - 1;
+      else i = Math.max(0, Math.min(viewRows.length - 1, i + delta));
+      selectedRel = viewRows[i].rel;
+      paint();
+      const el = rowsEl.querySelector(".row.sel");
+      if (el) el.scrollIntoView({ block: "nearest" });
+      list.focus();
+    }
+
+    function hideMenu() { menu.hidden = true; menu.replaceChildren(); }
+
+    function showMenu(x, y, items) {
+      menu.replaceChildren();
+      items.forEach((item) => {
+        if (item === "-") {
+          const sep = document.createElement("div");
+          sep.className = "sep";
+          menu.appendChild(sep);
+          return;
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        const face = document.createElement("span");
+        face.className = "mi";
+        if (item.icon) {
+          const glyph = document.createElement("span");
+          glyph.className = "mic";
+          glyph.innerHTML = item.icon;
+          face.append(glyph);
+        }
+        const label = document.createElement("span");
+        label.textContent = item.label;
+        face.append(label);
+        const hint = document.createElement("span");
+        hint.className = "hint";
+        hint.textContent = item.hint || "";
+        button.append(face, hint);
+        button.addEventListener("click", () => { hideMenu(); item.run(); });
+        menu.appendChild(button);
+      });
+      menu.hidden = false;
+      menu.style.left = x + "px";
+      menu.style.top = y + "px";
+      const rect = menu.getBoundingClientRect();
+      if (rect.right > window.innerWidth) menu.style.left = Math.max(4, window.innerWidth - rect.width - 4) + "px";
+      if (rect.bottom > window.innerHeight) menu.style.top = Math.max(4, window.innerHeight - rect.height - 4) + "px";
+    }
+
+    async function copyText(text, message) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        const area = document.createElement("textarea");
+        area.value = text;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      flash(message);
+    }
+
+    function openContext(event) {
+      const row = event.target.closest ? event.target.closest(".row") : null;
+      if (row) {
+        selectedRel = row.dataset.rel;
+        paint();
+        const entry = selectedEntry();
+        if (!entry) return;
+        if (entry.dir) {
+          showMenu(event.clientX, event.clientY, [
+            { label: "Open", hint: "Enter", run: () => openEntry(entry) },
+            { label: "Copy as path", run: () => copyText(entry.path, "Path copied") },
+            { label: "Properties", run: () => openInfo(entry, false) },
+          ]);
+        } else {
+          showMenu(event.clientX, event.clientY, [
+            { label: "Open", hint: "Enter", run: () => openPreview(entry.rel) },
+            { label: "Copy as path", run: () => copyText(entry.path, "Path copied") },
+            { label: "Copy name", run: () => copyText(entry.name, "Name copied") },
+            { label: "Rename", run: () => openInfo(entry, true) },
+            { label: "Delete", run: () => removeEntry(entry) },
+            "-",
+            { label: "Properties", run: () => openInfo(entry, false) },
+          ]);
+        }
+        return;
+      }
+      showMenu(event.clientX, event.clientY, [
+        { label: "Refresh", run: () => { lastSig = ""; load(); } },
+        { label: "Copy folder path", run: () => copyText(dirPath, "Path copied") },
+      ]);
+    }
+
+    function previewFile() {
+      return entries.find((entry) => entry.rel === previewRel) || null;
+    }
+
+    function canCopyPicture(file) {
+      const match = /\.([a-z0-9]+)$/i.exec(file && file.name || "");
+      const ext = match ? match[1].toLowerCase() : "";
+      return ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "gif" || ext === "webp" || ext === "bmp";
+    }
+
+    function menuSVG(body) {
+      return '<svg viewBox="0 0 16 16" aria-hidden="true">' + body + '</svg>';
+    }
+
+    async function copyPreviewImage(file) {
+      try {
+        if (typeof copyImageFile === "function") {
+          await copyImageFile(file.rel);
+          flash("Image copied");
+          return;
+        }
+        const img = document.getElementById("vimg");
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        if (!blob || !navigator.clipboard || !window.ClipboardItem) throw new Error("clipboard");
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        flash("Image copied");
+      } catch (err) {
+        flash("Could not copy image");
+      }
+    }
+
+    function openPreviewMenu(event) {
+      const file = previewFile();
+      if (!file) return;
+      const items = [];
+      if (canCopyPicture(file)) {
+        items.push({ icon: menuSVG('<rect x="2" y="3" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 10l3-3 2.5 2.5L11 6l3 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'), label: "Copy image", run: () => copyPreviewImage(file) });
+      }
+      items.push(
+        { icon: menuSVG('<rect x="3" y="3" width="8" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 3h4v2H6z" fill="none" stroke="currentColor" stroke-width="1.2"/>'), label: "Copy as path", run: () => copyText(file.path, "Path copied") },
+        { icon: menuSVG('<path d="M3 4h10M3 8h7M3 12h10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'), label: "Copy name", run: () => copyText(file.name, "Name copied") },
+        { icon: menuSVG('<circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7.2V11M8 5.2h.01" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'), label: "Properties", run: () => openInfo(file, false) }
+      );
+      showMenu(event.clientX, event.clientY, items);
+    }
+
+    function fillFacts(dl, file) {
+      dl.replaceChildren();
+      [
+        ["Name", file.label],
+        ["Type", file.type],
+        ["Size", file.dir ? "" : fmt(file.size)],
+        ["Modified", when(file.modified)],
+        ["Folder", file.folder],
+        ["Path", file.path],
+      ].forEach(([term, value]) => {
+        const dt = document.createElement("dt");
+        dt.textContent = term;
+        const dd = document.createElement("dd");
+        dd.textContent = value || "";
+        dl.append(dt, dd);
+      });
+    }
+
+    function clearMedia() {
+      const img = document.getElementById("vimg");
+      const vid = document.getElementById("vvid");
+      const aud = document.getElementById("vaud");
+      img.hidden = true;
+      img.removeAttribute("src");
+      playGen++;
+      if (seekRaf) { cancelAnimationFrame(seekRaf); seekRaf = 0; }
+      seeking = false;
+      seekHoldUntil = 0;
+      vid.onerror = null;
+      vid.ontimeupdate = null;
+      vid.pause();
+      vid.hidden = true;
+      vid.removeAttribute("src");
+      vid.load();
+      playMode = "direct";
+      playOffset = 0;
+      playDuration = 0;
+      playRel = "";
+      aud.pause();
+      aud.removeAttribute("src");
+      aud.load();
+      document.getElementById("vpre").hidden = true;
+      document.getElementById("vpre").textContent = "";
+      document.getElementById("veditor").hidden = true;
+      document.getElementById("veditor").value = "";
+      document.getElementById("vnote").hidden = true;
+      document.getElementById("vnote").replaceChildren();
+      document.getElementById("vzip").hidden = true;
+      document.getElementById("vzip").replaceChildren();
+      document.getElementById("vaudio").hidden = true;
+      document.getElementById("vart").hidden = true;
+      document.getElementById("vart").removeAttribute("src");
+      document.getElementById("vglyph").hidden = true;
+      document.getElementById("vname").textContent = "";
+      document.getElementById("vline").textContent = "";
+      document.getElementById("vline").hidden = true;
+      document.getElementById("vextra").textContent = "";
+      document.getElementById("vextra").hidden = true;
+      pdfPages = 0;
+      document.getElementById("vplayer").hidden = true;
+      document.getElementById("ibar").hidden = true;
+      document.getElementById("vedit").hidden = true;
+      document.getElementById("vsave").hidden = true;
+      document.getElementById("vcancel").hidden = true;
+      document.getElementById("vstage").classList.remove("paper");
+      media = null;
+      editing = false;
+      editOriginal = "";
+      viewKind = "";
+    }
+
+    function showNote(text) {
+      const box = document.getElementById("vnote");
+      box.hidden = false;
+      const p = document.createElement("p");
+      p.textContent = text;
+      box.appendChild(p);
+      document.getElementById("vstage").classList.add("paper");
+    }
+
+    function showFacts(file) {
+      const box = document.getElementById("vnote");
+      box.hidden = false;
+      const dl = document.createElement("dl");
+      fillFacts(dl, file);
+      box.appendChild(dl);
+      document.getElementById("vstage").classList.add("paper");
+    }
+
+    async function showText(file) {
+      const pre = document.getElementById("vpre");
+      pre.hidden = false;
+      pre.textContent = "";
+      document.getElementById("vstage").classList.add("paper");
+      try {
+        const res = await fetch("/api/text?path=" + encodeURIComponent(file.rel), { cache: "no-store" });
+        if (!res.ok) throw new Error(String(res.status));
+        pre.textContent = await res.text();
+      } catch (err) {
+        pre.hidden = true;
+        showNote("This file could not be read as text.");
+      }
+    }
+
+    async function showZip(file) {
+      const ul = document.getElementById("vzip");
+      document.getElementById("vstage").classList.add("paper");
+      try {
+        const data = await getJSON("/api/zip?path=" + encodeURIComponent(file.rel));
+        const names = data.names || [];
+        if (!names.length) {
+          showNote("This archive has no entries.");
+          return;
+        }
+        ul.hidden = false;
+        names.forEach((name) => {
+          const li = document.createElement("li");
+          li.textContent = name;
+          ul.appendChild(li);
+        });
+      } catch (err) {
+        showNote("This archive could not be listed.");
+      }
+    }
+
+    function videoURL(ss) {
+      let url = "/api/file?path=" + encodeURIComponent(playRel);
+      if (playMode === "ffmpeg") url += "&transcode=1&ss=" + encodeURIComponent(String(Math.max(0, ss || 0)));
+      return url;
+    }
+
+    function shownTime(el) {
+      const now = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+      return playMode === "ffmpeg" ? playOffset + now : now;
+    }
+
+    function knownDuration(el) {
+      if (playMode === "ffmpeg") return playDuration;
+      return Number.isFinite(el.duration) ? el.duration : 0;
+    }
+
+    function paintClock(now, duration) {
+      document.getElementById("clock").textContent = fmtTime(now) + " / " + fmtTime(duration);
+      document.getElementById("now").textContent = fmtTime(now);
+      document.getElementById("dur").textContent = fmtTime(duration);
+    }
+
+    function paintSeekBar(now, duration) {
+      const seek = document.getElementById("seek");
+      const pct = duration > 0 ? Math.max(0, Math.min(100, 100 * now / duration)) : 0;
+      seek.style.setProperty("--p", String(pct));
+      seek.setAttribute("aria-valuemax", String(duration || 0));
+      seek.setAttribute("aria-valuenow", String(now || 0));
+    }
+
+    function loadVideoAt(ss) {
+      const el = media || document.getElementById("vvid");
+      const gen = ++playGen;
+      playOffset = Math.max(0, ss || 0);
+      seekHold = playOffset;
+      seekHoldUntil = performance.now() + 1500;
+      paintSeekBar(playOffset, playDuration);
+      paintClock(playOffset, playDuration);
+      const volume = el.volume;
+      const muted = el.muted;
+      el.onerror = () => {
+        if (!el.error || el.error.code === 1) return;
+        failVideo(gen);
+      };
+      el.src = videoURL(playOffset);
+      el.volume = volume;
+      el.muted = muted;
+      const pending = el.play();
+      if (pending && pending.catch) pending.catch(() => {});
+    }
+
+    async function failVideo(gen) {
+      if (gen !== playGen || view.hidden) return;
+      if (playMode === "direct" && !playTriedFFmpeg) {
+        playTriedFFmpeg = true;
+        let info = null;
+        const ask = (viewKind === "audio" ? "/api/audio?path=" : "/api/video?path=") + encodeURIComponent(playRel) + "&force=1";
+        try { info = await getJSON(ask); } catch (err) { info = null; }
+        if (gen !== playGen || view.hidden) return;
+        if (info && info.mode === "ffmpeg") {
+          playMode = "ffmpeg";
+          playDuration = Number(info.duration) || 0;
+          loadVideoAt(0);
+          return;
+        }
+        const needs = viewKind === "audio" ? "This audio needs ffmpeg" : "This video needs ffmpeg";
+        document.getElementById("clock").textContent = needs;
+        showNote(needs);
+        return;
+      }
+      showNote("This file could not be played.");
+    }
+
+    async function beginVideo(file) {
+      const el = document.getElementById("vvid");
+      const gen = ++playGen;
+      playRel = file.rel;
+      playMode = "direct";
+      playOffset = 0;
+      playDuration = 0;
+      playTriedFFmpeg = false;
+      el.hidden = false;
+      el.controls = false;
+      el.playsInline = true;
+      bindMedia(el);
+      const ext = (file.name || "").toLowerCase();
+      const direct = ext.endsWith(".mp4") || ext.endsWith(".m4v") || ext.endsWith(".webm");
+      if (!direct) {
+        let info = { mode: "need-ffmpeg", duration: 0 };
+        try { info = await getJSON("/api/video?path=" + encodeURIComponent(file.rel)); } catch (err) { info = { mode: "need-ffmpeg", duration: 0 }; }
+        if (gen !== playGen || view.hidden || previewRel !== file.rel) return;
+        if (info.mode === "need-ffmpeg") {
+          document.getElementById("clock").textContent = "This video needs ffmpeg";
+          showNote("This video needs ffmpeg");
+          return;
+        }
+        playMode = "ffmpeg";
+        playDuration = Number(info.duration) || 0;
+      }
+      if (gen !== playGen || view.hidden) return;
+      el.onerror = () => {
+        if (!el.error || el.error.code === 1) return;
+        failVideo(gen);
+      };
+      el.src = videoURL(0);
+      const pending = el.play();
+      if (pending && pending.catch) pending.catch(() => {});
+    }
+
+    function paintAudio(file, info) {
+      const art = document.getElementById("vart");
+      const glyph = document.getElementById("vglyph");
+      const title = info && info.title ? info.title : file.name;
+      document.getElementById("vname").textContent = title;
+      const who = [info && info.artist, info && info.album].filter(Boolean).join(" · ");
+      const line = document.getElementById("vline");
+      line.hidden = !who;
+      line.textContent = who;
+      const more = [info && info.year ? String(info.year) : "", info && info.genre].filter(Boolean).join(" · ");
+      const extra = document.getElementById("vextra");
+      extra.hidden = !more;
+      extra.textContent = more;
+      art.onerror = () => {
+        art.hidden = true;
+        glyph.hidden = false;
+      };
+      if (info && info.hasArt) {
+        glyph.hidden = true;
+        art.hidden = false;
+        art.alt = title;
+        art.src = "/api/cover?path=" + encodeURIComponent(file.rel);
+      } else {
+        art.hidden = true;
+        art.removeAttribute("src");
+        glyph.hidden = false;
+      }
+    }
+
+    async function beginAudio(file) {
+      document.getElementById("vaudio").hidden = false;
+      const aud = document.getElementById("vaud");
+      const gen = ++playGen;
+      playRel = file.rel;
+      playMode = "direct";
+      playOffset = 0;
+      playDuration = 0;
+      playTriedFFmpeg = false;
+      bindMedia(aud);
+      let info = null;
+      try { info = await getJSON("/api/audio?path=" + encodeURIComponent(file.rel)); } catch (err) { info = null; }
+      if (gen !== playGen || view.hidden || previewRel !== file.rel) return;
+      paintAudio(file, info);
+      if (info && info.mode === "need-ffmpeg") {
+        document.getElementById("clock").textContent = "This audio needs ffmpeg";
+        showNote("This audio needs ffmpeg");
+        return;
+      }
+      if (info && info.mode === "ffmpeg") {
+        playMode = "ffmpeg";
+        playDuration = Number(info.duration) || 0;
+      }
+      aud.onerror = () => {
+        if (!aud.error || aud.error.code === 1) return;
+        failVideo(gen);
+      };
+      aud.src = videoURL(0);
+      const pending = aud.play();
+      if (pending && pending.catch) pending.catch(() => {});
+    }
+
+    function showPDFPage(file, n) {
+      if (n < 1 || n > pdfPages) return;
+      pdfPage = n;
+      resetViewTF();
+      const img = document.getElementById("vimg");
+      img.hidden = false;
+      img.alt = "Page " + n;
+      img.onerror = () => {
+        if (viewKind !== "pdf" || pdfPage !== n) return;
+        img.hidden = true;
+        showNote("This page could not be rendered.");
+      };
+      img.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + n + "&w=1200";
+      document.getElementById("vtitle").textContent = file.label + "   " + n + " / " + pdfPages;
+      document.getElementById("vprev").disabled = n <= 1;
+      document.getElementById("vnext").disabled = n >= pdfPages;
+      const strip = document.getElementById("strip");
+      strip.hidden = false;
+      strip.replaceChildren();
+      const from = Math.max(1, n - 4);
+      const to = Math.min(pdfPages, n + 5);
+      for (let i = from; i <= to; i++) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = i === n ? "on" : "";
+        button.title = "Page " + i;
+        const thumb = document.createElement("img");
+        thumb.alt = "";
+        thumb.draggable = false;
+        thumb.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + i + "&w=96";
+        button.appendChild(thumb);
+        button.addEventListener("click", () => showPDFPage(file, i));
+        strip.appendChild(button);
+      }
+      const on = strip.querySelector(".on");
+      if (on) on.scrollIntoView({ inline: "center", block: "nearest" });
+    }
+
+    async function openPDF(file) {
+      pdfRel = file.rel;
+      pdfPage = 1;
+      pdfPages = 0;
+      let info = null;
+      try { info = await getJSON("/api/pdf?path=" + encodeURIComponent(file.rel)); } catch (err) { info = null; }
+      if (view.hidden || previewRel !== file.rel) return;
+      if (!info || !info.pages) {
+        showNote("This PDF could not be rendered.");
+        showFacts(file);
+        return;
+      }
+      pdfPages = info.pages;
+      showPDFPage(file, 1);
+    }
+
+    function turnPage(delta) {
+      if (viewKind !== "pdf" || !pdfPages) return;
+      const files = filesOnly();
+      const file = files.find((item) => item.rel === previewRel);
+      if (!file) return;
+      showPDFPage(file, pdfPage + delta);
+    }
+
+    async function showOffice(file) {
+      const pre = document.getElementById("vpre");
+      try {
+        const res = await fetch("/api/office?path=" + encodeURIComponent(file.rel), { cache: "no-store" });
+        if (!res.ok) throw new Error(String(res.status));
+        const text = await res.text();
+        if (view.hidden || previewRel !== file.rel) return;
+        pre.hidden = false;
+        pre.textContent = text || "This document has no extracted text.";
+      } catch (err) {
+        if (view.hidden || previewRel !== file.rel) return;
+        showNote("This document could not be read.");
+        showFacts(file);
+      }
+    }
+
+    function bindMedia(el) {
+      media = el;
+      el.controls = false;
+      const play = document.getElementById("play");
+      const seek = document.getElementById("seek");
+      const mute = document.getElementById("mute");
+      const vol = document.getElementById("vol");
+      const shownNow = () => {
+        let now = shownTime(el);
+        if (seeking) return seekHold;
+        if (seekHoldUntil && performance.now() < seekHoldUntil && Math.abs(now - seekHold) > 0.8) return seekHold;
+        seekHoldUntil = 0;
+        return now;
+      };
+      const paintSeek = () => {
+        const duration = knownDuration(el);
+        const now = shownNow();
+        paintSeekBar(now, duration);
+        vol.style.setProperty("--p", (100 * (el.muted ? 0 : el.volume)) + "%");
+        paintClock(now, duration);
+      };
+      const tick = () => {
+        play.classList.toggle("playing", !el.paused);
+        play.setAttribute("aria-label", el.paused ? "Play" : "Pause");
+        mute.classList.toggle("muted", !!el.muted);
+        mute.setAttribute("aria-label", el.muted ? "Unmute" : "Mute");
+        paintSeek();
+      };
+      const armFrame = () => {
+        if (seekRaf) return;
+        const loop = () => {
+          seekRaf = 0;
+          if (media !== el || view.hidden || el.paused || el.ended) return;
+          tick();
+          seekRaf = requestAnimationFrame(loop);
+        };
+        seekRaf = requestAnimationFrame(loop);
+      };
+      const togglePlay = () => {
+        if (el.paused) {
+          const pending = el.play();
+          if (pending && pending.catch) pending.catch(() => {});
+        } else el.pause();
+      };
+      const ratioAt = (event) => {
+        const rect = seek.getBoundingClientRect();
+        const span = Math.max(1, rect.width - 12);
+        const x = Math.min(span, Math.max(0, event.clientX - rect.left - 6));
+        return x / span;
+      };
+      const scrub = (event, commit) => {
+        const duration = knownDuration(el);
+        seekHold = ratioAt(event) * (duration || 0);
+        seekHoldUntil = performance.now() + (commit ? 800 : 2000);
+        paintSeekBar(seekHold, duration);
+        paintClock(seekHold, duration);
+        if (playMode === "ffmpeg") return;
+        if (Number.isFinite(el.duration)) el.currentTime = seekHold;
+      };
+      el.ontimeupdate = tick;
+      el.onloadedmetadata = tick;
+      el.ondurationchange = tick;
+      el.onplay = () => { tick(); armFrame(); };
+      el.onpause = tick;
+      el.onvolumechange = tick;
+      play.onpointerdown = (event) => { event.stopPropagation(); };
+      play.onclick = (event) => { event.stopPropagation(); event.preventDefault(); togglePlay(); };
+      if (el.tagName === "VIDEO") el.onclick = () => { if (swallowClick) { swallowClick = false; return; } togglePlay(); };
+      seek.onpointerdown = (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        seeking = true;
+        seek.setPointerCapture(event.pointerId);
+        scrub(event, false);
+      };
+      seek.onpointermove = (event) => {
+        if (!seeking) return;
+        event.stopPropagation();
+        scrub(event, false);
+      };
+      const endScrub = (event) => {
+        if (!seeking) return;
+        seeking = false;
+        scrub(event, true);
+        if (playMode === "ffmpeg") loadVideoAt(seekHold);
+        else if (Number.isFinite(el.duration)) el.currentTime = seekHold;
+        tick();
+      };
+      seek.onpointerup = endScrub;
+      seek.onpointercancel = endScrub;
+      vol.oninput = () => { el.volume = Number(vol.value); el.muted = el.volume === 0; tick(); };
+      mute.onclick = (event) => { event.stopPropagation(); el.muted = !el.muted; if (!el.muted && el.volume === 0) { el.volume = 1; vol.value = "1"; } tick(); };
+      vol.value = String(el.volume);
+      document.getElementById("vplayer").hidden = false;
+      tick();
+      if (!el.paused) armFrame();
+    }
+
+    let viewTF = { z: 1, x: 0, y: 0, rot: 0, fx: 1, fy: 1 };
+
+    function applyViewTF() {
+      const img = document.getElementById("vimg");
+      const t = viewTF;
+      img.style.transform = "translate(" + t.x + "px," + t.y + "px) scale(" + t.z + ") rotate(" + t.rot + "deg) scale(" + t.fx + "," + t.fy + ")";
+      img.style.cursor = t.z > 1.01 ? "grab" : "";
+    }
+
+    function resetViewTF() {
+      viewTF = { z: 1, x: 0, y: 0, rot: 0, fx: 1, fy: 1 };
+      applyViewTF();
+    }
+
+    function zoomAt(cx, cy, factor) {
+      const next = Math.min(8, Math.max(0.25, viewTF.z * factor));
+      const ratio = next / viewTF.z;
+      const rect = document.getElementById("vstage").getBoundingClientRect();
+      const sx = cx - (rect.left + rect.width / 2);
+      const sy = cy - (rect.top + rect.height / 2);
+      viewTF.x = sx - (sx - viewTF.x) * ratio;
+      viewTF.y = sy - (sy - viewTF.y) * ratio;
+      viewTF.z = next;
+      applyViewTF();
+    }
+
+    function zoomBy(factor) {
+      const rect = document.getElementById("vstage").getBoundingClientRect();
+      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+    }
+
+    function fitView() {
+      viewTF.z = 1;
+      viewTF.x = 0;
+      viewTF.y = 0;
+      applyViewTF();
+    }
+
+    function rotateView(delta) {
+      viewTF.rot = (viewTF.rot + delta) % 360;
+      applyViewTF();
+    }
+
+    function motionOK() {
+      return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    function dialogEl() { return view; }
+
+    function thumbOrigin(source) {
+      const row = source && source.classList && source.classList.contains("row") ? source : (source && source.closest ? source.closest(".row") : null) || rowFor(previewRel);
+      if (!row) return null;
+      const thumb = row.querySelector(".name .thumb, .name > svg");
+      const el = thumb || row.querySelector(".name");
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return null;
+      return rect;
+    }
+
+    function resetDialog() {
+      const dialog = dialogEl();
+      dialog.style.transition = "none";
+      dialog.style.transform = "none";
+      dialog.style.borderRadius = "";
+      dialog.style.background = "";
+    }
+
+    function startMorph(origin) {
+      const dialog = dialogEl();
+      resetDialog();
+      if (!origin || !motionOK() || origin.width < 1 || origin.height < 1) return;
+      const dest = dialog.getBoundingClientRect();
+      if (dest.width < 1 || dest.height < 1) return;
+      const dx = origin.left - dest.left;
+      const dy = origin.top - dest.top;
+      const sx = Math.max(0.04, origin.width / dest.width);
+      const sy = Math.max(0.04, origin.height / dest.height);
+      dialog.style.transformOrigin = "0 0";
+      dialog.style.transform = "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
+      dialog.style.borderRadius = "4px";
+      void dialog.offsetWidth;
+      dialog.style.transition = "transform 320ms cubic-bezier(0.2, 0, 0, 1), border-radius 320ms cubic-bezier(0.2, 0, 0, 1)";
+      dialog.style.transform = "translate(0px, 0px) scale(1, 1)";
+      dialog.style.borderRadius = "0px";
+    }
+
+    let closingView = false;
+
+    function closeView() {
+      if (view.hidden || closingView) return;
+      const dialog = dialogEl();
+      const origin = thumbOrigin(null);
+      const onScreen = origin && origin.width > 1 && origin.bottom > 0 && origin.top < window.innerHeight;
+      const finish = () => {
+        clearMedia();
+        view.classList.remove("cinema");
+        document.getElementById("strip").hidden = false;
+        document.getElementById("vprev").hidden = false;
+        document.getElementById("vnext").hidden = false;
+        document.getElementById("strip").replaceChildren();
+        view.hidden = true;
+        previewRel = "";
+        closingView = false;
+        resetDialog();
+        if (typeof setCaptionHeld === "function") setCaptionHeld(false);
+      };
+      if (!onScreen || !motionOK()) {
+        finish();
+        return;
+      }
+      closingView = true;
+      dialog.style.background = "#0e0e0e";
+      const visual = dialog.getBoundingClientRect();
+      dialog.style.transition = "none";
+      dialog.style.transform = "none";
+      void dialog.offsetWidth;
+      const base = dialog.getBoundingClientRect();
+      const ox = visual.left - base.left;
+      const oy = visual.top - base.top;
+      dialog.style.transformOrigin = "0 0";
+      dialog.style.transform = "translate(" + ox + "px," + oy + "px)";
+      void dialog.offsetWidth;
+      const dx = origin.left - base.left;
+      const dy = origin.top - base.top;
+      const sx = Math.max(0.04, origin.width / base.width);
+      const sy = Math.max(0.04, origin.height / base.height);
+      dialog.style.transformOrigin = "0 0";
+      dialog.style.transition = "transform 320ms cubic-bezier(0.2, 0, 0, 1), border-radius 320ms cubic-bezier(0.2, 0, 0, 1)";
+      dialog.style.transform = "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
+      dialog.style.borderRadius = "4px";
+      let settled = false;
+      const done = (event) => {
+        if (event && event.propertyName && event.propertyName !== "transform") return;
+        if (settled) return;
+        settled = true;
+        dialog.removeEventListener("transitionend", done);
+        finish();
+      };
+      dialog.addEventListener("transitionend", done);
+      setTimeout(done, 380);
+    }
+
+    function nudgeStage(dir) {
+      const stage = document.getElementById("vstage");
+      stage.classList.remove("from-left", "from-right");
+      if (!dir || !motionOK()) return;
+      void stage.offsetWidth;
+      stage.classList.add(dir > 0 ? "from-right" : "from-left");
+    }
+
+    function renderStrip(files, at) {
+      const strip = document.getElementById("strip");
+      strip.replaceChildren();
+      files.forEach((file, i) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = i === at ? "on" : "";
+        button.title = file.label;
+        button.appendChild(thumbNode(file));
+        button.addEventListener("click", () => {
+          if (file.rel === previewRel) return;
+          const dir = i > at ? 1 : -1;
+          previewRel = file.rel;
+          showView(dir);
+        });
+        strip.appendChild(button);
+      });
+      const on = strip.querySelector(".on");
+      if (!on) return;
+      const left = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2;
+      strip.scrollTo({ left: Math.max(0, left), behavior: motionOK() ? "smooth" : "auto" });
+    }
+
+    async function showView(dir) {
+      const files = filesOnly();
+      const at = files.findIndex((file) => file.rel === previewRel);
+      if (at < 0) { closeView(); return; }
+      const file = files[at];
+      selectedRel = file.rel;
+      paint();
+      clearMedia();
+      const kind = kindOf(file);
+      viewKind = kind;
+      document.getElementById("vtitle").textContent = file.label;
+      document.getElementById("vprev").disabled = at <= 0;
+      document.getElementById("vnext").disabled = at >= files.length - 1;
+      const opening = view.hidden;
+      view.hidden = false;
+      resetViewTF();
+      const cinema = kind === "video";
+      const solo = cinema || kind === "audio";
+      view.classList.toggle("cinema", cinema);
+      view.classList.toggle("music", kind === "audio");
+      document.getElementById("strip").hidden = solo;
+      document.getElementById("vprev").hidden = solo;
+      document.getElementById("vnext").hidden = solo;
+      document.getElementById("ibar").hidden = kind !== "image" && kind !== "pdf";
+      if (opening && typeof setCaptionHeld === "function") setCaptionHeld(true);
+      if (solo || kind === "pdf") document.getElementById("strip").replaceChildren();
+      else renderStrip(files, at);
+      if (opening) startMorph(morphOrigin);
+      else nudgeStage(dir);
+      const src = "/api/file?path=" + encodeURIComponent(file.rel);
+      if (kind === "image") {
+        const img = document.getElementById("vimg");
+        img.hidden = false;
+        img.alt = file.name;
+        img.onerror = () => {
+          img.hidden = true;
+          if (file.name.toLowerCase().endsWith(".svg")) showText(file);
+          else { showNote("This image could not be shown."); showFacts(file); }
+        };
+        img.src = src;
+      } else if (kind === "video") {
+        beginVideo(file);
+      } else if (kind === "audio") {
+        beginAudio(file);
+      } else if (kind === "text") {
+        if (file.size <= textCap) {
+          document.getElementById("vedit").hidden = false;
+          await showText(file);
+        } else {
+          showNote("This file is too large to preview.");
+          showFacts(file);
+        }
+      } else if (kind === "pdf") {
+        openPDF(file);
+      } else if (kind === "office") {
+        showOffice(file);
+      } else if (kind === "zip") {
+        await showZip(file);
+      } else if (kind === "blocked") {
+        showNote("This file is not previewed.");
+        showFacts(file);
+      } else {
+        showNote("This type is not previewed.");
+        showFacts(file);
+      }
+    }
+
+    let morphOrigin = null;
+
+    function openPreview(rel, source) {
+      previewRel = rel;
+      morphOrigin = thumbOrigin(source || rowFor(rel));
+      showView(0);
+    }
+
+    function step(delta) {
+      const files = filesOnly();
+      const at = files.findIndex((file) => file.rel === previewRel);
+      const next = at + delta;
+      if (next < 0 || next >= files.length) return;
+      previewRel = files[next].rel;
+      showView(delta);
+    }
+
+    function seekBy(delta) {
+      if (!media || !Number.isFinite(media.duration)) return;
+      media.currentTime = Math.max(0, Math.min(media.duration, (media.currentTime || 0) + delta));
+    }
+
+    function closeInfo() {
+      infoscrim.hidden = true;
+      infoEntry = null;
+    }
+
+    function openInfo(entry, focusName) {
+      infoEntry = entry;
+      document.getElementById("ititle").textContent = entry.dir ? "Folder" : "Info";
+      fillFacts(document.getElementById("iinfo"), entry);
+      const renameRow = document.getElementById("irenamerow");
+      const del = document.getElementById("idelete");
+      renameRow.hidden = !!entry.dir;
+      del.hidden = !!entry.dir;
+      document.getElementById("iname").value = entry.name;
+      infoscrim.hidden = false;
+      if (focusName && !entry.dir) document.getElementById("iname").focus();
+    }
+
+    function askUser(text, yesLabel) {
+      document.getElementById("asktext").textContent = text;
+      document.getElementById("askyes").textContent = yesLabel;
+      ask.hidden = false;
+      return new Promise((resolve) => { askResolve = resolve; });
+    }
+
+    function finishAsk(value) {
+      ask.hidden = true;
+      const resolve = askResolve;
+      askResolve = null;
+      if (resolve) resolve(value);
+    }
+
+    async function removeEntry(entry) {
+      if (!entry || entry.dir) return;
+      const ok = await askUser("Delete " + entry.name + "?", "Delete");
+      if (!ok) return;
+      const res = await fetch("/api/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: entry.rel }),
+      });
+      if (!res.ok) { flash("Could not delete"); return; }
+      if (previewRel === entry.rel) closeView();
+      closeInfo();
+      selectedRel = "";
+      lastSig = "";
+      flash("Deleted");
+      load();
+    }
+
+    async function renameCurrent() {
+      if (!infoEntry || infoEntry.dir) return;
+      const name = document.getElementById("iname").value;
+      const res = await fetch("/api/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: infoEntry.rel, name: name }),
+      });
+      if (res.status === 409) { flash("That name already exists"); return; }
+      if (!res.ok) { flash("Could not rename"); return; }
+      const data = await res.json();
+      if (previewRel === infoEntry.rel) previewRel = data.rel;
+      selectedRel = data.rel;
+      lastSig = "";
+      flash("Renamed");
+      await load();
+      const next = entries.find((entry) => entry.rel === data.rel);
+      if (next) openInfo(next, false);
+    }
+
+    function startEdit() {
+      const pre = document.getElementById("vpre");
+      const editor = document.getElementById("veditor");
+      editOriginal = pre.textContent;
+      editor.value = editOriginal;
+      pre.hidden = true;
+      editor.hidden = false;
+      editing = true;
+      document.getElementById("vedit").hidden = true;
+      document.getElementById("vsave").hidden = false;
+      document.getElementById("vcancel").hidden = false;
+      document.getElementById("vstage").classList.add("paper");
+      editor.focus();
+    }
+
+    function cancelEdit() {
+      const pre = document.getElementById("vpre");
+      const editor = document.getElementById("veditor");
+      editor.hidden = true;
+      pre.hidden = false;
+      editing = false;
+      document.getElementById("vedit").hidden = false;
+      document.getElementById("vsave").hidden = true;
+      document.getElementById("vcancel").hidden = true;
+    }
+
+    async function saveEdit() {
+      const editor = document.getElementById("veditor");
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: previewRel, text: editor.value }),
+      });
+      if (!res.ok) { flash("Could not save"); return; }
+      flash("Saved");
+      editing = false;
+      lastSig = "";
+      await load();
+      showView();
+    }
+
+    async function maybeCloseView() {
+      if (editing && document.getElementById("veditor").value !== editOriginal) {
+        const ok = await askUser("Close without saving?", "Close");
+        if (!ok) return;
+      }
+      closeView();
+    }
+
+    function renderLinks(next) {
+      links = next || [];
+      const ips = document.getElementById("ips");
+      const linkEl = document.getElementById("phonelink");
+      const qr = document.getElementById("qr");
+      ips.replaceChildren();
+      if (!links.length) {
+        linkEl.textContent = "This PC has no Wi-Fi address yet.";
+        qr.hidden = true;
+        return;
+      }
+      if (!links.some((item) => item.ip === currentIP)) currentIP = links[0].ip;
+      const link = links.find((item) => item.ip === currentIP);
+      linkEl.textContent = link.url;
+      qr.hidden = false;
+      if (qr.dataset.ip !== link.ip) {
+        qr.src = "/qr.png?ip=" + encodeURIComponent(link.ip);
+        qr.dataset.ip = link.ip;
+      }
+      if (links.length < 2) return;
+      links.forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = item.ip;
+        button.addEventListener("click", () => { currentIP = item.ip; renderLinks(links); });
+        ips.appendChild(button);
+      });
+    }
+
+    async function loadPhone() {
+      try {
+        const data = await getJSON("/api/desk");
+        renderLinks(data.links || []);
+      } catch (err) {
+        document.getElementById("phonelink").textContent = "Phone link is unavailable.";
+      }
+    }
+
+    function applyTheme(mode) {
+      if (mode !== "light" && mode !== "dark") mode = "system";
+      const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.choice = mode;
+      themeSel.value = mode;
+      try { localStorage.setItem("ft-theme", mode); } catch (err) {}
+      if (typeof setTitleTheme === "function") setTitleTheme(dark);
+    }
+
+    document.getElementById("back").addEventListener("click", back);
+    document.getElementById("fwd").addEventListener("click", forward);
+    document.getElementById("up").addEventListener("click", up);
+    document.getElementById("refresh").addEventListener("click", () => { lastSig = ""; load(); });
+    document.querySelectorAll(".head button").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (sortKey === button.dataset.key) sortDir *= -1;
+        else { sortKey = button.dataset.key; sortDir = 1; }
+        renderRows();
+        updateNav();
+      });
+    });
+    themeSel.addEventListener("change", () => applyTheme(themeSel.value));
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (document.documentElement.dataset.choice === "system") applyTheme("system");
+    });
+    document.getElementById("phone").addEventListener("click", () => {
+      phonepop.hidden = !phonepop.hidden;
+      if (!phonepop.hidden) loadPhone();
+    });
+    document.getElementById("copylink").addEventListener("click", () => {
+      const text = document.getElementById("phonelink").textContent;
+      if (text && text.startsWith("http")) copyText(text, "Link copied");
+    });
+    document.getElementById("quit").addEventListener("click", async () => {
+      if (typeof quitApp === "function") { quitApp(); return; }
+      await fetch("/api/shutdown", { method: "POST" });
+    });
+    const header = document.getElementById("header");
+    function captionBox(el) {
+      const r = el.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      return [r.left * dpr, r.top * dpr, r.right * dpr, r.bottom * dpr];
+    }
+    function reportCaption() {
+      if (typeof setCaptionBounds !== "function") return;
+      const controls = [];
+      header.querySelectorAll("button, select, input").forEach((el) => controls.push(captionBox(el)));
+      setCaptionBounds(
+        captionBox(document.getElementById("wmax")),
+        captionBox(document.getElementById("wmin")),
+        captionBox(document.getElementById("wclose")),
+        captionBox(header),
+        controls
+      );
+    }
+    if (typeof setCaptionBounds === "function") {
+      reportCaption();
+      window.addEventListener("resize", reportCaption);
+      if (window.ResizeObserver) new ResizeObserver(reportCaption).observe(header);
+    } else {
+      document.getElementById("winbtns").hidden = true;
+    }
+    let dragArm = null;
+    header.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      if (event.target.closest("button, select, input, a")) return;
+      dragArm = { x: event.screenX, y: event.screenY };
+    });
+    window.addEventListener("mousemove", (event) => {
+      if (!dragArm) return;
+      if (Math.abs(event.screenX - dragArm.x) < 4 && Math.abs(event.screenY - dragArm.y) < 4) return;
+      dragArm = null;
+      if (typeof windowDrag === "function") windowDrag();
+    });
+    window.addEventListener("mouseup", () => { dragArm = null; dragArm2 = null; });
+    const vdrag = document.getElementById("vdrag");
+    let dragArm2 = null;
+    vdrag.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      dragArm2 = { x: event.screenX, y: event.screenY };
+    });
+    window.addEventListener("mousemove", (event) => {
+      if (!dragArm2) return;
+      if (Math.abs(event.screenX - dragArm2.x) < 4 && Math.abs(event.screenY - dragArm2.y) < 4) return;
+      dragArm2 = null;
+      if (typeof windowDrag === "function") windowDrag();
+    });
+    document.getElementById("zout").addEventListener("click", () => zoomBy(1 / 1.25));
+    document.getElementById("zin").addEventListener("click", () => zoomBy(1.25));
+    document.getElementById("zfit").addEventListener("click", fitView);
+    document.getElementById("rleft").addEventListener("click", () => rotateView(-90));
+    document.getElementById("rright").addEventListener("click", () => rotateView(90));
+    document.getElementById("fliph").addEventListener("click", () => { viewTF.fx *= -1; applyViewTF(); });
+    document.getElementById("flipv").addEventListener("click", () => { viewTF.fy *= -1; applyViewTF(); });
+    document.getElementById("zreset").addEventListener("click", resetViewTF);
+    document.getElementById("vimg").addEventListener("dblclick", (event) => {
+      if (viewKind !== "image" && viewKind !== "pdf") return;
+      event.preventDefault();
+      const img = event.currentTarget;
+      const actual = img.offsetWidth > 0 ? img.naturalWidth / img.offsetWidth : 1;
+      if (Math.abs(viewTF.z - 1) < 0.02 && viewTF.x === 0 && viewTF.y === 0) viewTF.z = Math.min(8, Math.max(0.25, actual || 1));
+      else { viewTF.z = 1; viewTF.x = 0; viewTF.y = 0; }
+      applyViewTF();
+    });
+    const stage = document.getElementById("vstage");
+    stage.addEventListener("wheel", (event) => {
+      if (view.hidden || (viewKind !== "image" && viewKind !== "pdf")) return;
+      event.preventDefault();
+      zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    }, { passive: false });
+    const fingers = new Map();
+    let gesture = null;
+    let swallowClick = false;
+    function pinchDist() {
+      const pts = [...fingers.values()];
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    }
+    function gestureBlocked(target) {
+      return !!(target.closest && target.closest("#vplayer, #ibar, #strip, .edge, #vclose, #vdrag, #vtools, #vpre, #veditor, #vnote, #vzip"));
+    }
+    stage.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || view.hidden) return;
+      fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (fingers.size >= 2 && (viewKind === "image" || viewKind === "pdf")) {
+        gesture = { mode: "pinch", dist: pinchDist() };
+        return;
+      }
+      if (gestureBlocked(event.target)) return;
+      try { stage.setPointerCapture(event.pointerId); } catch (err) {}
+      gesture = { id: event.pointerId, x0: event.clientX, y0: event.clientY, t0: performance.now(), mode: "", px: event.clientX, py: event.clientY };
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!fingers.has(event.pointerId)) return;
+      fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (gesture && gesture.mode === "pinch" && fingers.size >= 2 && (viewKind === "image" || viewKind === "pdf")) {
+        const dist = pinchDist();
+        if (gesture.dist > 0 && dist > 0) {
+          const pts = [...fingers.values()];
+          zoomAt((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2, dist / gesture.dist);
+          gesture.dist = dist;
+        }
+        return;
+      }
+      if (!gesture || gesture.mode === "pinch" || gesture.id !== event.pointerId) return;
+      const dx = event.clientX - gesture.x0;
+      const dy = event.clientY - gesture.y0;
+      if (!gesture.mode) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if ((viewKind === "image" || viewKind === "pdf") && viewTF.z > 1.01) gesture.mode = "pan";
+        else if (Math.abs(dx) > Math.abs(dy) * 1.15) gesture.mode = viewKind === "video" || viewKind === "audio" ? "none" : "swipe";
+        else if (dy > 0 && (viewKind === "image" || viewKind === "video" || viewKind === "pdf")) gesture.mode = "dismiss";
+        else gesture.mode = "none";
+      }
+      if (gesture.mode === "pan") {
+        viewTF.x += event.clientX - gesture.px;
+        viewTF.y += event.clientY - gesture.py;
+        gesture.px = event.clientX;
+        gesture.py = event.clientY;
+        applyViewTF();
+      } else if (gesture.mode === "dismiss") {
+        const pull = dy > 0 ? dy * (1 - Math.min(dy, 500) / 2200) : dy * 0.18;
+        view.style.transition = "none";
+        view.style.transform = "translateY(" + pull + "px)";
+        const fade = Math.max(0.12, 1 - Math.max(0, dy) / 380);
+        view.style.background = "rgba(14,14,14," + fade + ")";
+      }
+    });
+    function endGesture(event) {
+      fingers.delete(event.pointerId);
+      if (!gesture) return;
+      if (gesture.mode === "pinch") {
+        if (fingers.size < 2) gesture = null;
+        return;
+      }
+      if (gesture.id !== event.pointerId) return;
+      const dx = event.clientX - gesture.x0;
+      const dy = event.clientY - gesture.y0;
+      const dt = Math.max(1, performance.now() - gesture.t0);
+      const mode = gesture.mode;
+      gesture = null;
+      if (mode === "pan" || mode === "dismiss" || mode === "swipe") swallowClick = true;
+      if (mode === "dismiss") {
+        const flick = dy > 48 && (dy / dt) > 0.65;
+        if (dy > 120 || flick) closeView();
+        else {
+          view.style.transition = "transform 220ms cubic-bezier(0.2,0,0,1), background 220ms ease";
+          view.style.transform = "none";
+          view.style.background = "#0e0e0e";
+          setTimeout(() => { if (!closingView) { view.style.transition = "none"; view.style.background = ""; } }, 240);
+        }
+      } else if (mode === "swipe" && Math.abs(dx) > 72 && Math.abs(dx) > Math.abs(dy)) {
+        if (viewKind === "pdf") turnPage(dx < 0 ? 1 : -1);
+        else step(dx < 0 ? 1 : -1);
+      }
+    }
+    stage.addEventListener("pointerup", endGesture);
+    stage.addEventListener("pointercancel", endGesture);
+    document.addEventListener("scroll", hideMenu, true);
+    header.addEventListener("dblclick", (event) => {
+      if (event.target.closest("button, select, input, a")) return;
+      dragArm = null;
+      if (typeof windowMax === "function") windowMax();
+    });
+    document.getElementById("wmin").addEventListener("click", () => { if (typeof windowMin === "function") windowMin(); });
+    document.getElementById("wclose").addEventListener("click", () => { if (typeof windowClose === "function") windowClose(); });
+    view.addEventListener("mousedown", (event) => { if (event.target === view) maybeCloseView(); });
+    document.getElementById("vclose").addEventListener("click", maybeCloseView);
+    document.getElementById("vprev").addEventListener("click", () => { if (viewKind === "pdf") turnPage(-1); else step(-1); });
+    document.getElementById("vnext").addEventListener("click", () => { if (viewKind === "pdf") turnPage(1); else step(1); });
+    document.getElementById("vedit").addEventListener("click", startEdit);
+    document.getElementById("vcancel").addEventListener("click", cancelEdit);
+    document.getElementById("vsave").addEventListener("click", saveEdit);
+    document.getElementById("iclose").addEventListener("click", closeInfo);
+    document.getElementById("icopy").addEventListener("click", () => {
+      if (infoEntry) copyText(infoEntry.path, "Path copied");
+    });
+    document.getElementById("idelete").addEventListener("click", () => { if (infoEntry) removeEntry(infoEntry); });
+    document.getElementById("irename").addEventListener("click", renameCurrent);
+    document.getElementById("askyes").addEventListener("click", () => finishAsk(true));
+    document.getElementById("askno").addEventListener("click", () => finishAsk(false));
+    infoscrim.addEventListener("mousedown", (event) => { if (event.target === infoscrim) closeInfo(); });
+    ask.addEventListener("mousedown", (event) => { if (event.target === ask) finishAsk(false); });
+
+    document.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      if (!infoscrim.hidden || !ask.hidden) { hideMenu(); return; }
+      if (!view.hidden) {
+        if (view.contains(event.target)) openPreviewMenu(event);
+        else hideMenu();
+        return;
+      }
+      if (list.contains(event.target)) openContext(event);
+      else hideMenu();
+    });
+    list.addEventListener("scroll", hideMenu);
+    document.addEventListener("mousedown", (event) => {
+      if (!menu.hidden && !menu.contains(event.target)) hideMenu();
+      if (!phonepop.hidden && !phonepop.contains(event.target) && event.target.id !== "phone" && !event.target.closest("#phone")) phonepop.hidden = true;
+    });
+    document.addEventListener("keydown", (event) => {
+      const typing = event.target.closest && event.target.closest("textarea, input, select");
+      if (!ask.hidden) {
+        if (event.key === "Escape") finishAsk(false);
+        return;
+      }
+      if (event.key === "Escape") {
+        if (!menu.hidden) { hideMenu(); return; }
+        if (!phonepop.hidden) { phonepop.hidden = true; return; }
+        if (!infoscrim.hidden) { closeInfo(); return; }
+        if (!view.hidden) { maybeCloseView(); return; }
+        return;
+      }
+      if (!menu.hidden || !phonepop.hidden || !infoscrim.hidden || !ask.hidden) return;
+      if (!view.hidden) {
+        if (typing) return;
+        if ((viewKind === "image" || viewKind === "pdf") && !editing) {
+          const k = event.key;
+          if (event.ctrlKey && (k === "+" || k === "=" || event.code === "NumpadAdd")) { event.preventDefault(); zoomBy(1.25); return; }
+          if (event.ctrlKey && (k === "-" || k === "_" || event.code === "NumpadSubtract")) { event.preventDefault(); zoomBy(1 / 1.25); return; }
+          if (event.ctrlKey && (k === "0" || event.code === "Numpad0")) { event.preventDefault(); fitView(); return; }
+          if (k === "[") { event.preventDefault(); rotateView(-90); return; }
+          if (k === "]") { event.preventDefault(); rotateView(90); return; }
+          if (event.ctrlKey && (k === "r" || k === "R")) { event.preventDefault(); rotateView(90); return; }
+        }
+        if (event.key === " " && media && (viewKind === "video" || viewKind === "audio")) {
+          event.preventDefault();
+          if (media.paused) media.play(); else media.pause();
+          return;
+        }
+        if (viewKind === "pdf" && event.key === "ArrowLeft") { event.preventDefault(); turnPage(-1); return; }
+        if (viewKind === "pdf" && event.key === "ArrowRight") { event.preventDefault(); turnPage(1); return; }
+        if (viewKind !== "video" && viewKind !== "audio" && event.key === "ArrowLeft") { event.preventDefault(); step(-1); }
+        if (viewKind !== "video" && viewKind !== "audio" && event.key === "ArrowRight") { event.preventDefault(); step(1); }
+        return;
+      }
+      if (typing) return;
+      if (event.key === "Backspace" || (event.altKey && event.key === "ArrowLeft")) { event.preventDefault(); back(); return; }
+      if (event.altKey && event.key === "ArrowRight") { event.preventDefault(); forward(); return; }
+      if (event.altKey && event.key === "ArrowUp") { event.preventDefault(); up(); return; }
+      if (event.key === "Enter") { event.preventDefault(); openSelected(); return; }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        moveSel(event.key === "ArrowDown" ? 1 : -1);
+      }
+    });
+
+    window.history.pushState({ ft: 1 }, "");
+    window.addEventListener("popstate", () => {
+      window.history.pushState({ ft: 1 }, "");
+      if (!view.hidden) { maybeCloseView(); return; }
+      back();
+    });
+
+    applyTheme(document.documentElement.dataset.choice || "system");
+    updateNav();
+    load();
+    list.focus();
+
+    let seenRecv = 0;
+    let recvHold = 0;
+    let recvBusy = false;
+    async function pollRecv() {
+      if (recvBusy) return;
+      recvBusy = true;
+      try {
+        const data = await getJSON("/api/recv");
+        const bar = document.getElementById("recv");
+        const stale = data.gen < seenRecv || (data.gen === seenRecv && data.active);
+        if (!stale && data.done && data.gen > seenRecv) {
+          seenRecv = data.gen;
+          const where = folderName(data.dest);
+          const text = data.count > 1
+            ? data.count + " files saved in " + where
+            : (data.name || "File") + " saved in " + where;
+          flash(text, 8000);
+          recvHold = Date.now() + 8000;
+          bar.hidden = false;
+          document.getElementById("recvname").textContent = text;
+          document.getElementById("recvdest").textContent = "";
+          document.getElementById("recvpct").textContent = "";
+          document.getElementById("recvfill").style.width = "100%";
+          lastSig = "";
+          load();
+        } else if (!stale && data.active) {
+          recvHold = 0;
+          bar.hidden = false;
+          document.getElementById("recvname").textContent = data.name || "Receiving";
+          const where = folderName(data.dest);
+          document.getElementById("recvdest").textContent = data.index > 1 ? where + " · file " + data.index : where;
+          const fill = document.getElementById("recvfill");
+          const pctEl = document.getElementById("recvpct");
+          if (data.total > 0) {
+            const pct = Math.max(0, Math.min(100, Math.round(data.got * 100 / data.total)));
+            pctEl.textContent = pct + "%";
+            fill.style.width = pct + "%";
+          } else {
+            pctEl.textContent = "";
+            fill.style.width = "40%";
+          }
+        } else if (Date.now() > recvHold) {
+          bar.hidden = true;
+        }
+      } catch (err) {}
+      recvBusy = false;
+    }
+    setInterval(pollRecv, 400);
+  </script>
+</body>
+</html>

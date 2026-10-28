@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="color-scheme" content="light dark" />
+  <title>FastTransfer</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --ink: #1a1a1a;
+      --muted: #616161;
+      --line: #e5e5e5;
+      --bar: #f3f3f3;
+      --accent: #0d6efd;
+      --ok: #0b6a0b;
+      --bad: #c42b1c;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1c;
+        --ink: #f3f3f3;
+        --muted: #a6a6a6;
+        --line: #3a3a3a;
+        --bar: #2b2b2b;
+        --accent: #6ea8fe;
+        --ok: #6cc46c;
+        --bad: #ff8a80;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); }
+    body { font: 16px/1.4 "Segoe UI", system-ui, sans-serif; }
+    main {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: max(28px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+    }
+    h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+    .sub { margin: 0 0 6px; }
+    .wifi { margin: 0 0 24px; color: var(--muted); }
+    .nokey { margin: 0 0 16px; color: var(--bad); }
+    .group { margin: 0 0 16px; }
+    .group p { margin: 0 0 8px; color: var(--muted); }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+    .choices label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--bar);
+    }
+    .choices input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+    .drop {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 88px;
+      padding: 16px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: var(--bar);
+      text-align: center;
+    }
+    .drop strong { font-weight: 600; }
+    .drop span { color: var(--muted); margin-top: 4px; }
+    .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop.drag { border-color: var(--accent); }
+    ul { list-style: none; margin: 12px 0 0; padding: 0; max-height: 220px; overflow: auto; }
+    li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 12px;
+      min-height: 44px;
+      align-items: center;
+      border-top: 1px solid var(--line);
+    }
+    li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    li em { color: var(--muted); font-style: normal; }
+    li.done em { color: var(--ok); }
+    li.failed em { color: var(--bad); }
+    li small { grid-column: 1 / -1; color: var(--bad); margin-top: -8px; }
+    button.send {
+      width: 100%;
+      height: 48px;
+      margin-top: 8px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+    }
+    button.send:disabled { opacity: 0.45; }
+    progress {
+      width: 100%;
+      height: 6px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 3px;
+      appearance: none;
+      background: var(--bar);
+    }
+    progress::-webkit-progress-bar { background: var(--bar); border-radius: 3px; }
+    progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; }
+    progress::-moz-progress-bar { background: var(--accent); }
+    .status { min-height: 1.3em; margin: 12px 0 0; }
+    .status.ok { color: var(--ok); }
+    .status.bad { color: var(--bad); }
+    .where { margin: 16px 0 0; color: var(--muted); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>FastTransfer</h1>
+    <p class="sub">Pick photos or any file. They land on this PC.</p>
+    <p class="wifi">Same Wi-Fi as the computer.</p>
+    <p class="nokey hidden" id="nokey">Open the link from the computer.</p>
+
+    <form id="form">
+      <div class="group">
+        <div class="choices">
+          <label><input type="radio" name="kind" value="shots" checked /> Photos</label>
+          <label><input type="radio" name="kind" value="files" /> Any file</label>
+        </div>
+      </div>
+
+      <div class="group" id="deviceCard">
+        <p>Which folder on the computer?</p>
+        <div class="choices">
+          <label><input type="radio" name="device" value="iphone" checked /> iPhone</label>
+          <label><input type="radio" name="device" value="ipad" /> iPad</label>
+          <label><input type="radio" name="device" value="android" /> Android</label>
+          <label><input type="radio" name="device" value="other" /> Other</label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="drop" id="drop">
+          <strong id="pickTitle">Tap to pick photos</strong>
+          <span id="pickHint">PNG, JPG, or HEIC.</span>
+          <input id="files" type="file" accept="image/*,.heic,.heif" multiple />
+        </div>
+        <ul id="list"></ul>
+      </div>
+
+      <button class="send" id="send" type="submit" disabled>Send</button>
+      <progress id="bar" class="hidden" max="100" value="0"></progress>
+      <p class="status" id="status" role="status"></p>
+      <p class="where" id="where">Photos go in the iPhone, iPad, Android, or Other folder.</p>
+    </form>
+  </main>
+
+  <script>
+    const KEY_STORE = "fasttransfer-key";
+    const form = document.getElementById("form");
+    const input = document.getElementById("files");
+    const list = document.getElementById("list");
+    const send = document.getElementById("send");
+    const status = document.getElementById("status");
+    const bar = document.getElementById("bar");
+    const drop = document.getElementById("drop");
+    const folders = { iphone: "iPhone", ipad: "iPad", android: "Android", other: "Other", files: "Files" };
+
+    const fromLink = new URLSearchParams(location.search).get("k");
+    let key = fromLink || "";
+    try {
+      if (fromLink) localStorage.setItem(KEY_STORE, fromLink);
+      else key = localStorage.getItem(KEY_STORE) || "";
+    } catch {}
+    if (fromLink) history.replaceState(null, "", location.pathname);
+    document.getElementById("nokey").classList.toggle("hidden", Boolean(key));
+
+    let picked = [];
+    let sending = false;
+    const anyFile = () => form.kind.value === "files";
+
+    function fmt(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+      if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB";
+      return (n / 1073741824).toFixed(2) + " GB";
+    }
+
+    function setKind() {
+      const files = anyFile();
+      document.getElementById("deviceCard").classList.toggle("hidden", files);
+      document.getElementById("pickTitle").textContent = files ? "Tap to pick files" : "Tap to pick photos";
+      document.getElementById("pickHint").textContent = files
+        ? "Video, audio, PDF, or anything else. Up to 4 GB."
+        : "PNG, JPG, or HEIC.";
+      document.getElementById("where").textContent = files
+        ? "Other files go in the Files folder."
+        : "Photos go in the iPhone, iPad, Android, or Other folder.";
+      if (files) input.removeAttribute("accept");
+      else input.setAttribute("accept", "image/*,.heic,.heif");
+      picked = files ? picked : picked.filter(isImage);
+      render();
+    }
+
+    const isImage = (f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name);
+
+    function render() {
+      list.innerHTML = "";
+      picked.forEach((f) => {
+        const li = document.createElement("li");
+        li.innerHTML = "<span></span><em></em>";
+        li.children[0].textContent = f.name;
+        li.children[1].textContent = fmt(f.size);
+        f.row = li;
+        list.appendChild(li);
+      });
+      send.disabled = sending || picked.length === 0 || !key;
+    }
+
+    function addFiles(fileList) {
+      const next = Array.from(fileList || []).filter((f) => anyFile() || isImage(f));
+      picked = picked.concat(next);
+      status.textContent = "";
+      status.className = "status";
+      render();
+    }
+
+    form.kind.forEach((radio) => radio.addEventListener("change", setKind));
+    input.addEventListener("change", () => {
+      addFiles(input.files);
+      input.value = "";
+    });
+    ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
+    ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
+    drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+    function plainError(error) {
+      if (!error) return "Could not send.";
+      if (error.startsWith("open the link")) return "Open the link from the computer.";
+      return error;
+    }
+
+    function post(to, files, onProgress) {
+      return new Promise((resolve) => {
+        const body = new FormData();
+        files.forEach((f) => body.append("files", f, f.name));
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload?to=" + encodeURIComponent(to));
+        xhr.setRequestHeader("X-Transfer-Key", key);
+        xhr.upload.onprogress = (ev) => ev.lengthComputable && onProgress(ev.loaded, ev.total);
+        xhr.onload = () => {
+          let data = {};
+          try { data = JSON.parse(xhr.responseText); } catch {}
+          resolve(xhr.status >= 200 && xhr.status < 300 && data.ok ? { ok: true, data } : { ok: false, error: data.error || "Could not send." });
+        };
+        xhr.onerror = () => resolve({ ok: false, error: "Could not reach the computer. Same Wi-Fi as the computer?" });
+        xhr.send(body);
+      });
+    }
+
+    function mark(file, ok, error) {
+      const row = file.row;
+      if (!row) return;
+      row.className = ok ? "done" : "failed";
+      row.children[1].textContent = ok ? "Saved" : "Failed";
+      if (!ok) {
+        const note = document.createElement("small");
+        note.textContent = plainError(error);
+        row.appendChild(note);
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!picked.length || sending) return;
+      sending = true;
+      send.disabled = true;
+      bar.classList.remove("hidden");
+      bar.value = 0;
+      status.className = "status";
+      status.textContent = "Sending.";
+
+      const files = anyFile();
+      const to = files ? "files" : form.device.value;
+      const queue = picked.slice();
+      const total = queue.reduce((sum, f) => sum + f.size, 0) || 1;
+      let done = 0;
+      let saved = 0;
+      const failed = [];
+
+      const batches = files ? queue.map((f) => [f]) : [queue];
+      for (const batch of batches) {
+        const size = batch.reduce((sum, f) => sum + f.size, 0);
+        const result = await post(to, batch, (loaded) => { bar.value = Math.round(((done + loaded) / total) * 100); });
+        done += size;
+        bar.value = Math.round((done / total) * 100);
+        batch.forEach((f) => mark(f, result.ok, result.error));
+        if (result.ok) saved += result.data.count;
+        else failed.push(...batch);
+        if (!result.ok && result.error.startsWith("open the link")) break;
+      }
+
+      sending = false;
+      bar.classList.add("hidden");
+      picked = failed;
+      send.disabled = picked.length === 0 || !key;
+      const folder = folders[to] || "uploads";
+      if (!failed.length) {
+        status.className = "status ok";
+        status.textContent = saved === 1 ? "Saved 1 file in " + folder + "." : "Saved " + saved + " files in " + folder + ".";
+      } else {
+        status.className = "status bad";
+        status.textContent = failed.length === 1
+          ? "1 file did not send. Tap Send to try again."
+          : failed.length + " files did not send. Tap Send to try again.";
+      }
+    });
+
+    setKind();
+  </script>
+</body>
+</html>
