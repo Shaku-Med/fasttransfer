@@ -353,9 +353,11 @@
       z-index: 40;
       display: flex;
       flex-direction: column;
-      background: #0e0e0e;
+      background: transparent;
       color: #f3f3f3;
     }
+    #vback { position: absolute; inset: 0; z-index: -1; background: #0e0e0e; pointer-events: none; }
+    #vph { position: absolute; z-index: 0; object-fit: fill; pointer-events: none; user-select: none; }
     #ifoot button, #irenamerow button, #askbox button {
       height: 32px;
       padding: 0 12px;
@@ -373,7 +375,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #0e0e0e;
+      background: transparent;
       overflow: hidden;
     }
     #vstage.paper { background: #161616; align-items: stretch; }
@@ -424,6 +426,19 @@
     #view.cinema #vplayer,
     #view.cinema #ibar { z-index: 6; }
     #vimg { transform-origin: center center; }
+    @keyframes fadeIn { from { opacity: 0; } }
+    @keyframes fadeOut { to { opacity: 0; } }
+    @keyframes stageIn { from { opacity: 0; transform: scale(0.985); } }
+    #view.entering #vback { animation: fadeIn 220ms var(--ease) both; }
+    #view.entering #vtools, #view.entering #ibar, #view.entering #strip, #view.entering .edge,
+    #view.entering #vtitle, #view.entering #vplayer { animation: fadeIn 200ms 80ms var(--ease) both; }
+    #view.entering:not(.photo) #vstage { animation: stageIn 240ms var(--ease) both; }
+    #view.leaving #vback { animation: fadeOut 220ms ease-in forwards; }
+    #view.leaving #vtools, #view.leaving #ibar, #view.leaving #strip, #view.leaving .edge,
+    #view.leaving #vtitle, #view.leaving #vplayer { animation: fadeOut 120ms ease-in forwards; }
+    #view.leaving:not(.photo) #vstage, #view.leaving.nofly #vstage { animation: fadeOut 160ms ease-in forwards; }
+    .native-caption #vtools { top: 52px; }
+    .native-caption #vdrag { right: 150px; height: 40px; }
     #vdrag {
       position: absolute;
       top: 0;
@@ -557,6 +572,7 @@
     @keyframes stageLeft { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) {
       #vstage.from-left, #vstage.from-right { animation: none; }
+      #view.entering *, #view.leaving * { animation: none !important; }
     }
     #vplayer {
       position: absolute;
@@ -1298,8 +1314,10 @@
   <div id="toasts" aria-live="polite"></div>
   <div id="menu" hidden></div>
   <div id="view" hidden>
+    <div id="vback"></div>
     <div id="vstage">
       <div id="vdrag"></div>
+      <img id="vph" alt="" aria-hidden="true" draggable="false" hidden />
       <img id="vimg" alt="" draggable="false" hidden />
       <video id="vvid" hidden></video>
       <pre id="vpre" hidden></pre>
@@ -1662,28 +1680,33 @@
       return svg;
     }
 
-    function thumbNode(entry) {
+    function thumbURL(entry, size) {
+      return "/api/thumb?path=" + encodeURIComponent(entry.rel) + "&w=" + size;
+    }
+
+    function thumbImg(src, fallback) {
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.draggable = false;
+      img.src = src;
+      img.addEventListener("error", () => img.replaceWith(fallback()));
+      return img;
+    }
+
+    // Small pictures come from the server, so a folder of big photos never
+    // decodes full size images just to draw icons.
+    function thumbNode(entry, size) {
       const kind = kindOf(entry);
+      const px = size || (tiles ? 320 : 96);
       if (kind === "image") {
-        const img = document.createElement("img");
-        img.className = "thumb";
-        img.alt = "";
-        img.loading = "lazy";
-        img.decoding = "async";
-        img.src = "/api/file?path=" + encodeURIComponent(entry.rel);
-        img.addEventListener("error", () => img.replaceWith(fileGlyph(false)));
-        return img;
+        if (/\.svg$/i.test(entry.name)) return thumbImg("/api/file?path=" + encodeURIComponent(entry.rel), () => fileGlyph(false));
+        return thumbImg(thumbURL(entry, px), () => fileGlyph(false));
       }
-      if (kind === "pdf" && tiles) {
-        const img = document.createElement("img");
-        img.className = "thumb";
-        img.alt = "";
-        img.loading = "lazy";
-        img.decoding = "async";
-        img.src = "/api/pdf?path=" + encodeURIComponent(entry.rel) + "&page=1&w=200";
-        img.addEventListener("error", () => img.replaceWith(fileGlyph(false)));
-        return img;
-      }
+      if (kind === "video" && (tiles || size)) return thumbImg(thumbURL(entry, px), filmGlyph);
+      if (kind === "pdf" && tiles) return thumbImg("/api/pdf?path=" + encodeURIComponent(entry.rel) + "&page=1&w=320", () => fileGlyph(false));
       if (kind === "video") return filmGlyph();
       return fileGlyph(!!entry.dir);
     }
@@ -2052,6 +2075,12 @@
       const aud = document.getElementById("vaud");
       img.hidden = true;
       img.removeAttribute("src");
+      img.style.opacity = "";
+      img.getAnimations().forEach((a) => a.cancel());
+      imgGen++;
+      vph.getAnimations().forEach((a) => a.cancel());
+      vph.hidden = true;
+      vph.removeAttribute("src");
       playGen++;
       if (seekRaf) { cancelAnimationFrame(seekRaf); seekRaf = 0; }
       seeking = false;
@@ -2335,7 +2364,7 @@
         img.hidden = true;
         showNote("This page could not be rendered.");
       };
-      img.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + n + "&w=1200";
+      img.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + n + "&w=" + pdfWidth();
       document.getElementById("vtitle").textContent = file.label + "   " + n + " / " + pdfPages;
       document.getElementById("vprev").disabled = n <= 1;
       document.getElementById("vnext").disabled = n >= pdfPages;
@@ -2352,7 +2381,7 @@
         const thumb = document.createElement("img");
         thumb.alt = "";
         thumb.draggable = false;
-        thumb.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + i + "&w=96";
+        thumb.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + i + "&w=" + Math.round(96 * (window.devicePixelRatio || 1));
         button.appendChild(thumb);
         button.addEventListener("click", () => showPDFPage(file, i));
         strip.appendChild(button);
@@ -2547,7 +2576,10 @@
       return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
 
-    function dialogEl() { return view; }
+    const vback = document.getElementById("vback");
+    const vph = document.getElementById("vph");
+    let imgGen = 0;
+    let enterTimer = 0;
 
     function thumbOrigin(source) {
       const row = source && source.classList && source.classList.contains("row") ? source : (source && source.closest ? source.closest(".row") : null) || rowFor(previewRel);
@@ -2556,91 +2588,143 @@
       const el = thumb || row.querySelector(".name");
       if (!el) return null;
       const rect = el.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return null;
-      return rect;
+      if (rect.width < 1 || rect.height < 1 || rect.bottom < 0 || rect.top > window.innerHeight) return null;
+      const src = thumb && thumb.tagName === "IMG" && thumb.complete && thumb.naturalWidth ? thumb.currentSrc : "";
+      return { rect, src };
     }
 
-    function resetDialog() {
-      const dialog = dialogEl();
-      dialog.style.transition = "none";
-      dialog.style.transform = "none";
-      dialog.style.borderRadius = "";
-      dialog.style.background = "";
+    function captionOverlay(on) {
+      if (typeof setCaptionOverlay === "function") setCaptionOverlay(on);
     }
 
-    function startMorph(origin) {
-      const dialog = dialogEl();
-      resetDialog();
-      if (!origin || !motionOK() || origin.width < 1 || origin.height < 1) return;
-      const dest = dialog.getBoundingClientRect();
-      if (dest.width < 1 || dest.height < 1) return;
-      const dx = origin.left - dest.left;
-      const dy = origin.top - dest.top;
-      const sx = Math.max(0.04, origin.width / dest.width);
-      const sy = Math.max(0.04, origin.height / dest.height);
-      dialog.style.transformOrigin = "0 0";
-      dialog.style.transform = "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
-      dialog.style.borderRadius = "4px";
-      void dialog.offsetWidth;
-      dialog.style.transition = "transform 320ms cubic-bezier(0.2, 0, 0, 1), border-radius 320ms cubic-bezier(0.2, 0, 0, 1)";
-      dialog.style.transform = "translate(0px, 0px) scale(1, 1)";
-      dialog.style.borderRadius = "0px";
+    function pdfWidth() {
+      const px = document.getElementById("vstage").clientWidth * (window.devicePixelRatio || 1);
+      return Math.min(2400, Math.max(800, Math.ceil(px / 400) * 400));
+    }
+
+    // Where a picture lands in the stage: contained, and never blown up past its own pixels.
+    function fitRect(w, h) {
+      const stage = document.getElementById("vstage").getBoundingClientRect();
+      const s = Math.min(stage.width / w, stage.height / h, 1);
+      const width = w * s;
+      const height = h * s;
+      return { left: (stage.width - width) / 2, top: (stage.height - height) / 2, width, height, stage };
+    }
+
+    // Only a small picture flies between the tile and the stage. Scaling the
+    // whole full screen layer made Chromium paint it at thumbnail size, which
+    // looked soft and stuttered while the photo decoded underneath.
+    function flyFrom(el, from, to, back) {
+      const tx = from.left + from.width / 2 - (to.stage.left + to.left + to.width / 2);
+      const ty = from.top + from.height / 2 - (to.stage.top + to.top + to.height / 2);
+      const s = Math.max(from.width / to.width, from.height / to.height);
+      const ix = Math.max(0, (to.width - from.width / s) / 2);
+      const iy = Math.max(0, (to.height - from.height / s) / 2);
+      const small = { transform: "translate(" + tx + "px, " + ty + "px) scale(" + s + ")", clipPath: "inset(" + iy + "px " + ix + "px round " + 4 / s + "px)" };
+      const full = { transform: "translate(0px, 0px) scale(1)", clipPath: "inset(0px 0px round 0px)" };
+      return el.animate(back ? [full, small] : [small, full], {
+        duration: back ? 220 : 280,
+        easing: "cubic-bezier(0.2, 0, 0, 1)",
+        fill: back ? "forwards" : "none",
+      });
+    }
+
+    function enterView(kind) {
+      view.classList.remove("leaving", "nofly");
+      view.classList.toggle("photo", kind === "image");
+      clearTimeout(enterTimer);
+      view.classList.remove("entering");
+      if (!motionOK()) return;
+      void view.offsetWidth;
+      view.classList.add("entering");
+      enterTimer = setTimeout(() => view.classList.remove("entering"), 420);
+    }
+
+    // The thumbnail holds the spot at full size while the real photo decodes
+    // off the main thread, then the photo takes over in the same place.
+    function showImage(file, origin) {
+      const gen = ++imgGen;
+      const img = document.getElementById("vimg");
+      const svg = /\.svg$/i.test(file.name);
+      img.hidden = false;
+      img.alt = file.name;
+      img.decoding = "async";
+      img.style.opacity = "0";
+      const rect = !svg && file.w && file.h ? fitRect(file.w, file.h) : null;
+      let landed = Promise.resolve();
+      if (rect) {
+        vph.style.left = rect.left + "px";
+        vph.style.top = rect.top + "px";
+        vph.style.width = rect.width + "px";
+        vph.style.height = rect.height + "px";
+        vph.src = origin && origin.src ? origin.src : thumbURL(file, 640);
+        vph.hidden = false;
+        if (origin && motionOK()) landed = flyFrom(vph, origin.rect, rect, false).finished.catch(() => {});
+        if (origin && origin.src) {
+          landed.then(() => { if (gen === imgGen && img.style.opacity === "0") vph.src = thumbURL(file, 640); });
+        }
+      }
+      img.onerror = () => {
+        if (gen !== imgGen) return;
+        img.hidden = true;
+        vph.hidden = true;
+        if (svg) showText(file);
+        else { showNote("This image could not be shown."); showFacts(file); }
+      };
+      img.src = "/api/file?path=" + encodeURIComponent(file.rel);
+      const decoded = img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+      Promise.all([decoded, landed]).then(() => {
+        if (gen !== imgGen) return;
+        img.style.opacity = "";
+        requestAnimationFrame(() => {
+          if (gen !== imgGen) return;
+          vph.hidden = true;
+          vph.removeAttribute("src");
+        });
+      });
     }
 
     let closingView = false;
 
     function closeView() {
       if (view.hidden || closingView) return;
-      const dialog = dialogEl();
-      const origin = thumbOrigin(null);
-      const onScreen = origin && origin.width > 1 && origin.bottom > 0 && origin.top < window.innerHeight;
       const finish = () => {
         clearMedia();
-        view.classList.remove("cinema");
+        clearTimeout(enterTimer);
+        view.classList.remove("cinema", "entering", "leaving", "photo", "nofly");
         document.getElementById("strip").hidden = false;
         document.getElementById("vprev").hidden = false;
         document.getElementById("vnext").hidden = false;
         document.getElementById("strip").replaceChildren();
         view.hidden = true;
+        view.style.transition = "";
+        view.style.transform = "";
+        vback.style.transition = "";
+        vback.style.opacity = "";
         previewRel = "";
         closingView = false;
-        resetDialog();
-        if (typeof setCaptionHeld === "function") setCaptionHeld(false);
+        captionOverlay(false);
       };
-      if (!onScreen || !motionOK()) {
+      if (!motionOK()) {
         finish();
         return;
       }
       closingView = true;
-      dialog.style.background = "#0e0e0e";
-      const visual = dialog.getBoundingClientRect();
-      dialog.style.transition = "none";
-      dialog.style.transform = "none";
-      void dialog.offsetWidth;
-      const base = dialog.getBoundingClientRect();
-      const ox = visual.left - base.left;
-      const oy = visual.top - base.top;
-      dialog.style.transformOrigin = "0 0";
-      dialog.style.transform = "translate(" + ox + "px," + oy + "px)";
-      void dialog.offsetWidth;
-      const dx = origin.left - base.left;
-      const dy = origin.top - base.top;
-      const sx = Math.max(0.04, origin.width / base.width);
-      const sy = Math.max(0.04, origin.height / base.height);
-      dialog.style.transformOrigin = "0 0";
-      dialog.style.transition = "transform 320ms cubic-bezier(0.2, 0, 0, 1), border-radius 320ms cubic-bezier(0.2, 0, 0, 1)";
-      dialog.style.transform = "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
-      dialog.style.borderRadius = "4px";
-      let settled = false;
-      const done = (event) => {
-        if (event && event.propertyName && event.propertyName !== "transform") return;
-        if (settled) return;
-        settled = true;
-        dialog.removeEventListener("transitionend", done);
-        finish();
-      };
-      dialog.addEventListener("transitionend", done);
-      setTimeout(done, 380);
+      const img = document.getElementById("vimg");
+      const origin = thumbOrigin(null);
+      const still = !view.style.transform || view.style.transform === "none";
+      const plain = Math.abs(viewTF.z - 1) < 0.01 && !viewTF.x && !viewTF.y && !viewTF.rot && viewTF.fx === 1 && viewTF.fy === 1;
+      const fly = viewKind === "image" && origin && still && plain && !img.hidden && img.style.opacity !== "0" && img.naturalWidth > 0;
+      view.classList.toggle("nofly", !fly);
+      if (fly) {
+        const stage = document.getElementById("vstage").getBoundingClientRect();
+        const r = img.getBoundingClientRect();
+        flyFrom(img, origin.rect, { left: r.left - stage.left, top: r.top - stage.top, width: r.width, height: r.height, stage }, true);
+      }
+      clearTimeout(enterTimer);
+      view.classList.remove("entering");
+      view.classList.add("leaving");
+      setTimeout(finish, 230);
     }
 
     function nudgeStage(dir) {
@@ -2659,7 +2743,7 @@
         button.type = "button";
         button.className = i === at ? "on" : "";
         button.title = file.label;
-        button.appendChild(thumbNode(file));
+        button.appendChild(thumbNode(file, 160));
         button.addEventListener("click", () => {
           if (file.rel === previewRel) return;
           const dir = i > at ? 1 : -1;
@@ -2697,22 +2781,13 @@
       document.getElementById("vprev").hidden = solo;
       document.getElementById("vnext").hidden = solo;
       document.getElementById("ibar").hidden = kind !== "image" && kind !== "pdf";
-      if (opening && typeof setCaptionHeld === "function") setCaptionHeld(true);
+      if (opening) captionOverlay(true);
       if (solo || kind === "pdf") document.getElementById("strip").replaceChildren();
       else renderStrip(files, at);
-      if (opening) startMorph(morphOrigin);
+      if (opening) enterView(kind);
       else nudgeStage(dir);
-      const src = "/api/file?path=" + encodeURIComponent(file.rel);
       if (kind === "image") {
-        const img = document.getElementById("vimg");
-        img.hidden = false;
-        img.alt = file.name;
-        img.onerror = () => {
-          img.hidden = true;
-          if (file.name.toLowerCase().endsWith(".svg")) showText(file);
-          else { showNote("This image could not be shown."); showFacts(file); }
-        };
-        img.src = src;
+        showImage(file, opening ? morphOrigin : null);
       } else if (kind === "video") {
         beginVideo(file);
       } else if (kind === "audio") {
@@ -4166,6 +4241,7 @@
       );
     }
     if (typeof setCaptionBounds === "function") {
+      document.documentElement.classList.add("native-caption");
       reportCaption();
       window.addEventListener("resize", reportCaption);
       if (window.ResizeObserver) new ResizeObserver(reportCaption).observe(header);
@@ -4276,7 +4352,7 @@
         view.style.transition = "none";
         view.style.transform = "translateY(" + pull + "px)";
         const fade = Math.max(0.12, 1 - Math.max(0, dy) / 380);
-        view.style.background = "rgba(14,14,14," + fade + ")";
+        vback.style.opacity = String(fade);
       }
     });
     function endGesture(event) {
@@ -4297,10 +4373,11 @@
         const flick = dy > 48 && (dy / dt) > 0.65;
         if (dy > 120 || flick) closeView();
         else {
-          view.style.transition = "transform 220ms cubic-bezier(0.2,0,0,1), background 220ms ease";
+          view.style.transition = "transform 220ms cubic-bezier(0.2,0,0,1)";
           view.style.transform = "none";
-          view.style.background = "#0e0e0e";
-          setTimeout(() => { if (!closingView) { view.style.transition = "none"; view.style.background = ""; } }, 240);
+          vback.style.transition = "opacity 220ms ease";
+          vback.style.opacity = "";
+          setTimeout(() => { if (!closingView) { view.style.transition = "none"; vback.style.transition = ""; } }, 240);
         }
       } else if (mode === "swipe" && Math.abs(dx) > 72 && Math.abs(dx) > Math.abs(dy)) {
         if (viewKind === "pdf") turnPage(dx < 0 ? 1 : -1);

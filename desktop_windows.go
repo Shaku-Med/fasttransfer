@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -128,7 +129,7 @@ func runApp(pageURL string) {
 		w.Terminate()
 		return nil
 	})
-	_ = w.Bind("windowMin", func() { showWin(hwnd, 6) }) // SW_MINIMIZE
+	_ = w.Bind("windowMin", func() { sysCommand(hwnd, scMinimize) })
 	_ = w.Bind("windowMax", func() { toggleZoom(hwnd) })
 	_ = w.Bind("windowClose", func() { postClose(hwnd) })
 	_ = w.Bind("windowDrag", func() { dragWindow(hwnd) })
@@ -137,6 +138,7 @@ func runApp(pageURL string) {
 	})
 	_ = w.Bind("setTitleTheme", func(dark bool) { applyTitleTheme(hwnd, dark) })
 	_ = w.Bind("setCaptionHeld", func(held bool) { setCaptionHeld(held) })
+	_ = w.Bind("setCaptionOverlay", setCaptionOverlay)
 	_ = w.Bind("copyImageFile", func(rel string) error { return copyImageFile(rel) })
 	_ = w.Bind("clipboardRead", readClipboardText)
 	_ = w.Bind("clipboardWrite", writeClipboardText)
@@ -197,25 +199,24 @@ type nccalcParams struct {
 type margins struct{ left, right, top, bottom int32 }
 
 var (
-	chromeOnce    sync.Once
-	chromeCb      uintptr
-	enumCb        uintptr
-	topHwnd       uintptr
-	capHwnd       uintptr
-	capCb         uintptr
-	origProcs     = map[uintptr]uintptr{}
-	captionMu     sync.Mutex
-	maxBtn        winRect
-	minBtn        winRect
-	closeBtn      winRect
-	headerBox     winRect
-	controlBoxes  []winRect
-	nativeBtn     winRect
-	captionDark   bool
-	captionHeld   bool
-	lastClip      string
-	lastCaptionAt time.Time
-	enumKids      []uintptr
+	chromeOnce   sync.Once
+	chromeCb     uintptr
+	enumCb       uintptr
+	topHwnd      uintptr
+	capHwnd      uintptr
+	capCb        uintptr
+	origProcs    = map[uintptr]uintptr{}
+	captionMu    sync.Mutex
+	maxBtn       winRect
+	minBtn       winRect
+	closeBtn     winRect
+	headerBox    winRect
+	controlBoxes []winRect
+	nativeBtn    winRect
+	captionDark  bool
+	captionHeld  bool
+	lastClip     string
+	enumKids     []uintptr
 )
 
 func enableDPI() {
@@ -795,17 +796,17 @@ func captionOrigin(parent uintptr) (x, y, w, h int32) {
 	return cr.r - 3*bw, oy, 3 * bw, bh
 }
 
+// Buttons act when the mouse is released over the same button it went down
+// on, like every other Windows title bar, so a press that slides off does nothing.
+var (
+	capPressed  uintptr
+	capTracking bool
+)
+
 func actCaption(hit uintptr) {
-	if hit != htMinButton && hit != htMaxButton && hit != htClose {
-		return
-	}
-	if time.Since(lastCaptionAt) < 300*time.Millisecond {
-		return
-	}
-	lastCaptionAt = time.Now()
 	switch hit {
 	case htMinButton:
-		showWin(topHwnd, 6) // SW_MINIMIZE
+		sysCommand(topHwnd, scMinimize)
 	case htMaxButton:
 		toggleZoom(topHwnd)
 	case htClose:
@@ -813,13 +814,33 @@ func actCaption(hit uintptr) {
 	}
 }
 
+func cursorHit() (uintptr, bool) {
+	var pt struct{ x, y int32 }
+	windows.NewLazySystemDLL("user32.dll").NewProc("GetCursorPos").Call(uintptr(unsafe.Pointer(&pt)))
+	return nativeSplit(uintptr(uint16(pt.x)) | uintptr(uint16(pt.y))<<16)
+}
+
+func trackLeave(hwnd uintptr, nonclient bool) {
+	tme := struct {
+		size  uint32
+		flags uint32
+		hwnd  uintptr
+		hover uint32
+	}{flags: 0x2, hwnd: hwnd} // TME_LEAVE
+	if nonclient {
+		tme.flags |= 0x10 // TME_NONCLIENT
+	}
+	tme.size = uint32(unsafe.Sizeof(tme))
+	windows.NewLazySystemDLL("user32.dll").NewProc("TrackMouseEvent").Call(uintptr(unsafe.Pointer(&tme)))
+}
+
 func capProc(hwnd, msg, wp, lp uintptr) uintptr {
+	user32 := windows.NewLazySystemDLL("user32.dll")
 	switch msg {
 	case wmNCHitTest:
 		// Maximize stays HTMAXBUTTON so Windows can show snap layouts.
-		// Minimize and close are handled here: a child window that returns
-		// HTMINBUTTON/HTCLOSE never receives the click, so those are HTCLIENT
-		// and acted on in WM_LBUTTONDOWN.
+		// Minimize and close are HTCLIENT: a child window that returns
+		// HTMINBUTTON or HTCLOSE never receives the click.
 		if hit, ok := nativeSplit(lp); ok {
 			if hit == htMaxButton {
 				return htMaxButton
@@ -827,34 +848,75 @@ func capProc(hwnd, msg, wp, lp uintptr) uintptr {
 			return 1 // HTCLIENT
 		}
 		return htTransparent
-	case 0x00A0: // WM_NCMOUSEMOVE
+	case 0x0200: // WM_MOUSEMOVE
+		if !capTracking {
+			trackLeave(hwnd, false)
+			capTracking = true
+		}
 		invalidateButtons(hwnd)
 		return 0
-	case 0x00A1, 0x00A2, 0x00A3: // NCLBUTTONDOWN, NCLBUTTONUP, NCLBUTTONDBLCLK
-		actCaption(wp)
+	case 0x02A3: // WM_MOUSELEAVE
+		capTracking = false
+		invalidateButtons(hwnd)
+		return 0
+	case 0x00A0: // WM_NCMOUSEMOVE
+		trackLeave(hwnd, true)
+		invalidateButtons(hwnd)
+		return 0
+	case 0x02A2: // WM_NCMOUSELEAVE
+		if capPressed == htMaxButton {
+			capPressed = 0
+		}
+		invalidateButtons(hwnd)
 		return 0
 	case 0x0201: // WM_LBUTTONDOWN
-		var pt struct{ x, y int32 }
-		windows.NewLazySystemDLL("user32.dll").NewProc("GetCursorPos").Call(uintptr(unsafe.Pointer(&pt)))
-		packed := uintptr(uint16(pt.x)) | uintptr(uint16(pt.y))<<16
-		if hit, ok := nativeSplit(packed); ok {
+		if hit, ok := cursorHit(); ok {
+			capPressed = hit
+			user32.NewProc("SetCapture").Call(hwnd)
+		}
+		invalidateButtons(hwnd)
+		return 0
+	case 0x0202: // WM_LBUTTONUP
+		pressed := capPressed
+		capPressed = 0
+		user32.NewProc("ReleaseCapture").Call()
+		if hit, ok := cursorHit(); ok && hit == pressed {
 			actCaption(hit)
 		}
+		invalidateButtons(hwnd)
+		return 0
+	case 0x0215: // WM_CAPTURECHANGED
+		if capPressed != htMaxButton {
+			capPressed = 0
+		}
+		invalidateButtons(hwnd)
+		return 0
+	case 0x00A1: // WM_NCLBUTTONDOWN
+		if wp == htMaxButton {
+			capPressed = htMaxButton
+		}
+		invalidateButtons(hwnd)
+		return 0
+	case 0x00A2: // WM_NCLBUTTONUP
+		if wp == htMaxButton && capPressed == htMaxButton {
+			actCaption(htMaxButton)
+		}
+		capPressed = 0
+		invalidateButtons(hwnd)
+		return 0
+	case 0x00A3: // WM_NCLBUTTONDBLCLK
 		return 0
 	case wmEraseBkgnd:
 		var rc winRect
-		windows.NewLazySystemDLL("user32.dll").NewProc("GetClientRect").Call(hwnd, uintptr(unsafe.Pointer(&rc)))
-		color := uintptr(0x00F3F3F3)
-		if captionDark {
-			color = 0x002B2B2B
-		}
-		fillRect(wp, rc, color)
+		user32.NewProc("GetClientRect").Call(hwnd, uintptr(unsafe.Pointer(&rc)))
+		bg, _, _, _ := captionColors()
+		fillRect(wp, rc, bg)
 		return 1
 	case wmPaint:
 		drawCaptionButtons(hwnd)
 		return 0
 	default:
-		r, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("DefWindowProcW").Call(hwnd, msg, wp, lp)
+		r, _, _ := user32.NewProc("DefWindowProcW").Call(hwnd, msg, wp, lp)
 		return r
 	}
 }
@@ -914,6 +976,28 @@ func invalidateButtons(hwnd uintptr) {
 	}
 }
 
+var cellHit = [3]uintptr{htMinButton, htMaxButton, htClose}
+
+// The preview is near black, so while it is open the buttons switch to a
+// matching palette instead of leaving a light block in the corner.
+var captionOverlay atomic.Bool
+
+func setCaptionOverlay(on bool) {
+	captionOverlay.Store(on)
+	invalidateButtons(capHwnd)
+}
+
+func captionColors() (bg, ink, hover, press uintptr) {
+	switch {
+	case captionOverlay.Load():
+		return 0x000E0E0E, 0x00F3F3F3, 0x002A2A2A, 0x00363636
+	case captionDark:
+		return 0x002B2B2B, 0x00F3F3F3, 0x00333333, 0x003D3D3D
+	default:
+		return 0x00F3F3F3, 0x001A1A1A, 0x00E5E5E5, 0x00D6D6D6
+	}
+}
+
 func drawCaptionButtons(hwnd uintptr) {
 	var ps [80]byte
 	user32 := windows.NewLazySystemDLL("user32.dll")
@@ -927,14 +1011,7 @@ func drawCaptionButtons(hwnd uintptr) {
 	if rc.r <= rc.l || rc.b <= rc.t {
 		return
 	}
-	bg := uintptr(0x00F3F3F3)
-	ink := uintptr(0x001A1A1A)
-	hover := uintptr(0x00E5E5E5)
-	if captionDark {
-		bg = 0x002B2B2B
-		ink = 0x00F3F3F3
-		hover = 0x00333333
-	}
+	bg, ink, hover, press := captionColors()
 	fillRect(hdc, rc, bg)
 	captionMu.Lock()
 	screen := nativeBtn
@@ -955,9 +1032,15 @@ func drawCaptionButtons(hwnd uintptr) {
 	for i := int32(0); i < 3; i++ {
 		cell := winRect{l: rc.l + third*i, t: rc.t, r: rc.l + third*(i+1), b: rc.b}
 		if int(i+1) == hot {
+			down := capPressed != 0 && capPressed == cellHit[i]
 			color := hover
-			if hot == 3 {
+			switch {
+			case hot == 3 && down:
+				color = 0x003140C8
+			case hot == 3:
 				color = 0x001C2BC4
+			case down:
+				color = press
 			}
 			fillRect(hdc, cell, color)
 		}
@@ -1026,17 +1109,31 @@ func showWin(hwnd uintptr, cmd uintptr) {
 	windows.NewLazySystemDLL("user32.dll").NewProc("ShowWindow").Call(hwnd, cmd)
 }
 
+const (
+	scMinimize = 0xF020
+	scMaximize = 0xF030
+	scRestore  = 0xF120
+)
+
+// WM_SYSCOMMAND lets Windows play its own minimize and maximize animations
+// and keeps snap state right, which ShowWindow skips.
+func sysCommand(hwnd, cmd uintptr) {
+	if hwnd == 0 {
+		return
+	}
+	windows.NewLazySystemDLL("user32.dll").NewProc("PostMessageW").Call(hwnd, 0x0112, cmd, 0)
+}
+
 func toggleZoom(hwnd uintptr) {
 	if hwnd == 0 {
 		return
 	}
-	user32 := windows.NewLazySystemDLL("user32.dll")
-	zoomed, _, _ := user32.NewProc("IsZoomed").Call(hwnd)
-	cmd := uintptr(3) // SW_MAXIMIZE
+	zoomed, _, _ := windows.NewLazySystemDLL("user32.dll").NewProc("IsZoomed").Call(hwnd)
 	if zoomed != 0 {
-		cmd = 9 // SW_RESTORE
+		sysCommand(hwnd, scRestore)
+	} else {
+		sysCommand(hwnd, scMaximize)
 	}
-	user32.NewProc("ShowWindow").Call(hwnd, cmd)
 }
 
 func postClose(hwnd uintptr) {

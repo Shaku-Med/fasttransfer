@@ -134,7 +134,7 @@ func main() {
 		report("FastTransfer could not open its page.")
 		return
 	}
-	runApp("http://127.0.0.1:" + port + "/desk?v=16")
+	runApp("http://127.0.0.1:" + port + "/desk?v=17")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -150,6 +150,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/desk", guardLocal(s.deskInfo))
 	mux.HandleFunc("GET /api/dir", guardLocal(s.dirList))
 	mux.HandleFunc("GET /api/file", guardLocal(s.file))
+	mux.HandleFunc("GET /api/thumb", guardLocal(s.thumb))
 	mux.HandleFunc("GET /api/video", guardLocal(s.videoInfo))
 	mux.HandleFunc("GET /api/pdf", guardLocal(s.pdfPage))
 	mux.HandleFunc("GET /desk/pdf", guardLocal(s.pdfPage))

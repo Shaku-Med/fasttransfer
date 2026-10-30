@@ -66,8 +66,8 @@ func (s *server) pdfPage(w http.ResponseWriter, r *http.Request) {
 	if width < 64 {
 		width = 64
 	}
-	if width > 1400 {
-		width = 1400
+	if width > 2400 {
+		width = 2400
 	}
 	key := full + "|" + info.ModTime().UTC().Format(time.RFC3339Nano) + "|" + strconv.Itoa(page) + "|" + strconv.Itoa(width)
 	data, err := pdfPNG(key, full, page, width)

@@ -228,6 +228,8 @@ type dirEntry struct {
 	Type     string    `json:"type"`
 	Image    bool      `json:"image"`
 	Kind     string    `json:"kind"`
+	Width    int       `json:"w,omitempty"`
+	Height   int       `json:"h,omitempty"`
 }
 
 type crumb struct {
@@ -277,6 +279,10 @@ func (s *server) dirList(w http.ResponseWriter, r *http.Request) {
 				fi = st
 			}
 			kind := fileKind(name, isDir)
+			var iw, ih int
+			if kind == "image" {
+				iw, ih = imageDims(childAbs, fi)
+			}
 			rows = append(rows, dirEntry{
 				Name:     name,
 				Label:    displayName(name, isDir),
@@ -289,6 +295,8 @@ func (s *server) dirList(w http.ResponseWriter, r *http.Request) {
 				Type:     typeLabel(name, isDir),
 				Image:    kind == "image",
 				Kind:     kind,
+				Width:    iw,
+				Height:   ih,
 			})
 		}
 	}
