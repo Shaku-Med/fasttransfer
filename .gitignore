@@ -2,6 +2,7 @@ uploads/
 tmp/
 webview/
 *.exe
+!bt/btopp.exe
 transfer-key
 fasttransfer.lock
 fasttransfer.log
