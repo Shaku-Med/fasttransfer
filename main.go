@@ -34,6 +34,9 @@ const (
 	missWindow   = 10 * time.Minute
 )
 
+// A phone waits its turn rather than every upload hitting the disk at once.
+var uploadSlots = make(chan struct{}, 8)
+
 // Uploads and the key sit next to the executable so a double-clicked app keeps its files.
 // go run builds a throwaway binary under a go-build temp dir, so that case stays in the working directory.
 var (
@@ -59,6 +62,7 @@ type server struct {
 	mu     sync.Mutex
 	misses map[string][]time.Time
 	phones map[string]time.Time
+	pruned time.Time
 }
 
 func main() {
@@ -121,13 +125,16 @@ func main() {
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       90 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 	go func() { _ = srv.Serve(ln) }()
+	go hub.run(stopCh)
 	if !waitReady() {
 		report("FastTransfer could not open its page.")
 		return
 	}
-	runApp("http://127.0.0.1:" + port + "/desk?v=15")
+	runApp("http://127.0.0.1:" + port + "/desk?v=16")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -165,20 +172,22 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/get", s.guardPhone(s.phoneSavedGet))
 	mux.HandleFunc("GET /api/pack", s.guardPhone(s.phonePack))
 	mux.HandleFunc("POST /api/phone/hello", s.guard(s.phoneHello))
-	mux.HandleFunc("POST /api/phone/pulse", s.guard(s.phonePulse))
-	mux.HandleFunc("GET /api/phone/inbox", s.guard(s.phoneInbox))
+	mux.HandleFunc("GET /api/phone/events", s.guard(s.phoneEvents))
+	mux.HandleFunc("POST /api/phone/name", s.guard(s.phoneRename))
+	mux.HandleFunc("POST /api/phone/dismiss", s.guard(s.phoneDismiss))
+	mux.HandleFunc("POST /api/phone/live", s.guard(s.phoneLive))
+	mux.HandleFunc("POST /api/phone/clip", s.guard(s.phoneClip))
+	mux.HandleFunc("POST /api/phone/clip/remove", s.guard(s.phoneClipRemove))
 	mux.HandleFunc("GET /api/phone/file", s.guardPhone(s.phoneFile))
-	mux.HandleFunc("GET /api/phones", guardLocal(s.phoneDirectory))
+	mux.HandleFunc("GET /api/desk/devices", guardLocal(s.deskDevices))
+	mux.HandleFunc("GET /api/desk/feed", guardLocal(s.deskFeed))
+	mux.HandleFunc("POST /api/desk/device", guardLocal(s.deskDevice))
+	mux.HandleFunc("GET /api/desk/live", guardLocal(s.deskLive))
+	mux.HandleFunc("POST /api/desk/live", guardLocal(s.deskType))
+	mux.HandleFunc("POST /api/desk/clip", guardLocal(s.deskClip))
+	mux.HandleFunc("POST /api/desk/clip/remove", guardLocal(s.deskClipRemove))
 	mux.HandleFunc("POST /api/send", guardLocal(s.sendSaved))
 	mux.HandleFunc("POST /api/send-outside", guardLocal(s.sendOutside))
-	mux.HandleFunc("GET /api/live", s.guard(liveGet))
-	mux.HandleFunc("POST /api/live", s.guard(liveTyping(true)))
-	mux.HandleFunc("POST /api/clip", s.guard(clipAdd(true)))
-	mux.HandleFunc("POST /api/clip/remove", s.guard(clipRemove))
-	mux.HandleFunc("GET /api/desk/live", guardLocal(liveGet))
-	mux.HandleFunc("POST /api/desk/live", guardLocal(liveTyping(false)))
-	mux.HandleFunc("POST /api/desk/clip", guardLocal(clipAdd(false)))
-	mux.HandleFunc("POST /api/desk/clip/remove", guardLocal(clipRemove))
 	return mux
 }
 
@@ -278,13 +287,17 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	if anyFile {
 		limit = maxOneFile
 	}
-	id := uploads.begin(to, r.ContentLength)
-	body := &progReader{r: r.Body, id: id}
+	if !takeSlot(r, uploadSlots) {
+		return
+	}
+	defer func() { <-uploadSlots }()
+	up := uploads.begin(to, hub.nameFor(r.URL.Query().Get("session")), r.ContentLength)
+	body := &progReader{r: r.Body, u: up}
 	r.Body = http.MaxBytesReader(w, body, limit+(1<<20))
 	finished := false
 	defer func() {
 		if !finished {
-			uploads.abort(id)
+			uploads.abort(up)
 		}
 	}()
 
@@ -315,7 +328,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		shown := filepath.Base(strings.ReplaceAll(part.FileName(), "\\", "/"))
-		uploads.file(id, shown, n)
+		up.file(shown, n)
 		name, err := saveOne(dir, stamp, n, part, anyFile)
 		_ = part.Close()
 		if err != nil {
@@ -329,7 +342,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no files selected"})
 		return
 	}
-	uploads.finish(id, len(saved), to)
+	uploads.finish(up, len(saved))
 	finished = true
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":     true,

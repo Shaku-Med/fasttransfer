@@ -2,6 +2,6 @@
 
 package main
 
-func sendPickedFiles(session string) (int, error) {
+func sendPickedFiles(devices []string, all bool) (int, error) {
 	return 0, errNoPhone
 }

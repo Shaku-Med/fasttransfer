@@ -27,9 +27,17 @@ mp4, m4v, and webm play directly. Other videos (mkv, avi, mov, wmv, flv, mpeg, t
 
 Windows firewall may ask once — allow it on private networks.
 
-## Text between the PC and the phone
+## Many phones at once
 
-Open Text in the window, or the Text tab on the phone. Both show one shared pad, so whatever you type on one side shows up on the other as you type. Save as clip keeps a snippet in the list below it, where either side can copy it. A clip that is just a link gets an Open button on the phone.
+Every phone that opens the link shows up under Connect with its own name. The phone picks a name like "iPhone 4F2A" and you can rename it from either side. A phone keeps the same entry after a reload or a locked screen, so files and text sent while it was away are waiting when it comes back. Phones that have been away for a day are forgotten.
+
+Send to phone lets you search and tick any number of phones. Each phone holds one open request that the PC answers only when something new arrives, so a room full of idle phones costs almost nothing. The load test drives 1500 simulated phones over real HTTP: a file sent to all of them reaches every one in under 200 ms. Run it with `go test -run TestManyPhones -v`, or set `FT_PHONES` for a different size.
+
+The real limit is Wi-Fi. Most home routers top out somewhere between 30 and 250 connected devices, and every phone downloading a file shares the same airtime, so a big file to a big room takes a while.
+
+## Text between the PC and the phones
+
+Each phone has its own pad with the PC under Text, and both sides see it as they type. Pick Everyone to send one message to every phone at once. Save as clip keeps a snippet in the list next to the pad, where either side can copy it. A clip that is just a link gets an Open button on the phone.
 
 Turn on "Copy clips from the phone straight to this PC's clipboard" and a clip sent from the phone lands on the Windows clipboard right away, even when the window is in the background. The pad and the clips live in memory only, so quitting FastTransfer clears them.
 

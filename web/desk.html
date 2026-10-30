@@ -141,7 +141,7 @@
     }
     #sendbox {
       position: relative;
-      width: min(420px, 100%);
+      width: min(480px, 100%);
       background: var(--menu);
       color: var(--ink);
       border: 1px solid var(--line);
@@ -151,14 +151,13 @@
     }
     #sendbox h2 { margin: 0 32px 8px 0; font-size: 16px; font-weight: 600; }
     #sendnote { margin: 0 0 12px; color: var(--muted); }
-    #sendphones { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; }
-    #sendphones label { display: flex; align-items: center; gap: 8px; min-height: 32px; }
-    #sendlist { list-style: none; margin: 0 0 16px; padding: 0; max-height: 180px; overflow: auto; }
+    #sendlist { list-style: none; margin: 0 0 16px; padding: 0; max-height: 120px; overflow: auto; }
     #sendlist li { min-height: 32px; padding: 6px 0; border-top: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #sendfoot { display: flex; justify-content: flex-end; gap: 8px; }
     #sendpick, #sendgo { height: 32px; padding: 0 12px; border-radius: 8px; }
     #sendpick { border: 1px solid var(--line); background: transparent; color: inherit; }
     #sendgo { border: 0; background: var(--accent); color: var(--on-accent); }
+    #sendgo:disabled, #sendpick:disabled { opacity: 0.45; cursor: default; }
     #sendclose {
       position: absolute;
       top: 8px;
@@ -945,9 +944,14 @@
       flex: 1;
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+      grid-template-columns: 220px minmax(0, 1fr) minmax(240px, 300px);
       gap: 12px;
       padding: 16px 24px 24px;
+    }
+    @media (max-width: 1240px) {
+      #textview .body { grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 210px; }
+      #convcard { grid-row: 1 / 3; }
+      #clipcard { grid-column: 2; }
     }
     #padcard, #clipcard { display: flex; flex-direction: column; min-height: 0; }
     #livepad {
@@ -1056,14 +1060,58 @@
     .setting .what b { display: block; font-weight: 600; }
     .setting .what span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #phonelink { user-select: text; }
-    #phonesnow { margin: 0; padding: 4px 0; list-style: none; }
-    #phonesnow li { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 16px; }
-    #phonesnow li svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
-    #phonesnow li .on { margin-left: auto; color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
-    #phonesnow li .on::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-    #phonesnow .none { color: var(--muted); }
+    #phonesnow { margin: 0; padding: 0; list-style: none; max-height: 520px; overflow: auto; }
+    #phonesnow li { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px 6px 16px; }
+    #phonesnow li + li { border-top: 1px solid var(--line); }
+    #phonesnow li > svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+    #phonesnow .what, .conv .what { flex: 1; min-width: 0; }
+    #phonesnow .what b, #phonesnow .what small, .conv b, .conv small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #phonesnow .what b, .conv b { font-weight: 500; }
+    #phonesnow .what small, .conv small { margin-top: 1px; color: var(--muted); font-size: 12px; }
+    #phonesnow .acts { display: flex; gap: 2px; flex: none; }
+    #phonesnow .none { justify-content: center; min-height: 64px; color: var(--muted); font-size: 12px; }
+    .sum { color: var(--muted); font-size: 12px; padding-right: 8px; white-space: nowrap; }
+    .dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--line); }
+    .dot.on { background: var(--accent); }
+    .find {
+      width: 100%;
+      height: 32px;
+      box-sizing: border-box;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-bottom-color: var(--muted);
+      border-radius: 6px;
+      background: var(--list);
+      outline: none;
+    }
+    .find:focus { border-bottom-color: var(--accent); box-shadow: inset 0 -1px 0 var(--accent); }
+    .find::placeholder { color: var(--muted); }
+    .findrow { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+    #sendfind { padding: 0; border: 0; margin: 0 0 8px; }
+    .btn.small { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 4px; }
+    .picklist { max-height: 260px; overflow: auto; margin: 0 0 8px; padding: 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--list); }
+    .pick { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px; border-radius: 4px; cursor: pointer; }
+    .pick:hover { background: var(--hover); }
+    .pick.on { background: var(--sel); }
+    .pick input { margin: 0; accent-color: var(--accent); }
+    .pick svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+    .pick .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pick .state, #sendcount, .more { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    #sendcount { margin: 0 0 12px; min-height: 16px; }
+    .more { margin: 0; padding: 10px 8px; text-align: center; list-style: none; }
+    #askinput { display: block; width: 100%; height: 32px; box-sizing: border-box; margin-top: 12px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--list); }
+    #convcard { display: flex; flex-direction: column; min-height: 0; }
+    #convcard .cardhead { padding: 0 8px; gap: 0; }
+    #convcard .convtitle { padding-left: 8px; }
+    #convq:not([hidden]) + .convtitle { display: none; }
+    #convlist { flex: 1; min-height: 0; margin: 0; padding: 4px; list-style: none; overflow: hidden auto; }
+    .conv { box-sizing: border-box; position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 10px; border-radius: 6px; text-align: left; transition: background 120ms var(--ease); }
+    .conv:hover { background: var(--hover); }
+    .conv.on { background: var(--sel); }
+    .conv.on b { font-weight: 600; }
+    .conv > svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+    .conv .count { min-width: 18px; height: 18px; padding: 0 5px; flex: none; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
     @media (max-width: 1000px) {
-      #textview .body { grid-template-columns: minmax(0, 1fr) 260px; }
       #connectgrid { grid-template-columns: 1fr; }
     }
 
@@ -1184,10 +1232,14 @@
             <h1>Text</h1>
             <span id="livestate">Connecting</span>
           </div>
-          <p class="lede">Anything you type here shows up on the phone as you type, and the other way round.</p>
+          <p class="lede">Each phone has its own pad with this PC, and both sides see it as they type. Pick Everyone to send one message to every phone.</p>
           <div class="body">
+            <div id="convcard" class="card">
+              <div class="cardhead"><input id="convq" class="find" type="search" placeholder="Find a phone" aria-label="Find a phone" maxlength="40" autocomplete="off" spellcheck="false" hidden /><h2 class="convtitle">Phones</h2></div>
+              <ul id="convlist"></ul>
+            </div>
             <div id="padcard" class="card">
-              <div class="cardhead"><h2>Live pad</h2></div>
+              <div class="cardhead"><h2 id="padtitle">Everyone</h2></div>
               <textarea id="livepad" spellcheck="true" maxlength="65536" placeholder="Type or paste here"></textarea>
               <div class="cardfoot">
                 <button id="padpaste" class="btn quiet" type="button" title="Paste from this PC's clipboard"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3" width="9" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 3V2h4v1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Paste</button>
@@ -1199,7 +1251,7 @@
               </div>
             </div>
             <div id="clipcard" class="card">
-              <div class="cardhead"><h2>Clips</h2><button id="clipclear" class="btn quiet" type="button" hidden>Clear all</button></div>
+              <div class="cardhead"><h2 id="cliphead">Clips</h2><button id="clipclear" class="btn quiet" type="button" hidden>Clear all</button></div>
               <ul id="cliplist"></ul>
               <label class="switch"><input id="autocopy" type="checkbox" /><span class="track"></span><span class="txt">Copy clips from the phone straight to this PC's clipboard</span></label>
             </div>
@@ -1232,7 +1284,8 @@
                   </div>
                 </div>
                 <div class="card">
-                  <div class="cardhead"><h2>Phones here now</h2></div>
+                  <div class="cardhead"><h2>Phones</h2><span id="phonesum" class="sum"></span></div>
+                  <div class="findrow" id="devfindrow" hidden><input id="devq" class="find" type="search" placeholder="Find a phone by name" aria-label="Find a phone" maxlength="40" autocomplete="off" spellcheck="false" /></div>
                   <ul id="phonesnow"></ul>
                 </div>
               </div>
@@ -1312,12 +1365,14 @@
   <div id="sendsrim" hidden>
     <div id="sendbox" role="dialog" aria-modal="true" aria-labelledby="sendtitle">
       <button id="sendclose" type="button" aria-label="Close"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
-      <h2 id="sendtitle">Send</h2>
+      <h2 id="sendtitle">Send to phones</h2>
       <p id="sendnote"></p>
-      <div id="sendphones"></div>
+      <div id="sendfind" class="findrow"><input id="sendq" class="find" type="search" placeholder="Find a phone" aria-label="Find a phone" maxlength="40" autocomplete="off" spellcheck="false" /><button id="sendall" class="btn quiet small" type="button">Pick all</button></div>
+      <div id="sendphones" class="picklist"></div>
+      <p id="sendcount"></p>
       <ul id="sendlist"></ul>
       <div id="sendfoot">
-        <button id="sendpick" type="button">Send files</button>
+        <button id="sendpick" type="button">Send files from this PC</button>
         <button id="sendgo" type="button">Send</button>
       </div>
       <div id="btsend">
@@ -1337,6 +1392,7 @@
   <div id="ask" hidden>
     <div id="askbox" role="dialog" aria-modal="true">
       <p id="asktext"></p>
+      <input id="askinput" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Name" hidden />
       <div class="rowbtns">
         <button id="askno" type="button">Cancel</button>
         <button id="askyes" type="button">Delete</button>
@@ -1369,8 +1425,6 @@
     let selectedRel = "";
     let picked = new Set();
     let anchorRel = "";
-    let phoneList = [];
-    let phoneChoice = "";
     let btList = [];
     let btChoice = "";
     let btBusy = false;
@@ -1507,7 +1561,6 @@
         row.classList.toggle("sel", picked.has(row.dataset.rel));
       });
       updateStatus();
-      renderPhoneButtons();
     }
 
     function selectOnly(rel) {
@@ -1538,10 +1591,6 @@
       picked = new Set(viewRows.slice(lo, hi + 1).map((entry) => entry.rel));
       selectedRel = rel;
       paint();
-    }
-
-    function chosenPhone() {
-      return phoneList.some((phone) => phone.id === phoneChoice) ? phoneChoice : "";
     }
 
     function selectedFiles() {
@@ -2911,66 +2960,120 @@
       await load();
     }
 
-    function renderPhoneButtons() {
-      if (!phoneList.length) {
-        phoneChoice = "";
-        return;
+    const ROW_CAP = 200;
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    let sendPicked = new Set();
+    let sendQuery = "";
+    try {
+      const saved = JSON.parse(localStorage.getItem("ft-targets") || "[]");
+      if (Array.isArray(saved)) saved.slice(0, 500).forEach((h) => { if (/^[0-9a-f]{16}$/.test(h)) sendPicked.add(h); });
+    } catch (err) {}
+
+    function pickedTargets() {
+      return [...sendPicked].filter((h) => devs.has(h));
+    }
+
+    function rememberTargets() {
+      try { localStorage.setItem("ft-targets", JSON.stringify(pickedTargets().slice(0, 500))); } catch (err) {}
+    }
+
+    function sendFilesPicked() {
+      return selectedFiles().map((rel) => entries.find((entry) => entry.rel === rel)).filter(Boolean);
+    }
+
+    function paintSendButtons() {
+      const n = pickedTargets().length;
+      const files = sendFilesPicked().length;
+      const go = document.getElementById("sendgo");
+      document.getElementById("sendcount").textContent = !devs.size ? "" : n === 1 ? "1 phone picked" : n + " phones picked";
+      go.hidden = !files;
+      go.disabled = !n;
+      go.textContent = "Send " + (files === 1 ? "1 file" : files + " files") + (n ? " to " + (n === 1 ? "1 phone" : n + " phones") : "");
+      document.getElementById("sendpick").disabled = !n;
+      const matches = sortedDevs(sendQuery);
+      const every = matches.length > 0 && matches.every((d) => sendPicked.has(d.handle));
+      const allBtn = document.getElementById("sendall");
+      allBtn.textContent = every ? "Clear" : sendQuery ? "Pick matches" : "Pick all";
+      allBtn.dataset.mode = every ? "clear" : "pick";
+    }
+
+    function pickRow(d) {
+      const label = document.createElement("label");
+      label.className = "pick" + (sendPicked.has(d.handle) ? " on" : "");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = sendPicked.has(d.handle);
+      input.addEventListener("change", () => {
+        if (input.checked) sendPicked.add(d.handle);
+        else sendPicked.delete(d.handle);
+        label.classList.toggle("on", input.checked);
+        paintSendButtons();
+      });
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = d.name;
+      const state = document.createElement("span");
+      state.className = "state";
+      state.textContent = statusText(d);
+      label.append(input, kindGlyph(d.kind), name, state);
+      return label;
+    }
+
+    function renderSendPicker() {
+      const box = document.getElementById("sendphones");
+      const keep = box.scrollTop;
+      box.replaceChildren();
+      [...sendPicked].forEach((h) => { if (!devs.has(h)) sendPicked.delete(h); });
+      const total = devs.size;
+      document.getElementById("sendnote").textContent = total
+        ? "Pick who gets them. A phone that is away gets them when it opens the page again."
+        : "No phone has connected yet. Open Connect and scan the code with the phone.";
+      document.getElementById("sendfind").hidden = total < 2;
+      document.getElementById("sendq").hidden = total < 6;
+      box.hidden = !total;
+      const matches = sortedDevs(sendQuery);
+      matches.sort((a, b) => Number(sendPicked.has(b.handle)) - Number(sendPicked.has(a.handle)));
+      matches.slice(0, ROW_CAP).forEach((d) => box.appendChild(pickRow(d)));
+      if (matches.length > ROW_CAP || (total && !matches.length)) {
+        const more = document.createElement("p");
+        more.className = "more";
+        more.textContent = matches.length ? "Showing " + ROW_CAP + " of " + matches.length + ". Search to narrow it down." : "No phone matches that.";
+        box.appendChild(more);
       }
-      if (!phoneList.some((phone) => phone.id === phoneChoice)) phoneChoice = phoneList[0].id;
+      box.scrollTop = keep;
+      paintSendButtons();
     }
 
     function openSendModal() {
-      const moremenu = document.getElementById("moremenu");
-      moremenu.hidden = true;
-      const scrim = document.getElementById("sendsrim");
-      const note = document.getElementById("sendnote");
-      const phones = document.getElementById("sendphones");
+      document.getElementById("moremenu").hidden = true;
       const list = document.getElementById("sendlist");
-      const go = document.getElementById("sendgo");
-      const pick = document.getElementById("sendpick");
-      phones.replaceChildren();
       list.replaceChildren();
-      if (!phoneList.length) {
-        note.textContent = "No phone is connected. Open Connect and scan the code with the phone.";
-        go.hidden = true;
-        pick.hidden = true;
-      } else {
-        if (!phoneList.some((phone) => phone.id === phoneChoice)) phoneChoice = phoneList[0].id;
-        const current = phoneList.find((phone) => phone.id === phoneChoice);
-        if (phoneList.length > 1) {
-          note.textContent = "Choose a phone.";
-          phoneList.forEach((item) => {
-            const label = document.createElement("label");
-            const input = document.createElement("input");
-            input.type = "radio";
-            input.name = "whichphone";
-            input.value = item.id;
-            input.checked = item.id === phoneChoice;
-            input.addEventListener("change", () => { phoneChoice = item.id; });
-            const text = document.createElement("span");
-            text.textContent = item.name || "Phone";
-            label.append(input, text);
-            phones.appendChild(label);
-          });
-        } else {
-          note.textContent = "Send to " + ((current && current.name) || "Phone") + ".";
-        }
-        pick.hidden = false;
-      }
-      const files = selectedFiles().map((rel) => entries.find((entry) => entry.rel === rel)).filter(Boolean);
+      const files = sendFilesPicked();
       if (!files.length) {
         const li = document.createElement("li");
-        li.textContent = "No files selected.";
+        li.textContent = "No files selected here. Use Send files from this PC, or close this and pick some.";
         list.appendChild(li);
       } else {
-        files.forEach((file) => {
+        files.slice(0, 50).forEach((file) => {
           const li = document.createElement("li");
           li.textContent = file.label || file.name;
           list.appendChild(li);
         });
+        if (files.length > 50) {
+          const li = document.createElement("li");
+          li.textContent = "and " + (files.length - 50) + " more";
+          list.appendChild(li);
+        }
       }
-      if (phoneList.length) go.hidden = files.length === 0;
-      scrim.hidden = false;
+      if (!pickedTargets().length) {
+        const online = sortedDevs("").filter((d) => d.online);
+        if (online.length === 1) sendPicked.add(online[0].handle);
+      }
+      sendQuery = "";
+      document.getElementById("sendq").value = "";
+      renderSendPicker();
+      document.getElementById("sendsrim").hidden = false;
+      if (devs.size >= 6) document.getElementById("sendq").focus();
       loadBluetooth();
     }
 
@@ -3170,94 +3273,383 @@
       document.getElementById("sendsrim").hidden = true;
     }
 
-    let phonesSeen = null;
+    // The directory is loaded once, then kept current from the feed. If the
+    // window falls behind, the server says reset and the list loads again.
+    const devs = new Map();
+    const typingUntil = new Map();
+    const unreadBy = new Map();
+    const kindNames = { iphone: "iPhone", ipad: "iPad", android: "Android", other: "Phone" };
+    let devSeq = -1;
+    let devQuery = "";
+    let convQuery = "";
+    let renderQueued = false;
+    const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-    function phoneGlyph() {
+    function onlineCount() {
+      let n = 0;
+      devs.forEach((d) => { if (d.online) n++; });
+      return n;
+    }
+
+    function sortedDevs(q) {
+      const needle = (q || "").trim().toLowerCase();
+      const rows = [];
+      devs.forEach((d) => {
+        if (!needle || d.name.toLowerCase().includes(needle) || (kindNames[d.kind] || "").toLowerCase().includes(needle)) rows.push(d);
+      });
+      rows.sort((a, b) => (a.online === b.online ? collator.compare(a.name, b.name) : a.online ? -1 : 1));
+      return rows;
+    }
+
+    function agoShort(ms) {
+      const m = Math.round(ms / 60000);
+      if (m < 1) return "just now";
+      if (m < 60) return m + " min ago";
+      const h = Math.round(m / 60);
+      if (h < 24) return h + " h ago";
+      return Math.round(h / 24) + " d ago";
+    }
+
+    function statusText(d) {
+      if ((typingUntil.get(d.handle) || 0) > Date.now()) return "Typing";
+      return d.online ? "Connected" : "Away, seen " + agoShort(Date.now() - d.seenAt);
+    }
+
+    function kindGlyph(kind) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 16 16");
       svg.setAttribute("aria-hidden", "true");
-      svg.innerHTML = '<rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>';
+      svg.innerHTML = kind === "ipad"
+        ? '<rect x="2.5" y="2" width="11" height="12" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        : '<rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>';
       return svg;
     }
 
-    function renderPhonesNow() {
+    function smallButton(label, run) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn quiet small";
+      b.textContent = label;
+      b.addEventListener("click", (event) => { event.stopPropagation(); run(); });
+      return b;
+    }
+
+    function renderConnectList() {
       const ul = document.getElementById("phonesnow");
-      ul.replaceChildren();
+      const online = onlineCount();
+      const away = devs.size - online;
+      document.getElementById("phonesum").textContent = devs.size
+        ? online + " connected" + (away ? "  ·  " + away + " away" : "")
+        : "";
+      document.getElementById("devfindrow").hidden = devs.size < 6;
       const badge = document.getElementById("phonebadge");
-      badge.hidden = !phoneList.length;
-      badge.textContent = String(phoneList.length);
-      if (!phoneList.length) {
+      badge.hidden = !online;
+      badge.textContent = online > 999 ? "999+" : String(online);
+      ul.replaceChildren();
+      if (!devs.size) {
         const li = document.createElement("li");
         li.className = "none";
         li.textContent = "No phone yet. Once the link is open on a phone it shows up here.";
         ul.appendChild(li);
         return;
       }
-      phoneList.forEach((phone) => {
+      const rows = sortedDevs(devQuery);
+      rows.slice(0, ROW_CAP).forEach((d) => {
         const li = document.createElement("li");
-        const name = document.createElement("span");
-        name.textContent = phone.name || "Phone";
-        const on = document.createElement("span");
-        on.className = "on";
-        on.textContent = "Connected";
-        li.append(phoneGlyph(), name, on);
+        const dot = document.createElement("span");
+        dot.className = "dot" + (d.online ? " on" : "");
+        const what = document.createElement("div");
+        what.className = "what";
+        const name = document.createElement("b");
+        name.textContent = d.name;
+        const sub = document.createElement("small");
+        sub.textContent = [kindNames[d.kind] || "Phone", statusText(d), d.files ? d.files + (d.files === 1 ? " file waiting" : " files waiting") : ""].filter(Boolean).join("  ·  ");
+        what.append(name, sub);
+        const acts = document.createElement("div");
+        acts.className = "acts";
+        acts.append(
+          smallButton("Text", () => { showPage("text"); selectConv(d.handle); }),
+          smallButton("Send", () => { sendPicked = new Set([d.handle]); showPage("files"); openSendModal(); }),
+          smallButton("Rename", () => renameDevice(d))
+        );
+        if (!d.online) acts.append(smallButton("Forget", () => forgetDevice(d)));
+        li.append(dot, kindGlyph(d.kind), what, acts);
         ul.appendChild(li);
       });
+      if (rows.length > ROW_CAP || !rows.length) {
+        const li = document.createElement("li");
+        li.className = "none";
+        li.textContent = rows.length ? "Showing " + ROW_CAP + " of " + rows.length + ". Search to find the rest." : "No phone matches that.";
+        ul.appendChild(li);
+      }
     }
 
-    async function pollPhones() {
+    function renderConvList() {
+      const ul = document.getElementById("convlist");
+      const keep = ul.scrollTop;
+      ul.replaceChildren();
+      document.getElementById("convq").hidden = devs.size < 6;
+      const all = convButton({ handle: "all", name: "Everyone", kind: "" }, devs.size === 1 ? "1 phone" : devs.size + " phones");
+      ul.appendChild(all);
+      const rows = sortedDevs(convQuery);
+      rows.sort((a, b) => (unreadBy.get(b.handle) || 0) - (unreadBy.get(a.handle) || 0));
+      rows.slice(0, ROW_CAP).forEach((d) => ul.appendChild(convButton(d, statusText(d))));
+      if (rows.length > ROW_CAP) {
+        const li = document.createElement("li");
+        li.className = "more";
+        li.textContent = "Showing " + ROW_CAP + " of " + rows.length + ". Search to find the rest.";
+        ul.appendChild(li);
+      }
+      ul.scrollTop = keep;
+    }
+
+    function convButton(d, subText) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "conv" + (conv === d.handle ? " on" : "");
+      if (d.kind) {
+        const dot = document.createElement("span");
+        dot.className = "dot" + (d.online ? " on" : "");
+        b.appendChild(dot);
+      } else {
+        const glyph = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        glyph.setAttribute("viewBox", "0 0 16 16");
+        glyph.setAttribute("aria-hidden", "true");
+        glyph.innerHTML = '<circle cx="6" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2 13c.5-2.2 2-3.3 4-3.3s3.5 1.1 4 3.3M10 10c1.8 0 3.1.9 3.6 2.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+        b.appendChild(glyph);
+      }
+      const what = document.createElement("span");
+      what.className = "what";
+      const name = document.createElement("b");
+      name.textContent = d.name;
+      const sub = document.createElement("small");
+      sub.textContent = subText;
+      what.append(name, sub);
+      b.appendChild(what);
+      const n = unreadBy.get(d.handle) || 0;
+      if (n) {
+        const count = document.createElement("span");
+        count.className = "count";
+        count.textContent = n > 99 ? "99+" : String(n);
+        b.appendChild(count);
+      }
+      b.addEventListener("click", () => selectConv(d.handle));
+      li.appendChild(b);
+      return li;
+    }
+
+    function renderDevices() {
+      renderConnectList();
+      renderConvList();
+      if (!document.getElementById("sendsrim").hidden) renderSendPicker();
+      if (conv !== "all" && devs.has(conv)) convOnline = devs.get(conv).online;
+      restState();
+    }
+
+    function queueRender() {
+      if (renderQueued) return;
+      renderQueued = true;
+      setTimeout(() => { renderQueued = false; renderDevices(); }, 150);
+    }
+
+    async function askName(title, value) {
+      const field = document.getElementById("askinput");
+      field.hidden = false;
+      field.value = value || "";
+      setTimeout(() => { field.focus(); field.select(); }, 0);
+      const ok = await askUser(title, "Rename");
+      field.hidden = true;
+      return ok ? field.value.trim() : null;
+    }
+
+    async function renameDevice(d) {
+      const name = await askName("Rename " + d.name, d.name);
+      if (!name || name === d.name) return;
       try {
-        const data = await getJSON("/api/phones");
-        phoneList = data.phones || [];
-      } catch (err) {
-        phoneList = [];
-      }
-      const ids = new Set(phoneList.map((phone) => phone.id));
-      if (phonesSeen) {
-        phoneList.filter((phone) => !phonesSeen.has(phone.id)).forEach((phone) => {
-          toast((phone.name || "A phone") + " connected", "Send files or type in Text and it shows up there.");
+        const res = await fetch("/api/desk/device", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ handle: d.handle, name: name, forget: false }),
         });
+        if (!res.ok) throw new Error(String(res.status));
+      } catch (err) {
+        flash("Could not rename it");
       }
-      phonesSeen = ids;
-      renderPhoneButtons();
-      renderPhonesNow();
+    }
+
+    async function forgetDevice(d) {
+      if (!(await askUser("Forget " + d.name + "? Files waiting for it are dropped. It shows up again if it reconnects.", "Forget"))) return;
+      try {
+        const res = await fetch("/api/desk/device", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ handle: d.handle, name: "", forget: true }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+      } catch (err) {
+        flash("Could not forget it");
+      }
+    }
+
+    async function loadDevices() {
+      const data = await getJSON("/api/desk/devices");
+      const now = Date.now();
+      devs.clear();
+      (data.devices || []).forEach((d) => {
+        devs.set(d.handle, { handle: d.handle, name: d.name, kind: d.kind, online: d.online, seenAt: now - (d.age || 0), files: d.files || 0 });
+      });
+      devSeq = data.seq;
+      renderDevices();
+    }
+
+    // Toasts are batched so a classroom of phones joining at once is one toast, not a flood.
+    function batcher(ms, flush) {
+      let items = [];
+      let timer = 0;
+      return (item) => {
+        items.push(item);
+        if (timer) return;
+        timer = setTimeout(() => { const list = items; items = []; timer = 0; flush(list); }, ms);
+      };
+    }
+
+    function names(list) {
+      const unique = [...new Set(list.filter(Boolean))];
+      if (unique.length <= 3) return unique.join(", ");
+      return unique.slice(0, 3).join(", ") + " and " + (unique.length - 3) + " more";
+    }
+
+    const noteJoin = batcher(1200, (list) => {
+      if (list.length === 1) toast(list[0] + " connected", "Send it files, or open Text to type to it.");
+      else toast(list.length + " phones connected", names(list));
+    });
+
+    const noteClip = batcher(800, async (list) => {
+      if (autoCopy) {
+        const last = list[list.length - 1];
+        try {
+          const data = await getJSON("/api/desk/live?device=" + encodeURIComponent(last.handle) + "&since=-1");
+          const full = (data.clips || []).find((c) => c.from === "phone");
+          if (full) await writeClipboard(full.text);
+          toast("Copied a clip from " + last.name, full ? full.text : last.text);
+          return;
+        } catch (err) {}
+      }
+      if (list.length === 1) {
+        const ev = list[0];
+        toast("Clip from " + ev.name, ev.text, { label: "Open", run: () => { showPage("text"); selectConv(ev.handle); } });
+      } else {
+        toast(list.length + " new clips", "From " + names(list.map((ev) => ev.name)), { label: "Open", run: () => showPage("text") });
+      }
+    });
+
+    const noteRecv = batcher(1000, (list) => {
+      const count = list.reduce((sum, ev) => sum + (ev.count || 0), 0);
+      const from = names(list.map((ev) => ev.name));
+      const dests = [...new Set(list.map((ev) => ev.dest))];
+      let title;
+      if (list.length === 1 && count === 1) title = (list[0].text || "File") + " saved";
+      else title = count + " files saved";
+      const body = (dests.length === 1 ? "In " + folderName(dests[0]) : "In " + dests.length + " folders") + (from ? ", from " + from : "");
+      toast(title, body, dests.length === 1 ? { label: "Show", run: () => { showPage("files"); go(dests[0], true); } } : null);
+      flash(title + (from ? " from " + from : ""), 6000);
+      lastSig = "";
+      load();
+    });
+
+    function applyEvent(ev) {
+      const d = devs.get(ev.handle);
+      if (ev.kind === "join") {
+        const row = d || { handle: ev.handle, name: ev.name, kind: ev.device || "other", files: 0 };
+        row.name = ev.name || row.name;
+        row.online = true;
+        row.seenAt = Date.now();
+        devs.set(ev.handle, row);
+        noteJoin(row.name);
+      } else if (ev.kind === "leave" && d) {
+        d.online = false;
+        d.seenAt = Date.now();
+      } else if (ev.kind === "rename" && d) {
+        d.name = ev.name;
+      } else if (ev.kind === "forget") {
+        devs.delete(ev.handle);
+        sendPicked.delete(ev.handle);
+        unreadBy.delete(ev.handle);
+        paintUnread();
+        if (conv === ev.handle) selectConv("all");
+      } else if (ev.kind === "typing" && d) {
+        typingUntil.set(ev.handle, Date.now() + 3000);
+        setTimeout(queueRender, 3100);
+        if (!(page === "text" && conv === ev.handle) && !unreadBy.get(ev.handle)) {
+          unreadBy.set(ev.handle, 1);
+          paintUnread();
+        }
+      } else if (ev.kind === "clip" && d) {
+        if (!(page === "text" && conv === ev.handle)) {
+          unreadBy.set(ev.handle, (unreadBy.get(ev.handle) || 0) + 1);
+          paintUnread();
+        }
+        noteClip(ev);
+      } else if (ev.kind === "recv") {
+        noteRecv(ev);
+      }
+    }
+
+    async function listenFeed() {
+      for (;;) {
+        try {
+          if (devSeq < 0) await loadDevices();
+          const res = await fetch("/api/desk/feed?since=" + devSeq, { cache: "no-store" });
+          if (!res.ok) throw new Error(String(res.status));
+          const data = await res.json();
+          if (data.reset) { devSeq = -1; continue; }
+          (data.events || []).forEach(applyEvent);
+          devSeq = data.seq;
+          if (data.events && data.events.length) queueRender();
+        } catch (err) {
+          await sleep(1500 + Math.random() * 1500);
+        }
+      }
     }
 
     async function sendSelection() {
-      const session = chosenPhone();
-      if (!session) { flash("No phone connected"); return; }
+      const devices = pickedTargets();
+      if (!devices.length) { flash("Pick a phone"); return; }
       const paths = selectedFiles();
       if (!paths.length) { flash("Select a file"); return; }
       try {
         const res = await fetch("/api/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session, paths }),
+          body: JSON.stringify({ devices, all: false, paths }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.count) { flash(data.error || "Could not send"); return; }
+        rememberTargets();
         closeSendModal();
-        sentToast(data.count);
+        sentToast(data.count, data.devices);
       } catch (err) {
         flash("Could not send");
       }
     }
 
-    function sentToast(n) {
-      const phone = phoneList.find((item) => item.id === chosenPhone());
-      const who = (phone && phone.name) || "the phone";
-      toast(n === 1 ? "Sent 1 file to " + who : "Sent " + n + " files to " + who, "Tap Save on the phone to keep them.");
+    function sentToast(files, phones) {
+      const one = phones === 1 ? devs.get(pickedTargets()[0]) : null;
+      const who = one ? one.name : phones + " phones";
+      toast((files === 1 ? "Sent 1 file to " : "Sent " + files + " files to ") + who, phones === 1 ? "Tap Save on the phone to keep it." : "Each phone taps Save to keep them. Phones that are away get them later.");
     }
 
     async function sendAnyFiles() {
-      const session = chosenPhone();
-      if (!session) { flash("No phone connected"); return; }
+      const devices = pickedTargets();
+      if (!devices.length) { flash("Pick a phone"); return; }
       try {
         if (typeof sendPickedFiles === "function") {
-          const n = await sendPickedFiles(session);
+          const n = await sendPickedFiles(devices, false);
           if (!n) return;
+          rememberTargets();
           closeSendModal();
-          sentToast(n);
+          sentToast(n, devices.length);
           return;
         }
         const path = window.prompt("File to send");
@@ -3265,12 +3657,13 @@
         const res = await fetch("/api/send-outside", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session, paths: [path] }),
+          body: JSON.stringify({ devices, all: false, paths: [path] }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.count) { flash(data.error || "Could not send"); return; }
+        rememberTargets();
         closeSendModal();
-        sentToast(data.count);
+        sentToast(data.count, data.devices);
       } catch (err) {
         flash("Could not send");
       }
@@ -3294,8 +3687,7 @@
       if (name === "files") list.focus();
       if (name === "connect") loadPhone();
       if (name === "text") {
-        unread = 0;
-        paintUnread();
+        seenConv(conv);
         livePad.focus();
       }
     }
@@ -3348,26 +3740,41 @@
       box.appendChild(el);
     }
 
-    // Live text. Each window gets its own tab token so it can skip the echo of its own typing.
+    // Live text. Every phone has its own pad with this PC, and Everyone is a
+    // compose box whose clips land on every phone. The window keeps one tab
+    // token so it can skip the echo of its own typing.
     const livePad = document.getElementById("livepad");
     const liveState = document.getElementById("livestate");
     const liveTab = Array.from(crypto.getRandomValues(new Uint8Array(8)), (n) => (n % 36).toString(36)).join("");
+    let conv = "all";
+    let convName = "Everyone";
+    let convOnline = false;
+    let allDraft = "";
     let liveVer = -1;
     let liveBusy = false;
     let liveDirty = false;
     let liveUp = false;
+    let liveGen = 0;
+    let liveAbort = null;
     let typingTimer = 0;
     let clipSig = "";
-    let clipsKnown = null;
-    let unread = 0;
     let autoCopy = false;
     try { autoCopy = localStorage.getItem("ft-autocopy") === "1"; } catch (err) {}
     document.getElementById("autocopy").checked = autoCopy;
 
     function paintUnread() {
+      let total = 0;
+      unreadBy.forEach((n) => { total += n; });
       const badge = document.getElementById("textbadge");
-      badge.hidden = !unread;
-      badge.textContent = unread > 9 ? "9+" : String(unread);
+      badge.hidden = !total;
+      badge.textContent = total > 99 ? "99+" : String(total);
+    }
+
+    function seenConv(handle) {
+      if (unreadBy.delete(handle)) {
+        paintUnread();
+        queueRender();
+      }
     }
 
     function paintCount() {
@@ -3382,8 +3789,19 @@
 
     function restState() {
       if (!liveUp) setLiveState("", "Offline");
-      else if (!phoneList.length) setLiveState("live", "Waiting for a phone");
-      else setLiveState("live", "Live with " + (phoneList.length === 1 ? (phoneList[0].name || "phone") : phoneList.length + " phones"));
+      else if (conv === "all") setLiveState("live", devs.size === 1 ? "Goes to 1 phone" : "Goes to " + devs.size + " phones");
+      else if (convOnline) setLiveState("live", "Live with " + convName);
+      else setLiveState("", convName + " is away, it catches up on return");
+    }
+
+    function paintConvHead() {
+      const everyone = conv === "all";
+      document.getElementById("padtitle").textContent = everyone ? "Everyone" : convName;
+      document.getElementById("padclip").textContent = everyone ? "Send to everyone" : "Save as clip";
+      livePad.placeholder = everyone
+        ? "Write something, then press Send to everyone"
+        : "Type here and " + convName + " sees it as you type";
+      document.getElementById("cliphead").textContent = everyone ? "Sent to everyone" : "Clips";
     }
 
     async function writeClipboard(text) {
@@ -3399,21 +3817,53 @@
       return navigator.clipboard.readText();
     }
 
+    function selectConv(handle) {
+      if (handle !== "all" && !devs.has(handle)) handle = "all";
+      if (conv === "all") allDraft = livePad.value;
+      conv = handle;
+      const d = devs.get(handle);
+      convName = d ? d.name : "Everyone";
+      convOnline = d ? d.online : false;
+      liveVer = -1;
+      clipSig = "";
+      liveDirty = false;
+      clearTimeout(typingTimer);
+      swapPadText(handle === "all" ? allDraft : "");
+      renderClips([]);
+      if (page === "text") seenConv(handle);
+      paintConvHead();
+      renderConvList();
+      const on = document.querySelector("#convlist .conv.on");
+      if (on) on.scrollIntoView({ block: "nearest" });
+      restState();
+      watchConv();
+    }
+
+    function watchConv() {
+      liveGen++;
+      if (liveAbort) liveAbort.abort();
+      listenLive(liveGen);
+    }
+
     async function pushLive() {
+      if (conv === "all") return;
       if (liveBusy) { liveDirty = true; return; }
+      const target = conv;
       liveBusy = true;
       liveDirty = false;
       try {
         const res = await fetch("/api/desk/live", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: livePad.value, tab: liveTab, name: "" }),
+          body: JSON.stringify({ device: target, text: livePad.value, tab: liveTab }),
         });
         if (res.status === 429) liveDirty = true;
+        if (res.status === 404 && conv === target) { flash("That phone is gone"); selectConv("all"); }
       } catch (err) {
         liveDirty = true;
       }
       liveBusy = false;
+      if (conv !== target) liveDirty = false;
       if (liveDirty) setTimeout(pushLive, 120);
     }
 
@@ -3450,7 +3900,9 @@
       if (!clips.length) {
         const li = document.createElement("li");
         li.className = "none";
-        li.textContent = "Saved clips land here. Press Save as clip, or send one from the phone.";
+        li.textContent = conv === "all"
+          ? "Anything you send to everyone shows up here and on every phone."
+          : "Saved clips land here. Press Save as clip, or send one from the phone.";
         ul.appendChild(li);
         return;
       }
@@ -3465,7 +3917,7 @@
         meta.className = "meta";
         const who = document.createElement("span");
         who.className = "who";
-        who.textContent = (item.from === "pc" ? "This PC" : item.by) + " · " + ago(item.age);
+        who.textContent = (item.from === "phone" ? item.by : "This PC") + " · " + ago(item.age);
         const copy = document.createElement("button");
         copy.type = "button";
         copy.textContent = "Copy";
@@ -3475,7 +3927,7 @@
         const use = document.createElement("button");
         use.type = "button";
         use.textContent = "Put in pad";
-        use.title = "Replace the live pad with this clip";
+        use.title = "Replace the pad with this clip";
         use.addEventListener("click", () => { swapPadText(item.text); pushLive(); livePad.focus(); });
         const del = document.createElement("button");
         del.type = "button";
@@ -3487,85 +3939,105 @@
       });
     }
 
-    async function noticeClips(clips) {
-      const ids = new Set(clips.map((item) => item.id));
-      if (clipsKnown) {
-        const fresh = clips.filter((item) => !clipsKnown.has(item.id) && item.from === "phone");
-        for (const item of fresh.reverse()) {
-          let copied = false;
-          if (autoCopy) {
-            try { await writeClipboard(item.text); copied = true; } catch (err) {}
-          }
-          toast(copied ? "Copied a clip from " + item.by : "New clip from " + item.by, item.text,
-            copied ? null : { label: "Copy", run: () => writeClipboard(item.text).then(() => flash("Clip copied"), () => flash("Could not copy")) });
-          if (page !== "text") unread++;
-        }
-        paintUnread();
-      }
-      clipsKnown = ids;
-    }
-
     function applyLive(state) {
       liveVer = state.ver;
-      if (state.tab !== liveTab && !liveBusy && !liveDirty) swapPadText(state.text || "");
-      const sig = state.clips.map((item) => item.id).join(",");
+      if (conv !== "all") {
+        convName = state.name || convName;
+        convOnline = !!state.online;
+        if (state.tab !== liveTab && !liveBusy && !liveDirty) swapPadText(state.text || "");
+      }
+      const clips = state.clips || [];
+      const sig = clips.map((item) => item.id).join(",");
       if (sig !== clipSig) {
         clipSig = sig;
-        renderClips(state.clips);
-        noticeClips(state.clips);
+        renderClips(clips);
       }
+      paintConvHead();
       clearTimeout(typingTimer);
-      if (state.tab !== liveTab && state.by && state.by !== "PC" && state.age < 2500) {
-        setLiveState("typing", state.by + " is typing");
-        if (page !== "text" && !unread) { unread = 1; paintUnread(); }
+      if (conv !== "all" && state.tab !== liveTab && state.by && state.by !== "PC" && state.age < 2500) {
+        setLiveState("typing", convName + " is typing");
         typingTimer = setTimeout(restState, 2500 - state.age);
       } else restState();
     }
 
-    async function listenLive() {
-      for (;;) {
+    async function listenLive(gen) {
+      while (gen === liveGen) {
+        const ctl = new AbortController();
+        liveAbort = ctl;
         try {
-          const res = await fetch("/api/desk/live?since=" + liveVer, { cache: "no-store" });
+          const res = await fetch("/api/desk/live?device=" + encodeURIComponent(conv) + "&since=" + liveVer, { cache: "no-store", signal: ctl.signal });
+          if (gen !== liveGen) return;
+          if (res.status === 404) { selectConv("all"); return; }
           if (!res.ok) throw new Error(String(res.status));
           const state = await res.json();
+          if (gen !== liveGen) return;
           liveUp = true;
           applyLive(state);
         } catch (err) {
+          if (gen !== liveGen) return;
           liveUp = false;
           restState();
-          await new Promise((done) => setTimeout(done, 2000));
+          await sleep(1500 + Math.random() * 1000);
         }
       }
     }
 
     async function saveClip(text) {
       if (!text.trim()) { flash("Type something first"); return; }
+      if (conv === "all" && devs.size > 20 && !(await askUser("Send this to all " + devs.size + " phones?", "Send"))) return;
       try {
         const res = await fetch("/api/desk/clip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: text, name: "" }),
+          body: JSON.stringify({ device: conv, text: text }),
         });
+        if (res.status === 429) { flash("Slow down a little"); return; }
         if (!res.ok) throw new Error(String(res.status));
-        flash("Clip saved");
+        if (conv === "all") {
+          swapPadText("");
+          allDraft = "";
+          flash(devs.size === 1 ? "Sent to 1 phone" : "Sent to " + devs.size + " phones");
+        } else flash("Clip saved");
       } catch (err) {
         flash("Could not save the clip");
       }
     }
 
     async function removeClip(id, all) {
-      if (all && !(await askUser("Remove every clip on this PC and the phone?", "Clear all"))) return;
+      if (all && !(await askUser(conv === "all" ? "Remove everything sent to everyone, on every phone too?" : "Remove every clip for " + convName + "?", "Clear all"))) return;
       try {
         await fetch("/api/desk/clip/remove", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id || "", all: !!all }),
+          body: JSON.stringify({ device: conv, id: id || "", all: !!all }),
         });
       } catch (err) {
         flash("Could not remove");
       }
     }
 
+    document.getElementById("convq").addEventListener("input", (event) => {
+      convQuery = event.target.value;
+      renderConvList();
+    });
+    document.getElementById("devq").addEventListener("input", (event) => {
+      devQuery = event.target.value;
+      renderConnectList();
+    });
+    document.getElementById("sendq").addEventListener("input", (event) => {
+      sendQuery = event.target.value;
+      renderSendPicker();
+    });
+    document.getElementById("sendall").addEventListener("click", (event) => {
+      const matches = sortedDevs(sendQuery);
+      if (event.currentTarget.dataset.mode === "clear") matches.forEach((d) => sendPicked.delete(d.handle));
+      else matches.forEach((d) => sendPicked.add(d.handle));
+      renderSendPicker();
+    });
+    document.getElementById("askinput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); finishAsk(true); }
+    });
+    setInterval(() => { if (page === "connect") renderConnectList(); }, 30000);
     livePad.addEventListener("input", () => { paintCount(); pushLive(); });
     livePad.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -3642,8 +4114,7 @@
       document.getElementById("moremenu").hidden = true;
       if (button.dataset.act === "send") openSendModal();
       else if (button.dataset.act === "files") {
-        if (!chosenPhone()) openSendModal();
-        else sendAnyFiles();
+        openSendModal();
       }
       else if (button.dataset.act === "phone") showPage("connect");
       else if (button.dataset.act === "folder") chooseSaveFolder();
@@ -3971,15 +4442,13 @@
     updateNav();
     load();
     list.focus();
-    pollPhones();
-    setInterval(pollPhones, 2000);
     paintCount();
     renderClips([]);
-    renderPhonesNow();
-    listenLive();
+    renderDevices();
+    paintConvHead();
+    listenFeed();
+    watchConv();
 
-    let seenRecv = -1;
-    let recvHold = 0;
     let recvBusy = false;
     async function pollRecv() {
       if (recvBusy) return;
@@ -3987,33 +4456,24 @@
       try {
         const data = await getJSON("/api/recv");
         const bar = document.getElementById("recv");
-        if (seenRecv < 0) seenRecv = data.active ? data.gen - 1 : data.gen;
-        const stale = data.gen < seenRecv || (data.gen === seenRecv && data.active);
-        if (!stale && data.done && data.gen > seenRecv) {
-          seenRecv = data.gen;
-          const where = folderName(data.dest);
-          const text = data.count > 1
-            ? data.count + " files saved in " + where
-            : (data.name || "File") + " saved in " + where;
-          flash(text, 8000);
-          toast(data.count > 1 ? data.count + " files received" : "File received", text, {
-            label: "Show",
-            run: () => { showPage("files"); go(data.dest, true); },
-          });
-          recvHold = Date.now() + 8000;
+        const items = data.items || [];
+        if (!data.active) {
+          bar.hidden = true;
+        } else {
           bar.hidden = false;
-          document.getElementById("recvname").textContent = text;
-          document.getElementById("recvdest").textContent = "";
-          document.getElementById("recvpct").textContent = "";
-          document.getElementById("recvfill").style.width = "100%";
-          lastSig = "";
-          load();
-        } else if (!stale && data.active) {
-          recvHold = 0;
-          bar.hidden = false;
-          document.getElementById("recvname").textContent = data.name || "Receiving";
-          const where = folderName(data.dest);
-          document.getElementById("recvdest").textContent = data.index > 1 ? where + " · file " + data.index : where;
+          const first = items[0] || {};
+          let title;
+          let where;
+          if (data.active === 1) {
+            title = first.name || "Receiving";
+            where = [folderName(first.dest), first.from ? "from " + first.from : "", first.index > 1 ? "file " + first.index : ""].filter(Boolean).join("  ·  ");
+          } else {
+            title = "Receiving " + data.active + " uploads";
+            const from = names(items.map((item) => item.from));
+            where = from ? "from " + from : "";
+          }
+          document.getElementById("recvname").textContent = title;
+          document.getElementById("recvdest").textContent = where;
           const fill = document.getElementById("recvfill");
           const pctEl = document.getElementById("recvpct");
           if (data.total > 0) {
@@ -4024,13 +4484,11 @@
             pctEl.textContent = "";
             fill.style.width = "40%";
           }
-        } else if (Date.now() > recvHold) {
-          bar.hidden = true;
         }
       } catch (err) {}
       recvBusy = false;
     }
-    setInterval(pollRecv, 400);
+    setInterval(pollRecv, 500);
   </script>
 </body>
 </html>

@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -11,14 +10,17 @@ import (
 	"unicode/utf8"
 )
 
-// Live text is one shared pad that the PC and every phone type into, plus a
-// short list of saved clips. It only lives in memory, so quitting clears it.
+// Each phone has its own live pad with the PC, so a room full of phones never
+// types over each other. Clips go to one phone, or to every phone at once.
+// None of it is written to disk, so quitting clears it.
 const (
-	maxLiveText  = 64 << 10
-	maxClipText  = 16 << 10
-	maxClips     = 40
-	liveWait     = 25 * time.Second
-	maxLiveWaits = 64
+	maxLiveText = 64 << 10
+	maxClipText = 16 << 10
+	maxClips    = 40
+	clipPreview = 200
+	// Every pad and clip on the PC shares this, so a flood of phones cannot
+	// grow memory without end. Past it, new text is refused until some is cleared.
+	maxTextBudget = 64 << 20
 )
 
 var (
@@ -32,21 +34,11 @@ type clip struct {
 	By   string
 	From string
 	At   time.Time
+	n    int64
 }
 
-type liveHub struct {
-	mu    sync.Mutex
-	ver   int64
-	text  string
-	by    string
-	tab   string
-	at    time.Time
-	clips []clip
-	wake  chan struct{}
-	waits atomic.Int32
-}
-
-var pad = &liveHub{wake: make(chan struct{})}
+// The clock on Windows can hand two clips the same time, so order comes from here.
+var clipCount atomic.Int64
 
 type clipView struct {
 	ID   string `json:"id"`
@@ -54,63 +46,6 @@ type clipView struct {
 	By   string `json:"by"`
 	From string `json:"from"`
 	Age  int64  `json:"age"`
-}
-
-type liveView struct {
-	Ver   int64      `json:"ver"`
-	Text  string     `json:"text"`
-	By    string     `json:"by"`
-	Tab   string     `json:"tab"`
-	Age   int64      `json:"age"`
-	Clips []clipView `json:"clips"`
-}
-
-func (h *liveHub) viewLocked() liveView {
-	now := time.Now()
-	out := liveView{Ver: h.ver, Text: h.text, By: h.by, Tab: h.tab, Clips: make([]clipView, 0, len(h.clips))}
-	if !h.at.IsZero() {
-		out.Age = now.Sub(h.at).Milliseconds()
-	}
-	for _, c := range h.clips {
-		out.Clips = append(out.Clips, clipView{ID: c.ID, Text: c.Text, By: c.By, From: c.From, Age: now.Sub(c.At).Milliseconds()})
-	}
-	return out
-}
-
-// bumpLocked wakes every waiting poll by closing the current channel.
-func (h *liveHub) bumpLocked() {
-	h.ver++
-	close(h.wake)
-	h.wake = make(chan struct{})
-}
-
-// wait reports false when too many polls are already parked, so the caller can
-// tell that client to back off instead of answering at once and letting it spin.
-func (h *liveHub) wait(r *http.Request, since int64) (liveView, bool) {
-	h.mu.Lock()
-	if h.ver != since {
-		v := h.viewLocked()
-		h.mu.Unlock()
-		return v, true
-	}
-	wake := h.wake
-	h.mu.Unlock()
-
-	if h.waits.Add(1) > maxLiveWaits {
-		h.waits.Add(-1)
-		return liveView{}, false
-	}
-	defer h.waits.Add(-1)
-	timer := time.NewTimer(liveWait)
-	defer timer.Stop()
-	select {
-	case <-wake:
-	case <-timer.C:
-	case <-r.Context().Done():
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.viewLocked(), true
 }
 
 // A rough per address token bucket. Typing sends often, so the live pad gets a
@@ -135,7 +70,7 @@ func (l *limiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
-	if len(l.seen) > 512 {
+	if len(l.seen) > 8192 {
 		for k, b := range l.seen {
 			if now.Sub(b.last) > time.Minute {
 				delete(l.seen, k)
@@ -171,109 +106,345 @@ func cleanLiveText(raw string, limit int) (string, bool) {
 	return strings.ReplaceAll(raw, "\x00", ""), true
 }
 
-func liveSince(r *http.Request) int64 {
-	n, err := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
-	if err != nil || n < 0 {
-		return -1
+func preview(text string) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if utf8.RuneCountInString(text) <= clipPreview {
+		return text
 	}
-	return n
+	r := []rune(text)
+	return string(r[:clipPreview]) + "…"
 }
 
-func liveGet(w http.ResponseWriter, r *http.Request) {
-	v, ok := pad.wait(r, liveSince(r))
-	if !ok {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many open connections"})
-		return
-	}
-	writeJSON(w, http.StatusOK, v)
+func slowDown(w http.ResponseWriter) {
+	writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "slow down a little"})
 }
 
-// liveTyping returns the handler for one side. The PC is always "PC". A
-// phone names itself, cleaned the same way as its connect name.
-func liveTyping(fromPhone bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !typeLimit.allow(clientIP(r)) {
-			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "slow down a little"})
-			return
-		}
-		var req struct {
-			Text string `json:"text"`
-			Tab  string `json:"tab"`
-			Name string `json:"name"`
-		}
-		if !readBody(w, r, &req) {
-			return
-		}
-		text, ok := cleanLiveText(req.Text, maxLiveText)
-		if !ok || !tabToken.MatchString(req.Tab) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that text could not be sent"})
-			return
-		}
-		by := "PC"
-		if fromPhone {
-			by = cleanPhoneName(req.Name)
-		}
-		pad.mu.Lock()
-		if pad.text != text {
-			pad.text = text
-			pad.by = by
-			pad.tab = req.Tab
-			pad.at = time.Now()
-			pad.bumpLocked()
-		}
-		ver := pad.ver
-		pad.mu.Unlock()
-		writeJSON(w, http.StatusOK, map[string]int64{"ver": ver})
-	}
+func notConnected(w http.ResponseWriter) {
+	writeJSON(w, http.StatusNotFound, map[string]string{"error": "not connected"})
 }
 
-func clipAdd(fromPhone bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !clipLimit.allow(clientIP(r)) {
-			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "slow down a little"})
-			return
-		}
-		var req struct {
-			Text string `json:"text"`
-			Name string `json:"name"`
-		}
-		if !readBody(w, r, &req) {
-			return
-		}
-		text, ok := cleanLiveText(req.Text, maxClipText)
-		if !ok || strings.TrimSpace(text) == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that clip is empty or too long"})
-			return
-		}
-		id, err := randHex(8)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save the clip"})
-			return
-		}
-		c := clip{ID: id, Text: text, By: "PC", From: "pc", At: time.Now()}
-		if fromPhone {
-			c.By = cleanPhoneName(req.Name)
-			c.From = "phone"
-		}
-		pad.mu.Lock()
-		pad.clips = append([]clip{c}, pad.clips...)
-		if len(pad.clips) > maxClips {
-			pad.clips = pad.clips[:maxClips]
-		}
-		pad.bumpLocked()
-		pad.mu.Unlock()
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-	}
+func badText(w http.ResponseWriter) {
+	writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that text could not be sent"})
 }
 
-func clipRemove(w http.ResponseWriter, r *http.Request) {
-	if !clipLimit.allow(clientIP(r)) {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "slow down a little"})
+func newClip(text, by, from string) (clip, bool) {
+	id, err := randHex(8)
+	if err != nil {
+		return clip{}, false
+	}
+	return clip{ID: id, Text: text, By: by, From: from, At: time.Now(), n: clipCount.Add(1)}, true
+}
+
+func (h *deviceHub) fitsLocked(extra int) bool {
+	return extra <= 0 || h.textBytes+int64(extra) <= maxTextBudget
+}
+
+func (h *deviceHub) setPadLocked(d *device, p padState) {
+	h.textBytes += int64(len(p.text) - len(d.pad.text))
+	d.pad = p
+}
+
+func (h *deviceHub) pushClipLocked(list []clip, c clip) []clip {
+	list = append([]clip{c}, list...)
+	h.textBytes += int64(len(c.Text))
+	if len(list) > maxClips {
+		for _, old := range list[maxClips:] {
+			h.textBytes -= int64(len(old.Text))
+		}
+		list = list[:maxClips]
+	}
+	return list
+}
+
+func (h *deviceHub) dropClipLocked(list []clip, id string, all bool) ([]clip, bool) {
+	kept := list[:0]
+	for _, c := range list {
+		if all || c.ID == id {
+			h.textBytes -= int64(len(c.Text))
+			continue
+		}
+		kept = append(kept, c)
+	}
+	return kept, len(kept) != len(list)
+}
+
+func tooMuchText(w http.ResponseWriter) {
+	writeJSON(w, http.StatusInsufficientStorage, map[string]string{"error": "the PC is holding too much text, clear some clips"})
+}
+
+func (s *server) phoneLive(w http.ResponseWriter, r *http.Request) {
+	if !typeLimit.allow(clientIP(r)) {
+		slowDown(w)
 		return
 	}
 	var req struct {
-		ID  string `json:"id"`
-		All bool   `json:"all"`
+		Session string `json:"session"`
+		Text    string `json:"text"`
+		Tab     string `json:"tab"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	text, ok := cleanLiveText(req.Text, maxLiveText)
+	if !ok || !tabToken.MatchString(req.Tab) {
+		badText(w)
+		return
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	d := hub.bySessionLocked(req.Session)
+	if d == nil {
+		notConnected(w)
+		return
+	}
+	hub.touchLocked(d)
+	if d.pad.text != text {
+		if !hub.fitsLocked(len(text) - len(d.pad.text)) {
+			tooMuchText(w)
+			return
+		}
+		now := time.Now()
+		hub.setPadLocked(d, padState{text: text, by: d.name, tab: req.Tab, at: now, told: d.pad.told})
+		d.bumpLocked()
+		if now.Sub(d.pad.told) > 2*time.Second {
+			d.pad.told = now
+			hub.emitLocked(feedEvent{Kind: "typing", Handle: d.handle, Name: d.name})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"ver": d.ver})
+}
+
+func (s *server) phoneClip(w http.ResponseWriter, r *http.Request) {
+	if !clipLimit.allow(clientIP(r)) {
+		slowDown(w)
+		return
+	}
+	var req struct {
+		Session string `json:"session"`
+		Text    string `json:"text"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	text, ok := cleanLiveText(req.Text, maxClipText)
+	if !ok || strings.TrimSpace(text) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that clip is empty or too long"})
+		return
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	d := hub.bySessionLocked(req.Session)
+	if d == nil {
+		notConnected(w)
+		return
+	}
+	if !hub.fitsLocked(len(text)) {
+		tooMuchText(w)
+		return
+	}
+	c, ok := newClip(text, d.name, "phone")
+	if !ok {
+		badText(w)
+		return
+	}
+	hub.touchLocked(d)
+	d.clips = hub.pushClipLocked(d.clips, c)
+	d.bumpLocked()
+	hub.emitLocked(feedEvent{Kind: "clip", Handle: d.handle, Name: d.name, Text: preview(text)})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// A phone can only remove clips in its own list. Clips sent to everyone stay put.
+func (s *server) phoneClipRemove(w http.ResponseWriter, r *http.Request) {
+	if !clipLimit.allow(clientIP(r)) {
+		slowDown(w)
+		return
+	}
+	var req struct {
+		Session string `json:"session"`
+		ID      string `json:"id"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	if !clipID.MatchString(req.ID) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that clip is not here"})
+		return
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	d := hub.bySessionLocked(req.Session)
+	if d == nil {
+		notConnected(w)
+		return
+	}
+	var changed bool
+	if d.clips, changed = hub.dropClipLocked(d.clips, req.ID, false); changed {
+		d.bumpLocked()
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+type deskLiveView struct {
+	Ver    int64      `json:"ver"`
+	Name   string     `json:"name"`
+	Online bool       `json:"online"`
+	Text   string     `json:"text"`
+	By     string     `json:"by"`
+	Tab    string     `json:"tab"`
+	Age    int64      `json:"age"`
+	Clips  []clipView `json:"clips"`
+}
+
+func (h *deviceHub) deskViewLocked(d *device) deskLiveView {
+	now := time.Now()
+	if d == nil {
+		return deskLiveView{Ver: h.sver, Name: "Everyone", Clips: clipViews(now, h.shared)}
+	}
+	return deskLiveView{
+		Ver:    d.ver,
+		Name:   d.name,
+		Online: d.online,
+		Text:   d.pad.text,
+		By:     d.pad.by,
+		Tab:    d.pad.tab,
+		Age:    padAge(now, d.pad),
+		Clips:  clipViews(now, d.clips),
+	}
+}
+
+// deskTarget resolves "all" to the shared list and anything else to one device.
+func (h *deviceHub) deskTargetLocked(raw string) (d *device, everyone, ok bool) {
+	if raw == "all" {
+		return nil, true, true
+	}
+	d = h.byHandleLocked(raw)
+	return d, false, d != nil
+}
+
+func (s *server) deskLive(w http.ResponseWriter, r *http.Request) {
+	since := pollSince(r)
+	hub.mu.Lock()
+	d, everyone, ok := hub.deskTargetLocked(r.URL.Query().Get("device"))
+	if !ok {
+		hub.mu.Unlock()
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "that phone is gone"})
+		return
+	}
+	v := hub.deskViewLocked(d)
+	if v.Ver != since {
+		hub.mu.Unlock()
+		writeJSON(w, http.StatusOK, v)
+		return
+	}
+	wake := hub.swake
+	if !everyone {
+		wake = d.wake
+	}
+	hub.mu.Unlock()
+
+	if !hub.park(r, wake) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many open connections"})
+		return
+	}
+	hub.mu.Lock()
+	v = hub.deskViewLocked(d)
+	hub.mu.Unlock()
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (s *server) deskType(w http.ResponseWriter, r *http.Request) {
+	if !typeLimit.allow(clientIP(r)) {
+		slowDown(w)
+		return
+	}
+	var req struct {
+		Device string `json:"device"`
+		Text   string `json:"text"`
+		Tab    string `json:"tab"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	text, ok := cleanLiveText(req.Text, maxLiveText)
+	if !ok || !tabToken.MatchString(req.Tab) {
+		badText(w)
+		return
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	d := hub.byHandleLocked(req.Device)
+	if d == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "that phone is gone"})
+		return
+	}
+	if d.pad.text != text {
+		if !hub.fitsLocked(len(text) - len(d.pad.text)) {
+			tooMuchText(w)
+			return
+		}
+		hub.setPadLocked(d, padState{text: text, by: "PC", tab: req.Tab, at: time.Now(), told: d.pad.told})
+		d.bumpLocked()
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"ver": d.ver})
+}
+
+func (s *server) deskClip(w http.ResponseWriter, r *http.Request) {
+	if !clipLimit.allow(clientIP(r)) {
+		slowDown(w)
+		return
+	}
+	var req struct {
+		Device string `json:"device"`
+		Text   string `json:"text"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	text, ok := cleanLiveText(req.Text, maxClipText)
+	if !ok || strings.TrimSpace(text) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that clip is empty or too long"})
+		return
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	d, everyone, found := hub.deskTargetLocked(req.Device)
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "that phone is gone"})
+		return
+	}
+	if !hub.fitsLocked(len(text)) {
+		tooMuchText(w)
+		return
+	}
+	from := "pc"
+	if everyone {
+		from = "all"
+	}
+	c, ok := newClip(text, "PC", from)
+	if !ok {
+		badText(w)
+		return
+	}
+	if everyone {
+		hub.shared = hub.pushClipLocked(hub.shared, c)
+		hub.sharedChangedLocked()
+	} else {
+		d.clips = hub.pushClipLocked(d.clips, c)
+		d.bumpLocked()
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *server) deskClipRemove(w http.ResponseWriter, r *http.Request) {
+	if !clipLimit.allow(clientIP(r)) {
+		slowDown(w)
+		return
+	}
+	var req struct {
+		Device string `json:"device"`
+		ID     string `json:"id"`
+		All    bool   `json:"all"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -282,22 +453,30 @@ func clipRemove(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "that clip is not here"})
 		return
 	}
-	pad.mu.Lock()
-	defer pad.mu.Unlock()
-	before := len(pad.clips)
-	if req.All {
-		pad.clips = nil
-	} else {
-		kept := pad.clips[:0]
-		for _, c := range pad.clips {
-			if c.ID != req.ID {
-				kept = append(kept, c)
-			}
-		}
-		pad.clips = kept
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	d, everyone, found := hub.deskTargetLocked(req.Device)
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "that phone is gone"})
+		return
 	}
-	if len(pad.clips) != before {
-		pad.bumpLocked()
+	var changed bool
+	if everyone {
+		if hub.shared, changed = hub.dropClipLocked(hub.shared, req.ID, req.All); changed {
+			hub.sharedChangedLocked()
+		}
+	} else if d.clips, changed = hub.dropClipLocked(d.clips, req.ID, req.All); changed {
+		d.bumpLocked()
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// Shared clips sit in every phone's mailbox, so each one has to be woken.
+func (h *deviceHub) sharedChangedLocked() {
+	h.sver++
+	close(h.swake)
+	h.swake = make(chan struct{})
+	for _, d := range h.byKey {
+		d.bumpLocked()
+	}
 }

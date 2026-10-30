@@ -313,6 +313,14 @@
     .clip .meta { display: flex; align-items: center; gap: 2px; }
     .clip .meta .who { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+    .me { margin: 0 0 4px; }
+    .namerow, .nameform { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; }
+    .namerow .what { flex: 1; min-width: 0; }
+    .namerow .what span { display: block; color: var(--muted); font-size: 13px; }
+    .namerow .what b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #namefield { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); font-size: 16px; }
+    .subhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 28px 0 10px; }
+    .subhead h2 { margin: 0; }
     .crumb { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
     .crumb p { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -444,7 +452,7 @@
         <h1>Text</h1>
         <span id="livestate">Connecting</span>
       </div>
-      <p class="lede">Type here and it appears on the PC as you go. The PC can type back.</p>
+      <p class="lede">This pad is just between this phone and the PC. Both sides see it as they type.</p>
       <div class="card" id="padcard">
         <textarea id="livepad" maxlength="65536" placeholder="Type or paste here" autocapitalize="sentences"></textarea>
         <div class="cardfoot">
@@ -462,8 +470,19 @@
     <section id="p-pc" class="page" hidden>
       <h1>From the PC</h1>
       <p class="lede">Files the PC sends show up here first. You can also open any folder on it.</p>
+      <div class="card me">
+        <div class="namerow" id="namerow">
+          <div class="what"><span>The PC sees this phone as</span><b id="myname"></b></div>
+          <button class="btn small" type="button" id="renamebtn">Rename</button>
+        </div>
+        <form class="nameform" id="nameform" hidden>
+          <input id="namefield" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Name for this phone" />
+          <button class="btn primary small" type="submit">Save</button>
+          <button class="btn quiet small" type="button" id="namecancel">Cancel</button>
+        </form>
+      </div>
       <div id="inboxwrap" hidden>
-        <h2>Sent to this phone</h2>
+        <div class="subhead"><h2>Sent to this phone</h2><button class="btn quiet small" type="button" id="clearinbox">Clear list</button></div>
         <ul class="rows card" id="incoming"></ul>
       </div>
       <h2>Browse</h2>
@@ -715,7 +734,7 @@
         const body = new FormData();
         files.forEach((f) => body.append("files", f, f.name));
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload?to=" + encodeURIComponent(to));
+        xhr.open("POST", "/api/upload?to=" + encodeURIComponent(to) + (session ? "&session=" + encodeURIComponent(session) : ""));
         xhr.setRequestHeader("X-Transfer-Key", key);
         xhr.upload.onprogress = (ev) => ev.lengthComputable && onProgress(ev.loaded, ev.total);
         xhr.onload = () => {
@@ -798,13 +817,32 @@
 
     const head = () => ({ "X-Transfer-Key": key, "Content-Type": "application/json" });
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+    const jitter = (ms) => ms + Math.random() * ms;
+    const hex = (bytes) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (n) => n.toString(16).padStart(2, "0")).join("");
+
+    // The device key stays in this browser so the PC knows it is the same phone
+    // after a reload or a locked screen, and keeps its files and text waiting.
+    let deviceKey = "";
+    let myName = "";
+    try {
+      deviceKey = localStorage.getItem("ft-device-key") || "";
+      myName = localStorage.getItem("ft-name") || "";
+    } catch (err) {}
+    if (!/^[0-9a-f]{32}$/.test(deviceKey)) {
+      deviceKey = hex(16);
+      try { localStorage.setItem("ft-device-key", deviceKey); } catch (err) {}
+    }
+    if (!myName) {
+      myName = (phoneLabel() || "Phone") + " " + hex(2).toUpperCase();
+      try { localStorage.setItem("ft-name", myName); } catch (err) {}
+    }
+    const myKind = ({ iPhone: "iphone", iPad: "ipad", Android: "android" })[phoneLabel()] || "other";
 
     // Live text, the same model as the PC window: one request in flight, the
     // newest text wins, and a tab token so we never re-apply our own echo.
     const livePad = $("livepad");
     const liveState = $("livestate");
     const liveTab = Array.from(crypto.getRandomValues(new Uint8Array(8)), (n) => (n % 36).toString(36)).join("");
-    let liveVer = -1;
     let liveBusy = false;
     let liveDirty = false;
     let liveUp = false;
@@ -818,20 +856,20 @@
     }
 
     function restLive() {
-      if (liveUp) setLive("live", "Live");
+      if (liveUp) setLive("live", "Live with the PC");
       else setLive("", key ? "Offline" : "No link");
     }
 
     async function pushLive() {
-      if (!key) return;
+      if (!key || !session) { liveDirty = true; return; }
       if (liveBusy) { liveDirty = true; return; }
       liveBusy = true;
       liveDirty = false;
       try {
-        const res = await fetch("/api/live", {
+        const res = await fetch("/api/phone/live", {
           method: "POST",
           headers: head(),
-          body: JSON.stringify({ text: livePad.value, tab: liveTab, name: phoneLabel() }),
+          body: JSON.stringify({ session, text: livePad.value, tab: liveTab }),
         });
         if (res.status === 429) liveDirty = true;
       } catch (err) {
@@ -902,7 +940,8 @@
         meta.className = "meta";
         const who = document.createElement("span");
         who.className = "who";
-        who.textContent = (item.from === "pc" ? "From PC" : item.by) + " · " + ago(item.age);
+        const from = item.from === "all" ? "PC, to everyone" : item.from === "pc" ? "From PC" : "You";
+        who.textContent = from + " · " + ago(item.age);
         meta.appendChild(who);
         const href = soloLink(item.text);
         if (href) {
@@ -919,27 +958,30 @@
         copy.className = "btn quiet small";
         copy.textContent = "Copy";
         copy.addEventListener("click", () => copyAndSay(item.text, "Clip copied"));
-        const del = document.createElement("button");
-        del.type = "button";
-        del.className = "btn quiet small";
-        del.textContent = "Remove";
-        del.addEventListener("click", () => removeClip(item.id));
-        meta.append(copy, del);
+        meta.appendChild(copy);
+        if (item.from !== "all") {
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "btn quiet small";
+          del.textContent = "Remove";
+          del.addEventListener("click", () => removeClip(item.id));
+          meta.appendChild(del);
+        }
         li.append(txt, meta);
         ul.appendChild(li);
       });
     }
 
-    function applyLive(state) {
-      liveVer = state.ver;
-      if (state.tab !== liveTab && !liveBusy && !liveDirty) swapPadText(state.text || "");
-      const sig = state.clips.map((c) => c.id).join(",");
+    function applyText(mail) {
+      if (mail.tab !== liveTab && !liveBusy && !liveDirty) swapPadText(mail.text || "");
+      const clips = mail.clips || [];
+      const sig = clips.map((c) => c.id).join(",");
       if (sig !== clipSig) {
         clipSig = sig;
-        renderClips(state.clips);
-        const ids = new Set(state.clips.map((c) => c.id));
+        renderClips(clips);
+        const ids = new Set(clips.map((c) => c.id));
         if (clipsKnown) {
-          const fresh = state.clips.filter((c) => !clipsKnown.has(c.id) && c.from === "pc");
+          const fresh = clips.filter((c) => !clipsKnown.has(c.id) && c.from !== "phone");
           if (fresh.length) {
             toast(fresh.length === 1 ? "New clip from the PC" : fresh.length + " new clips from the PC");
             if (page !== "text") { textUnread += fresh.length; paintBadges(); }
@@ -948,35 +990,18 @@
         clipsKnown = ids;
       }
       clearTimeout(typingTimer);
-      if (state.tab !== liveTab && state.by === "PC" && state.age < 2500) {
+      if (mail.tab !== liveTab && mail.by === "PC" && mail.age < 2500) {
         setLive("typing", "PC is typing");
         if (page !== "text" && !textUnread) { textUnread = 1; paintBadges(); }
-        typingTimer = setTimeout(restLive, 2500 - state.age);
+        typingTimer = setTimeout(restLive, 2500 - mail.age);
       } else restLive();
-    }
-
-    async function listenLive() {
-      if (!key) { restLive(); return; }
-      for (;;) {
-        try {
-          const res = await fetch("/api/live?since=" + liveVer, { headers: { "X-Transfer-Key": key }, cache: "no-store" });
-          if (res.status === 401) { liveUp = false; restLive(); $("nokey").hidden = false; return; }
-          if (!res.ok) throw new Error(String(res.status));
-          liveUp = true;
-          applyLive(await res.json());
-        } catch (err) {
-          liveUp = false;
-          restLive();
-          await sleep(2500);
-        }
-      }
     }
 
     async function saveClip() {
       const text = livePad.value.slice(0, 16384);
       if (!text.trim()) { toast("Type something first"); return; }
       try {
-        const res = await fetch("/api/clip", { method: "POST", headers: head(), body: JSON.stringify({ text, name: phoneLabel() }) });
+        const res = await fetch("/api/phone/clip", { method: "POST", headers: head(), body: JSON.stringify({ session, text }) });
         if (!res.ok) throw new Error(String(res.status));
         toast("Saved as a clip");
       } catch (err) {
@@ -986,7 +1011,7 @@
 
     async function removeClip(id) {
       try {
-        await fetch("/api/clip/remove", { method: "POST", headers: head(), body: JSON.stringify({ id, all: false }) });
+        await fetch("/api/phone/clip/remove", { method: "POST", headers: head(), body: JSON.stringify({ session, id }) });
       } catch (err) {
         toast("Could not remove it");
       }
@@ -1021,6 +1046,8 @@
     const shown = new Set();
     let session = "";
     let pcRel = "";
+    let mailVer = -1;
+    let expired = false;
 
     function setLink(kind, text) {
       const el = $("link");
@@ -1028,69 +1055,153 @@
       el.textContent = text;
     }
 
+    function expire() {
+      expired = true;
+      liveUp = false;
+      restLive();
+      setLink("off", "Link expired");
+      $("nokey").hidden = false;
+    }
+
+    function paintName() {
+      $("myname").textContent = myName;
+    }
+
     async function hello() {
-      if (!key) { setLink("off", "No link"); return; }
-      try {
-        const res = await fetch("/api/phone/hello", { method: "POST", headers: head(), body: JSON.stringify({ name: phoneLabel() }) });
-        const data = await res.json();
-        if (res.status === 401) { setLink("off", "Link expired"); $("nokey").hidden = false; return; }
-        if (!res.ok || !data.session) { setLink("off", "Not connected"); return; }
-        session = data.session;
-        setLink("on", "Connected");
-      } catch (err) {
-        setLink("off", "Not connected");
+      const res = await fetch("/api/phone/hello", {
+        method: "POST",
+        headers: head(),
+        body: JSON.stringify({ device: deviceKey, name: myName, kind: myKind }),
+      });
+      let data = {};
+      try { data = await res.json(); } catch (err) {}
+      if (res.status === 401) { expire(); throw new Error("key"); }
+      if (!res.ok || !data.session) throw new Error(String(res.status));
+      session = data.session;
+      mailVer = -1;
+      if (data.name && data.name !== myName) {
+        myName = data.name;
+        try { localStorage.setItem("ft-name", myName); } catch (err) {}
+        paintName();
       }
+      setLink("on", "Connected");
+      if (liveDirty) pushLive();
     }
 
-    async function pulse() {
-      if (!key) return;
-      if (!session) { hello(); return; }
-      try {
-        const res = await fetch("/api/phone/pulse", { method: "POST", headers: head(), body: JSON.stringify({ session }) });
-        if (res.status === 404) { session = ""; hello(); }
-        else if (res.ok) setLink("on", "Connected");
-      } catch (err) {
-        setLink("off", "Not connected");
-      }
-    }
-
-    async function inbox() {
-      if (!session || !key) return;
-      try {
-        const res = await fetch("/api/phone/inbox?session=" + encodeURIComponent(session), { headers: { "X-Transfer-Key": key } });
-        if (res.status === 404) { session = ""; hello(); return; }
-        if (!res.ok) return;
-        const data = await res.json();
-        let fresh = 0;
-        (data.files || []).forEach((file) => {
-          if (!file.id || shown.has(file.id)) return;
-          shown.add(file.id);
-          fresh++;
-          const li = document.createElement("li");
-          const what = document.createElement("div");
-          what.className = "what";
-          const name = document.createElement("b");
-          name.textContent = file.name || "File";
-          const meta = document.createElement("span");
-          meta.textContent = fmt(file.size || 0);
-          what.append(name, meta);
-          const save = document.createElement("a");
-          save.className = "btn primary small";
-          save.textContent = "Save";
+    function renderInbox(files) {
+      $("inboxwrap").hidden = !files.length;
+      let fresh = 0;
+      const keep = new Set(files.map((f) => f.id));
+      incoming.querySelectorAll("li[data-id]").forEach((li) => { if (!keep.has(li.dataset.id)) li.remove(); });
+      files.slice().reverse().forEach((file) => {
+        if (incoming.querySelector('li[data-id="' + file.id + '"]')) return;
+        if (!shown.has(file.id)) { shown.add(file.id); fresh++; }
+        const li = document.createElement("li");
+        li.dataset.id = file.id;
+        const what = document.createElement("div");
+        what.className = "what";
+        const name = document.createElement("b");
+        name.textContent = file.name || "File";
+        const meta = document.createElement("span");
+        meta.textContent = fmt(file.size || 0);
+        what.append(name, meta);
+        const save = document.createElement("a");
+        save.className = "btn primary small";
+        save.textContent = "Save";
+        save.href = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id);
+        save.download = file.name || "file";
+        save.addEventListener("click", () => {
           save.href = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id);
-          save.download = file.name || "file";
-          save.addEventListener("click", () => { meta.textContent = "Saving to your downloads"; });
-          li.append(extBadge(file.name), what, save);
-          incoming.prepend(li);
+          meta.textContent = "Saving to your downloads";
         });
-        if (fresh) {
-          $("inboxwrap").hidden = false;
-          toast(fresh === 1 ? "The PC sent you a file" : "The PC sent you " + fresh + " files");
-          if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
-          if (page !== "pc") { pcUnread += fresh; paintBadges(); }
-        }
-      } catch (err) {}
+        li.append(extBadge(file.name), what, save);
+        incoming.prepend(li);
+      });
+      return fresh;
     }
+
+    let firstMail = true;
+    function applyMail(mail) {
+      mailVer = mail.ver;
+      if (mail.name && mail.name !== myName) {
+        myName = mail.name;
+        try { localStorage.setItem("ft-name", myName); } catch (err) {}
+        paintName();
+      }
+      const fresh = renderInbox(mail.files || []);
+      if (fresh && !firstMail) {
+        toast(fresh === 1 ? "The PC sent you a file" : "The PC sent you " + fresh + " files");
+        if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+        if (page !== "pc") { pcUnread += fresh; paintBadges(); }
+      } else if (fresh && firstMail && page !== "pc") {
+        pcUnread += fresh;
+        paintBadges();
+      }
+      firstMail = false;
+      applyText(mail);
+    }
+
+    // One waiting request carries files, text and clips. A thousand phones
+    // reconnecting at once spread out because every retry waits a random bit.
+    async function connect() {
+      let fails = 0;
+      for (;;) {
+        try {
+          if (!session) await hello();
+          const res = await fetch("/api/phone/events?session=" + encodeURIComponent(session) + "&since=" + mailVer, { headers: { "X-Transfer-Key": key }, cache: "no-store" });
+          if (res.status === 404) { session = ""; continue; }
+          if (res.status === 401) { expire(); return; }
+          if (!res.ok) throw new Error(String(res.status));
+          applyMail(await res.json());
+          liveUp = true;
+          fails = 0;
+          setLink("on", "Connected");
+        } catch (err) {
+          if (expired) return;
+          liveUp = false;
+          restLive();
+          setLink("off", "Reconnecting");
+          fails = Math.min(fails + 1, 5);
+          await sleep(jitter(800 * fails));
+        }
+      }
+    }
+
+    async function dismissAll() {
+      try {
+        await fetch("/api/phone/dismiss", { method: "POST", headers: head(), body: JSON.stringify({ session, id: "", all: true }) });
+      } catch (err) {
+        toast("Could not clear the list");
+      }
+    }
+
+    async function rename() {
+      const next = $("namefield").value.trim().slice(0, 24);
+      $("nameform").hidden = true;
+      $("namerow").hidden = false;
+      if (!next || next === myName) return;
+      myName = next;
+      try { localStorage.setItem("ft-name", myName); } catch (err) {}
+      paintName();
+      if (!session) return;
+      try {
+        await fetch("/api/phone/name", { method: "POST", headers: head(), body: JSON.stringify({ session, name: myName }) });
+        toast("The PC now sees this phone as " + myName);
+      } catch (err) {
+        toast("Saved here. The PC picks it up when you reconnect.");
+      }
+    }
+
+    $("clearinbox").addEventListener("click", dismissAll);
+    $("renamebtn").addEventListener("click", () => {
+      $("namefield").value = myName;
+      $("namerow").hidden = true;
+      $("nameform").hidden = false;
+      $("namefield").focus();
+      $("namefield").select();
+    });
+    $("nameform").addEventListener("submit", (event) => { event.preventDefault(); rename(); });
+    $("namecancel").addEventListener("click", () => { $("nameform").hidden = true; $("namerow").hidden = false; });
 
     async function loadPC(rel) {
       pcstatus.className = "status";
@@ -1177,17 +1288,15 @@
     restLive();
     growPad();
     setKind();
+    paintName();
     if (key) {
-      hello();
+      connect();
       loadPC("");
-      listenLive();
-      setInterval(pulse, 2000);
-      setInterval(inbox, 1000);
     } else {
       setLink("off", "No link");
     }
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && key) { pulse(); loadPC(pcRel); }
+      if (document.visibilityState === "visible" && key) loadPC(pcRel);
     });
   </script>
 </body>

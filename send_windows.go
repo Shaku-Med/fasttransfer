@@ -4,7 +4,7 @@ package main
 
 import "errors"
 
-func sendPickedFiles(session string) (int, error) {
+func sendPickedFiles(devices []string, all bool) (int, error) {
 	paths, err := pickFiles()
 	if err != nil {
 		if errors.Is(err, errPickCancelled) {
@@ -15,5 +15,5 @@ func sendPickedFiles(session string) (int, error) {
 	if len(paths) == 0 {
 		return 0, nil
 	}
-	return queueOutside(session, paths)
+	return queueOutside(devices, all, paths)
 }
