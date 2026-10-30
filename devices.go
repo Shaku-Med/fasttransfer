@@ -23,12 +23,12 @@ import (
 // parked goroutines and almost no CPU.
 const (
 	maxDevices    = 5000
-	awayAfter     = 35 * time.Second
+	awayAfter     = 30 * time.Second
 	forgetAfter   = 24 * time.Hour
 	maxOffersEach = 500
 	offerLife     = 24 * time.Hour
 	maxFeed       = 512
-	pollWait      = 25 * time.Second
+	pollWait      = 20 * time.Second
 	maxPolls      = 8192
 	maxSendPaths  = 100
 	maxTabsEach   = 4
@@ -68,20 +68,42 @@ type padState struct {
 	told time.Time
 }
 
+// tab is one open copy of the phone page. A phone is connected while any of
+// its tabs holds a poll or has been heard from lately and has not said goodbye.
+type tab struct {
+	session string
+	dev     *device
+	polls   int
+	seen    time.Time
+	away    bool
+}
+
+func (t *tab) liveAt(now time.Time) bool {
+	return !t.away && (t.polls > 0 || now.Sub(t.seen) < awayAfter)
+}
+
 type device struct {
-	key      string
-	sessions []string
-	handle   string
-	name     string
-	kind     string
-	seen     time.Time
-	polls    int
-	online   bool
-	ver      int64
-	wake     chan struct{}
-	offers   []*sendOffer
-	pad      padState
-	clips    []clip
+	key    string
+	tabs   []*tab
+	handle string
+	name   string
+	kind   string
+	seen   time.Time
+	online bool
+	ver    int64
+	wake   chan struct{}
+	offers []*sendOffer
+	pad    padState
+	clips  []clip
+}
+
+func (d *device) liveAt(now time.Time) bool {
+	for _, t := range d.tabs {
+		if t.liveAt(now) {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *device) bumpLocked() {
@@ -103,7 +125,7 @@ type feedEvent struct {
 
 type deviceHub struct {
 	mu        sync.Mutex
-	bySession map[string]*device
+	bySession map[string]*tab
 	byHandle  map[string]*device
 	byKey     map[string]*device
 	shared    []clip
@@ -118,7 +140,7 @@ type deviceHub struct {
 
 func newHub() *deviceHub {
 	return &deviceHub{
-		bySession: map[string]*device{},
+		bySession: map[string]*tab{},
 		byHandle:  map[string]*device{},
 		byKey:     map[string]*device{},
 		swake:     make(chan struct{}),
@@ -153,11 +175,46 @@ func (h *deviceHub) touchLocked(d *device) {
 	}
 }
 
-func (h *deviceHub) bySessionLocked(session string) *device {
+func (h *deviceHub) tabLocked(session string) *tab {
 	if !sessionRe.MatchString(session) {
 		return nil
 	}
 	return h.bySession[session]
+}
+
+// bySessionLocked finds the phone behind a session. Any request from a tab
+// counts as hearing from it, so that tab is live again.
+func (h *deviceHub) bySessionLocked(session string) *device {
+	t := h.tabLocked(session)
+	if t == nil {
+		return nil
+	}
+	t.seen = time.Now()
+	t.away = false
+	return t.dev
+}
+
+// refreshLocked marks a phone away the moment its last live tab is gone,
+// instead of waiting for the sweep.
+func (h *deviceHub) refreshLocked(d *device) {
+	now := time.Now()
+	if d.online && !d.liveAt(now) {
+		d.online = false
+		d.seen = now
+		h.emitLocked(feedEvent{Kind: "leave", Handle: d.handle})
+	}
+}
+
+func (h *deviceHub) dropTabLocked(t *tab) {
+	delete(h.bySession, t.session)
+	d := t.dev
+	kept := d.tabs[:0]
+	for _, other := range d.tabs {
+		if other != t {
+			kept = append(kept, other)
+		}
+	}
+	d.tabs = kept
 }
 
 func (h *deviceHub) byHandleLocked(handle string) *device {
@@ -172,9 +229,10 @@ func (h *deviceHub) dropLocked(d *device) {
 	for _, c := range d.clips {
 		h.textBytes -= int64(len(c.Text))
 	}
-	for _, s := range d.sessions {
-		delete(h.bySession, s)
+	for _, t := range d.tabs {
+		delete(h.bySession, t.session)
 	}
+	d.tabs = nil
 	delete(h.byHandle, d.handle)
 	delete(h.byKey, d.key)
 	d.bumpLocked()
@@ -202,12 +260,12 @@ func (h *deviceHub) hello(key, name, kind string) (*device, string, error) {
 		h.byKey[key] = d
 		h.byHandle[handle] = d
 	}
-	if len(d.sessions) >= maxTabsEach {
-		delete(h.bySession, d.sessions[0])
-		d.sessions = d.sessions[1:]
+	if len(d.tabs) >= maxTabsEach {
+		h.dropTabLocked(d.tabs[0])
 	}
-	d.sessions = append(d.sessions, session)
-	h.bySession[session] = d
+	t := &tab{session: session, dev: d, seen: time.Now()}
+	d.tabs = append(d.tabs, t)
+	h.bySession[session] = t
 	if d.name != name && d.name != "" && d.online {
 		h.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
 	}
@@ -242,7 +300,7 @@ func (h *deviceHub) sweep(now time.Time) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, d := range h.byKey {
-		live := d.polls > 0 || now.Sub(d.seen) < awayAfter
+		live := d.liveAt(now)
 		if d.online && !live {
 			d.online = false
 			h.emitLocked(feedEvent{Kind: "leave", Handle: d.handle})
@@ -406,13 +464,15 @@ func (s *server) phoneHello(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) phoneEvents(w http.ResponseWriter, r *http.Request) {
 	since := pollSince(r)
+	session := r.URL.Query().Get("session")
 	hub.mu.Lock()
-	d := hub.bySessionLocked(r.URL.Query().Get("session"))
+	d := hub.bySessionLocked(session)
 	if d == nil {
 		hub.mu.Unlock()
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not connected"})
 		return
 	}
+	t := hub.tabLocked(session)
 	hub.touchLocked(d)
 	if d.ver != since {
 		v := hub.mailLocked(d)
@@ -420,15 +480,20 @@ func (s *server) phoneEvents(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, v)
 		return
 	}
-	d.polls++
+	t.polls++
 	wake := d.wake
 	hub.mu.Unlock()
 
 	ok := hub.park(r, wake)
 
+	// The end of a poll is not news from the phone. Only a new request is, so
+	// a phone that walked away stops looking connected right after this.
 	hub.mu.Lock()
-	d.polls--
-	d.seen = time.Now()
+	t.polls--
+	if r.Context().Err() != nil {
+		t.seen = time.Time{}
+		hub.refreshLocked(d)
+	}
 	v := hub.mailLocked(d)
 	hub.mu.Unlock()
 	if !ok {
@@ -436,6 +501,33 @@ func (s *server) phoneEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
+}
+
+// phoneBye is sent as the page closes or goes to the background. It may come
+// from sendBeacon, which can only carry the cookie, so it is behind guardPhone.
+func (s *server) phoneBye(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Session string `json:"session"`
+		Gone    bool   `json:"gone"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	t := hub.tabLocked(req.Session)
+	if t == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	d := t.dev
+	if req.Gone {
+		hub.dropTabLocked(t)
+	} else {
+		t.away = true
+	}
+	hub.refreshLocked(d)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *server) phoneRename(w http.ResponseWriter, r *http.Request) {

@@ -175,6 +175,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/phone/hello", s.guard(s.phoneHello))
 	mux.HandleFunc("GET /api/phone/events", s.guard(s.phoneEvents))
 	mux.HandleFunc("POST /api/phone/name", s.guard(s.phoneRename))
+	mux.HandleFunc("POST /api/phone/bye", s.guardPhone(s.phoneBye))
 	mux.HandleFunc("POST /api/phone/dismiss", s.guard(s.phoneDismiss))
 	mux.HandleFunc("POST /api/phone/live", s.guard(s.phoneLive))
 	mux.HandleFunc("POST /api/phone/clip", s.guard(s.phoneClip))

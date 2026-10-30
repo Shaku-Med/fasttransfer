@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -316,6 +317,109 @@ func TestSweepMarksAwayAndForgets(t *testing.T) {
 	hub.sweep(time.Now().Add(forgetAfter + time.Hour))
 	if d := devices(t, mux); len(d) != 0 {
 		t.Fatalf("the phone should be forgotten: %+v", d)
+	}
+}
+
+func online(t *testing.T, mux http.Handler, name string) bool {
+	t.Helper()
+	for _, d := range devices(t, mux) {
+		if d.Name == name {
+			return d.Online
+		}
+	}
+	t.Fatalf("no device named %q", name)
+	return false
+}
+
+func TestByeMarksAwayRightAway(t *testing.T) {
+	mux := testServer(t).routes()
+	s := hello(t, mux, "192.168.1.71", deviceKey(21), "Closer")
+	if !online(t, mux, "Closer") {
+		t.Fatal("a fresh phone should be connected")
+	}
+	serve(mux, phoneReq("POST", "/api/phone/bye", `{"session":"`+s+`","gone":false}`))
+	if online(t, mux, "Closer") {
+		t.Fatal("a phone that went to the background should be away at once")
+	}
+	mail(t, mux, s)
+	if !online(t, mux, "Closer") {
+		t.Fatal("a phone that comes back should be connected again")
+	}
+	serve(mux, phoneReq("POST", "/api/phone/bye", `{"session":"`+s+`","gone":true}`))
+	if online(t, mux, "Closer") {
+		t.Fatal("a closed page should be away at once")
+	}
+	if w := serve(mux, phoneReq("GET", "/api/phone/events?session="+s+"&since=-1", "")); w.Code != http.StatusNotFound {
+		t.Fatalf("a closed tab's session should be gone, got %d", w.Code)
+	}
+}
+
+func TestOtherTabKeepsPhoneConnected(t *testing.T) {
+	mux := testServer(t).routes()
+	a := hello(t, mux, "192.168.1.72", deviceKey(22), "Two tabs")
+	hello(t, mux, "192.168.1.72", deviceKey(22), "Two tabs")
+	serve(mux, phoneReq("POST", "/api/phone/bye", `{"session":"`+a+`","gone":true}`))
+	if !online(t, mux, "Two tabs") {
+		t.Fatal("closing one tab should not mark the phone away while another is open")
+	}
+}
+
+func TestDroppedPollMarksAway(t *testing.T) {
+	srv := testServer(t)
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+	mux := srv.routes()
+	s := hello(t, mux, "192.168.1.73", deviceKey(23), "Dropper")
+	ver := mail(t, mux, s).Ver
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/api/phone/events?session=%s&since=%d", ts.URL, s, ver), nil)
+	req.Header.Set("X-Transfer-Key", testKey)
+	done := make(chan struct{})
+	go func() {
+		if res, err := http.DefaultClient.Do(req); err == nil {
+			res.Body.Close()
+		}
+		close(done)
+	}()
+	deadline := time.Now().Add(2 * time.Second)
+	for hub.polls.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	deadline = time.Now().Add(2 * time.Second)
+	for online(t, mux, "Dropper") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if online(t, mux, "Dropper") {
+		t.Fatal("a phone whose poll dropped should be away without waiting for the sweep")
+	}
+}
+
+func TestByeWorksWithTheCookieAlone(t *testing.T) {
+	srv := testServer(t)
+	mux := srv.routes()
+	w := serve(mux, phoneReq("POST", "/api/phone/hello", `{"device":"`+deviceKey(24)+`","name":"Beacon","kind":"iphone"}`))
+	session := decode[map[string]string](t, w)["session"]
+	var cookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == phoneCookie {
+			cookie = c
+		}
+	}
+	if cookie == nil {
+		t.Fatal("hello should hand out the phone cookie")
+	}
+	r := phoneReq("POST", "/api/phone/bye", `{"session":"`+session+`","gone":true}`)
+	r.Header.Del("X-Transfer-Key")
+	r.Header.Set("Content-Type", "text/plain")
+	r.AddCookie(cookie)
+	if w := serve(mux, r); w.Code != http.StatusNoContent {
+		t.Fatalf("a beacon with only the cookie got %d", w.Code)
+	}
+	if online(t, mux, "Beacon") {
+		t.Fatal("the beacon should have marked the phone away")
 	}
 }
 

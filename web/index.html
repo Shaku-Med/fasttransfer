@@ -1141,12 +1141,40 @@
       applyText(mail);
     }
 
+    function whenVisible() {
+      return new Promise((done) => {
+        if (!document.hidden) { done(); return; }
+        const on = () => {
+          if (document.hidden) return;
+          document.removeEventListener("visibilitychange", on);
+          done();
+        };
+        document.addEventListener("visibilitychange", on);
+      });
+    }
+
+    // Tells the PC this tab is leaving, so it stops showing as connected right
+    // away. While the page closes only sendBeacon is sure to get out, and it
+    // can only carry the cookie, which the server accepts for this one route.
+    function bye(gone) {
+      if (!key || !session) return;
+      const body = JSON.stringify({ session, gone });
+      if (gone && navigator.sendBeacon && navigator.sendBeacon("/api/phone/bye", new Blob([body], { type: "text/plain" }))) return;
+      fetch("/api/phone/bye", { method: "POST", headers: head(), body, keepalive: true }).catch(() => {});
+    }
+
     // One waiting request carries files, text and clips. A thousand phones
     // reconnecting at once spread out because every retry waits a random bit.
+    // It pauses while the page is in the background, so a phone in a pocket
+    // shows as away instead of connected.
     async function connect() {
       let fails = 0;
       for (;;) {
         try {
+          if (document.hidden) {
+            setLink("off", "Paused");
+            await whenVisible();
+          }
           if (!session) await hello();
           const res = await fetch("/api/phone/events?session=" + encodeURIComponent(session) + "&since=" + mailVer, { headers: { "X-Transfer-Key": key }, cache: "no-store" });
           if (res.status === 404) { session = ""; continue; }
@@ -1296,8 +1324,11 @@
       setLink("off", "No link");
     }
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && key) loadPC(pcRel);
+      if (!key) return;
+      if (document.visibilityState === "visible") loadPC(pcRel);
+      else bye(false);
     });
+    window.addEventListener("pagehide", (event) => bye(!event.persisted));
   </script>
 </body>
 </html>

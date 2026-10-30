@@ -3638,10 +3638,12 @@
       if (ev.kind === "join") {
         const row = d || { handle: ev.handle, name: ev.name, kind: ev.device || "other", files: 0 };
         row.name = ev.name || row.name;
+        const back = d && !d.online && Date.now() - d.seenAt < 60000;
         row.online = true;
         row.seenAt = Date.now();
         devs.set(ev.handle, row);
-        noteJoin(row.name);
+        // A phone popping back after a pocket check or a Wi-Fi blip is not news.
+        if (!back) noteJoin(row.name);
       } else if (ev.kind === "leave" && d) {
         d.online = false;
         d.seenAt = Date.now();
