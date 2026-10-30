@@ -129,7 +129,7 @@
     }
     #moremenu button:hover { background: var(--hover); }
     #moremenu svg { width: 16px; height: 16px; flex: none; }
-    #sendsrim {
+    #sendsrim, #scanscrim {
       position: fixed;
       inset: 0;
       z-index: 40;
@@ -139,7 +139,7 @@
       justify-content: center;
       padding: 24px;
     }
-    #sendbox {
+    #sendbox, #scanbox {
       position: relative;
       width: min(480px, 100%);
       background: var(--menu);
@@ -149,16 +149,18 @@
       box-shadow: var(--shadow);
       padding: 16px 16px 14px;
     }
-    #sendbox h2 { margin: 0 32px 8px 0; font-size: 16px; font-weight: 600; }
+    #sendbox h2, #scanbox h2 { margin: 0 32px 8px 0; font-size: 16px; font-weight: 600; }
     #sendnote { margin: 0 0 12px; color: var(--muted); }
-    #sendlist { list-style: none; margin: 0 0 16px; padding: 0; max-height: 120px; overflow: auto; }
-    #sendlist li { min-height: 32px; padding: 6px 0; border-top: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #sendlist { list-style: none; margin: 0 0 16px; padding: 0; max-height: 220px; overflow: auto; }
+    #sendlist li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 0; border-top: 1px solid var(--line); }
+    #sendlist li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #sendlist li button { flex: none; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
     #sendfoot { display: flex; justify-content: flex-end; gap: 8px; }
     #sendpick, #sendgo { height: 32px; padding: 0 12px; border-radius: 8px; }
     #sendpick { border: 1px solid var(--line); background: transparent; color: inherit; }
     #sendgo { border: 0; background: var(--accent); color: var(--on-accent); }
     #sendgo:disabled, #sendpick:disabled { opacity: 0.45; cursor: default; }
-    #sendclose {
+    #sendclose, #scanclose {
       position: absolute;
       top: 8px;
       right: 8px;
@@ -172,10 +174,8 @@
       background: transparent;
       color: inherit;
     }
-    #sendclose svg { width: 12px; height: 12px; }
-    #sendclose:hover { background: var(--hover); }
-    #btsend { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
-    #btsend h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+    #sendclose svg, #scanclose svg { width: 12px; height: 12px; }
+    #sendclose:hover, #scanclose:hover { background: var(--hover); }
     #btnote, #bthint, #btprogress { margin: 0 0 8px; }
     #btnote, #bthint { color: var(--muted); }
     #btphones { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; max-height: 160px; overflow: auto; }
@@ -184,6 +184,18 @@
     #btphones label span.tag { flex: none; color: var(--muted); font-size: 12px; }
     #btbar { height: 4px; margin: 0 0 12px; border-radius: 2px; background: var(--line); overflow: hidden; }
     #btfill { height: 100%; width: 0; background: var(--accent); }
+    #sendwhen { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+    #sendat { height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); color: inherit; }
+    #schedbody { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px 24px; }
+    #schedrows { list-style: none; margin: 0; padding: 0; background: var(--menu); border: 1px solid var(--line); border-radius: 8px; }
+    #schedrows:empty { display: none; }
+    #schedrows li { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px 6px 16px; }
+    #schedrows li + li { border-top: 1px solid var(--line); }
+    #schedrows .what { flex: 1; min-width: 0; }
+    #schedrows .what b, #schedrows .what small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #schedrows .what b { font-weight: 500; }
+    #schedrows .what small { margin-top: 1px; color: var(--muted); font-size: 12px; }
+    #schedrows button { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
     #btfoot { display: flex; justify-content: flex-end; gap: 8px; }
     #btscan { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
     #btscan:disabled { opacity: 0.6; }
@@ -1182,13 +1194,15 @@
         <option value="light">Light</option>
         <option value="dark">Dark</option>
       </select>
+      <button id="scanicon" class="icon" type="button" title="Scan Bluetooth" aria-label="Scan Bluetooth"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v11.6l4.2-3.2L8 7.4l4.2-3.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M3.8 5.2 8 8 3.8 10.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button id="themebtn" class="icon" type="button" title="Theme" aria-label="Theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.6v1.6M8 12.8v1.6M1.6 8H3.2M12.8 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
       <div id="morewrap">
         <button id="more" class="icon" type="button" title="More" aria-label="More"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
         <div id="moremenu" hidden>
           <button type="button" data-act="send"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13.2V3.2M4.4 6.6 8 3l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Send</span></button>
           <button type="button" data-act="files"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h5l3 3V13.5H4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 2.5V6h3" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span>Send files</span></button>
-          <button type="button" data-act="phone"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Connect a phone</span></button>
+          <button type="button" data-act="scan"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v11.6l4.2-3.2L8 7.4l4.2-3.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M3.8 5.2 8 8 3.8 10.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Scan</span></button>
+          <button type="button" data-act="phone"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Connect a device</span></button>
           <button type="button" data-act="folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 4.2h4l1.2 1.4h6.4v6.8H2.2V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span>Save folder</span></button>
           <button type="button" data-act="quit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5H3.5v9H6M6.5 8h6M10.5 5.5 13 8l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Quit</span></button>
         </div>
@@ -1204,6 +1218,7 @@
         <button class="navitem on" type="button" data-view="files" title="Files"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 4.2h4l1.2 1.4H14.2V13H1.8V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="lab">Files</span></button>
         <button class="navitem" type="button" data-view="text" title="Text"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7.5H8.6L5.5 13.4V11h-3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 6.4h6M5 8.6h3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Text</span><span class="badge" id="textbadge" hidden></span></button>
         <button class="navitem" type="button" data-view="connect" title="Connect"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Connect</span><span class="badge" id="phonebadge" hidden></span></button>
+        <button class="navitem" type="button" data-view="schedule" title="Scheduled"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lab">Scheduled</span><span class="badge" id="schedbadge" hidden></span></button>
         <span class="grow"></span>
         <button class="navitem" type="button" data-act="folder" title="Save folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 4.2h4l1.2 1.4h6.4v6.8H2.2V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 7.6v3M6.5 9.1h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Save folder</span></button>
       </nav>
@@ -1221,7 +1236,8 @@
             <button id="viewlist" class="tool on" type="button" title="List" aria-label="List view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.6M2.5 8h.6M2.5 12h.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
             <button id="viewgrid" class="tool" type="button" title="Tiles" aria-label="Tile view"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="4.5" height="4.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button>
             <span class="gap"></span>
-            <button id="sendicon" class="btn primary" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13.2V3.2M4.4 6.6 8 3l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Send to phone</button>
+            <button id="sendicon" class="btn primary" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13.2V3.2M4.4 6.6 8 3l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Send</button>
+            <button id="scantool" class="btn" type="button">Scan</button>
           </div>
           <div id="recv" hidden>
             <div class="recvtop">
@@ -1248,10 +1264,10 @@
             <h1>Text</h1>
             <span id="livestate">Connecting</span>
           </div>
-          <p class="lede">Each phone has its own pad with this PC, and both sides see it as they type. Pick Everyone to send one message to every phone.</p>
+          <p class="lede">Each device has its own pad with this PC, and both sides see it as they type. Pick Everyone to send one message to every device.</p>
           <div class="body">
             <div id="convcard" class="card">
-              <div class="cardhead"><input id="convq" class="find" type="search" placeholder="Find a phone" aria-label="Find a phone" maxlength="40" autocomplete="off" spellcheck="false" hidden /><h2 class="convtitle">Phones</h2></div>
+              <div class="cardhead"><input id="convq" class="find" type="search" placeholder="Find a device" aria-label="Find a device" maxlength="40" autocomplete="off" spellcheck="false" hidden /><h2 class="convtitle">Devices</h2></div>
               <ul id="convlist"></ul>
             </div>
             <div id="padcard" class="card">
@@ -1269,29 +1285,29 @@
             <div id="clipcard" class="card">
               <div class="cardhead"><h2 id="cliphead">Clips</h2><button id="clipclear" class="btn quiet" type="button" hidden>Clear all</button></div>
               <ul id="cliplist"></ul>
-              <label class="switch"><input id="autocopy" type="checkbox" /><span class="track"></span><span class="txt">Copy clips from the phone straight to this PC's clipboard</span></label>
+              <label class="switch"><input id="autocopy" type="checkbox" /><span class="track"></span><span class="txt">Copy clips from the device straight to this PC's clipboard</span></label>
             </div>
           </div>
         </section>
 
         <section id="connectview" class="page" hidden>
-          <div class="pagehead"><h1>Connect a phone</h1></div>
-          <p class="lede">The phone has to be on the same Wi-Fi as this PC.</p>
+          <div class="pagehead"><h1>Connect a device</h1></div>
+          <p class="lede">The other device has to be on the same Wi-Fi as this PC. Any browser can open the link.</p>
           <div class="body">
             <div id="connectgrid">
               <div id="qrcard" class="card">
                 <img id="qr" alt="QR code for the phone link" width="200" height="200" />
                 <div id="ips"></div>
                 <ol class="steps">
-                  <li>Open the camera on the phone</li>
-                  <li>Point it at the code and tap the link</li>
+                  <li>Open the link in that device's browser</li>
+                  <li>On a phone, the camera can scan the code</li>
                   <li>Add the page to the home screen to keep it handy</li>
                 </ol>
               </div>
               <div class="infocol">
                 <div class="card">
                   <div class="setting">
-                    <div class="what"><b>Phone link</b><span id="phonelink"></span></div>
+                    <div class="what"><b>Device link</b><span id="phonelink"></span></div>
                     <button id="copylink" class="btn" type="button">Copy link</button>
                   </div>
                   <div class="setting">
@@ -1300,12 +1316,20 @@
                   </div>
                 </div>
                 <div class="card">
-                  <div class="cardhead"><h2>Phones</h2><span id="phonesum" class="sum"></span></div>
-                  <div class="findrow" id="devfindrow" hidden><input id="devq" class="find" type="search" placeholder="Find a phone by name" aria-label="Find a phone" maxlength="40" autocomplete="off" spellcheck="false" /></div>
+                  <div class="cardhead"><h2>Devices</h2><span id="phonesum" class="sum"></span></div>
+                  <div class="findrow" id="devfindrow" hidden><input id="devq" class="find" type="search" placeholder="Find a device by name" aria-label="Find a device" maxlength="40" autocomplete="off" spellcheck="false" /></div>
                   <ul id="phonesnow"></ul>
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section id="scheduleview" class="page" hidden>
+          <div class="pagehead"><h1>Scheduled</h1></div>
+          <p class="lede" id="schednote">Nothing is scheduled.</p>
+          <div id="schedbody">
+            <ul id="schedrows"></ul>
           </div>
         </section>
       </main>
@@ -1383,27 +1407,31 @@
   <div id="sendsrim" hidden>
     <div id="sendbox" role="dialog" aria-modal="true" aria-labelledby="sendtitle">
       <button id="sendclose" type="button" aria-label="Close"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
-      <h2 id="sendtitle">Send to phones</h2>
+      <h2 id="sendtitle">Send to devices</h2>
       <p id="sendnote"></p>
-      <div id="sendfind" class="findrow"><input id="sendq" class="find" type="search" placeholder="Find a phone" aria-label="Find a phone" maxlength="40" autocomplete="off" spellcheck="false" /><button id="sendall" class="btn quiet small" type="button">Pick all</button></div>
+      <div id="sendfind" class="findrow"><input id="sendq" class="find" type="search" placeholder="Find a device" aria-label="Find a device" maxlength="40" autocomplete="off" spellcheck="false" /><button id="sendall" class="btn quiet small" type="button">Pick all</button></div>
       <div id="sendphones" class="picklist"></div>
       <p id="sendcount"></p>
       <ul id="sendlist"></ul>
+      <label id="sendwhen">Send at<input id="sendat" type="datetime-local" /></label>
       <div id="sendfoot">
-        <button id="sendpick" type="button">Send files from this PC</button>
+        <button id="sendpick" type="button">Add files</button>
         <button id="sendgo" type="button">Send</button>
       </div>
-      <div id="btsend">
-        <h3>Bluetooth</h3>
-        <p id="btnote"></p>
-        <div id="btphones"></div>
-        <p id="bthint">iPhone uses the Wi-Fi link, not AirDrop.</p>
-        <p id="btprogress" hidden></p>
-        <div id="btbar" hidden><div id="btfill"></div></div>
-        <div id="btfoot">
-          <button id="btscan" type="button">Scan</button>
-          <button id="btsendgo" type="button" hidden>Send over Bluetooth</button>
-        </div>
+    </div>
+  </div>
+  <div id="scanscrim" hidden>
+    <div id="scanbox" role="dialog" aria-modal="true" aria-labelledby="scantitle">
+      <button id="scanclose" type="button" aria-label="Close"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
+      <h2 id="scantitle">Bluetooth</h2>
+      <p id="btnote"></p>
+      <div id="btphones"></div>
+      <p id="bthint">iPhone uses the Wi-Fi link, not AirDrop.</p>
+      <p id="btprogress" hidden></p>
+      <div id="btbar" hidden><div id="btfill"></div></div>
+      <div id="btfoot">
+        <button id="btscan" type="button">Scan</button>
+        <button id="btsendgo" type="button" hidden>Send over Bluetooth</button>
       </div>
     </div>
   </div>
@@ -2992,7 +3020,7 @@
         const data = await getJSON("/api/desk");
         renderLinks(data.links || []);
       } catch (err) {
-        document.getElementById("phonelink").textContent = "Phone link is unavailable.";
+        document.getElementById("phonelink").textContent = "The link is unavailable.";
       }
     }
 
@@ -3056,15 +3084,70 @@
       return selectedFiles().map((rel) => entries.find((entry) => entry.rel === rel)).filter(Boolean);
     }
 
+    let sendQueue = [];
+
+    function queueKey(item) {
+      return item.path || item.rel || "";
+    }
+
+    function addToSendQueue(items) {
+      (items || []).forEach((item) => {
+        if (!item) return;
+        const key = queueKey(item);
+        if (!key || sendQueue.some((row) => queueKey(row) === key)) return;
+        const name = item.name || item.label || String(key).split(/[\\/]/).pop() || "File";
+        sendQueue.push({ name, rel: item.rel || "", path: item.path || "" });
+      });
+    }
+
+    function renderSendFiles() {
+      const list = document.getElementById("sendlist");
+      list.replaceChildren();
+      if (!sendQueue.length) {
+        const li = document.createElement("li");
+        const span = document.createElement("span");
+        span.textContent = "No files yet. Select some, drop them on the window, or use Add files.";
+        li.appendChild(span);
+        list.appendChild(li);
+        paintSendButtons();
+        return;
+      }
+      sendQueue.forEach((file) => {
+        const li = document.createElement("li");
+        const name = document.createElement("span");
+        name.textContent = file.name;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => {
+          sendQueue = sendQueue.filter((row) => queueKey(row) !== queueKey(file));
+          renderSendFiles();
+        });
+        li.append(name, remove);
+        list.appendChild(li);
+      });
+      paintSendButtons();
+    }
+
+    window.addDroppedPaths = function (paths) {
+      const incoming = (Array.isArray(paths) ? paths : []).filter(Boolean).map((path) => ({
+        name: String(path).split(/[\\/]/).pop() || "File",
+        path: String(path),
+      }));
+      if (!incoming.length) return;
+      addToSendQueue(incoming);
+      openSendModal();
+    };
+
     function paintSendButtons() {
       const n = pickedTargets().length;
-      const files = sendFilesPicked().length;
+      const files = sendQueue.length;
       const go = document.getElementById("sendgo");
-      document.getElementById("sendcount").textContent = !devs.size ? "" : n === 1 ? "1 phone picked" : n + " phones picked";
-      go.hidden = !files;
-      go.disabled = !n;
-      go.textContent = "Send " + (files === 1 ? "1 file" : files + " files") + (n ? " to " + (n === 1 ? "1 phone" : n + " phones") : "");
-      document.getElementById("sendpick").disabled = !n;
+      document.getElementById("sendcount").textContent = !devs.size ? "" : n === 1 ? "1 device picked" : n + " devices picked";
+      go.hidden = false;
+      go.disabled = !files || !n;
+      go.textContent = "Send " + (files === 1 ? "1 file" : files + " files") + (n ? " to " + (n === 1 ? "1 device" : n + " devices") : "");
+      document.getElementById("sendpick").disabled = false;
       const matches = sortedDevs(sendQuery);
       const every = matches.length > 0 && matches.every((d) => sendPicked.has(d.handle));
       const allBtn = document.getElementById("sendall");
@@ -3101,8 +3184,8 @@
       [...sendPicked].forEach((h) => { if (!devs.has(h)) sendPicked.delete(h); });
       const total = devs.size;
       document.getElementById("sendnote").textContent = total
-        ? "Pick who gets them. A phone that is away gets them when it opens the page again."
-        : "No phone has connected yet. Open Connect and scan the code with the phone.";
+        ? "Pick who gets them. A device that is away gets them when it opens the page again."
+        : "No device has connected yet. Open Connect and open the link in a browser.";
       document.getElementById("sendfind").hidden = total < 2;
       document.getElementById("sendq").hidden = total < 6;
       box.hidden = !total;
@@ -3112,7 +3195,7 @@
       if (matches.length > ROW_CAP || (total && !matches.length)) {
         const more = document.createElement("p");
         more.className = "more";
-        more.textContent = matches.length ? "Showing " + ROW_CAP + " of " + matches.length + ". Search to narrow it down." : "No phone matches that.";
+        more.textContent = matches.length ? "Showing " + ROW_CAP + " of " + matches.length + ". Search to narrow it down." : "No device matches that.";
         box.appendChild(more);
       }
       box.scrollTop = keep;
@@ -3121,38 +3204,31 @@
 
     function openSendModal() {
       document.getElementById("moremenu").hidden = true;
-      const list = document.getElementById("sendlist");
-      list.replaceChildren();
-      const files = sendFilesPicked();
-      if (!files.length) {
-        const li = document.createElement("li");
-        li.textContent = "No files selected here. Use Send files from this PC, or close this and pick some.";
-        list.appendChild(li);
-      } else {
-        files.slice(0, 50).forEach((file) => {
-          const li = document.createElement("li");
-          li.textContent = file.label || file.name;
-          list.appendChild(li);
-        });
-        if (files.length > 50) {
-          const li = document.createElement("li");
-          li.textContent = "and " + (files.length - 50) + " more";
-          list.appendChild(li);
-        }
-      }
+      closeScanModal();
+      addToSendQueue(sendFilesPicked().map((file) => ({ name: file.label || file.name, rel: file.rel })));
       if (!pickedTargets().length) {
         const online = sortedDevs("").filter((d) => d.online);
         if (online.length === 1) sendPicked.add(online[0].handle);
       }
       sendQuery = "";
       document.getElementById("sendq").value = "";
+      const sendAt = document.getElementById("sendat");
+      const wasOpen = !document.getElementById("sendsrim").hidden;
+      if (sendAt && !wasOpen) sendAt.value = "";
+      renderSendFiles();
       renderSendPicker();
       document.getElementById("sendsrim").hidden = false;
       if (devs.size >= 6) document.getElementById("sendq").focus();
+    }
+
+    function openScanModal() {
+      document.getElementById("moremenu").hidden = true;
+      document.getElementById("sendsrim").hidden = true;
+      document.getElementById("scanscrim").hidden = false;
       loadBluetooth();
     }
 
-    function loadBluetooth() {
+    async function loadBluetooth() {
       stopNearbyScan();
       const note = document.getElementById("btnote");
       const box = document.getElementById("btphones");
@@ -3172,6 +3248,13 @@
         document.getElementById("btbar").hidden = true;
         document.getElementById("btfill").style.width = "0%";
       }
+      if (typeof listSavedBluetooth === "function") {
+        try {
+          const saved = await listSavedBluetooth();
+          (saved.devices || []).forEach(addBluetoothDevice);
+        } catch (err) {}
+      }
+      if (btList.length) note.textContent = "Choose a phone.";
     }
 
     function stopNearbyScan() {
@@ -3181,18 +3264,27 @@
     }
 
     function btShownName(item) {
+      const label = (item.label || "").trim();
+      if (label) return label;
       const name = (item.name || "").trim();
       if (name) return name;
-      return (item.address || "").trim() || "Phone";
+      return (item.address || "").trim() || "Bluetooth";
+    }
+
+    function sameBluetooth(a, b) {
+      const aa = (a.address || "").toUpperCase();
+      const bb = (b.address || "").toUpperCase();
+      if (aa && bb && aa === bb) return true;
+      return !!(a.id && a.id === b.id);
     }
 
     function addBluetoothDevice(item) {
       if (!item || !item.id) return;
       const box = document.getElementById("btphones");
       const button = document.getElementById("btsendgo");
-      let known = btList.find((entry) => entry.id === item.id);
+      let known = btList.find((entry) => sameBluetooth(entry, item));
       if (!known) {
-        known = { id: item.id, name: item.name || "", address: item.address || "", paired: !!item.paired };
+        known = { id: item.id, name: item.name || "", label: item.label || "", address: item.address || "", paired: !!item.paired };
         btList.push(known);
         if (!btChoice) btChoice = known.id;
         const label = document.createElement("label");
@@ -3211,11 +3303,17 @@
         label.append(input, text, tag);
         box.appendChild(label);
       } else {
+        const previous = known.id;
+        known.id = item.id || known.id;
         known.name = item.name || known.name;
+        known.label = item.label || known.label;
         known.address = item.address || known.address;
         known.paired = !!item.paired;
-        const row = [...box.querySelectorAll("label")].find((label) => label.querySelector("input") && label.querySelector("input").value === known.id);
+        const row = [...box.querySelectorAll("label")].find((label) => label.querySelector("input") && label.querySelector("input").value === previous);
         if (row) {
+          const input = row.querySelector("input");
+          if (input) input.value = known.id;
+          if (btChoice === previous) btChoice = known.id;
           row.querySelector(".name").textContent = btShownName(known);
           row.querySelector(".tag").textContent = known.paired ? "Paired" : "New";
         }
@@ -3230,10 +3328,6 @@
       const listen = btListen;
       btScanning = true;
       btScanNote = "";
-      btList = [];
-      btChoice = "";
-      document.getElementById("btphones").replaceChildren();
-      document.getElementById("btsendgo").hidden = true;
       const scan = document.getElementById("btscan");
       scan.disabled = true;
       scan.textContent = "Scanning";
@@ -3267,19 +3361,17 @@
       const scanBtn = document.getElementById("btscan");
       scanBtn.disabled = false;
       scanBtn.textContent = "Scan";
-      const rels = selectedFiles();
+      const rels = [];
       let outside = [];
-      if (!rels.length) {
-        if (typeof pickFilesForBluetooth !== "function") return;
-        try {
-          outside = await pickFilesForBluetooth();
-        } catch (err) {
-          document.getElementById("btprogress").hidden = false;
-          document.getElementById("btprogress").textContent = "That file could not be sent.";
-          return;
-        }
-        if (!outside || !outside.length) return;
+      if (typeof pickFilesForBluetooth !== "function") return;
+      try {
+        outside = await pickFilesForBluetooth();
+      } catch (err) {
+        document.getElementById("btprogress").hidden = false;
+        document.getElementById("btprogress").textContent = "That file could not be sent.";
+        return;
       }
+      if (!outside || !outside.length) return;
       btBusy = true;
       document.getElementById("btsendgo").disabled = true;
       const line = document.getElementById("btprogress");
@@ -3344,8 +3436,110 @@
     };
 
     function closeSendModal() {
-      stopNearbyScan();
       document.getElementById("sendsrim").hidden = true;
+    }
+
+    function closeScanModal() {
+      stopNearbyScan();
+      const scrim = document.getElementById("scanscrim");
+      if (scrim) scrim.hidden = true;
+    }
+
+    function chosenWhen() {
+      const input = document.getElementById("sendat");
+      return input && input.value ? input.value : "";
+    }
+
+    let schedTimer = 0;
+
+    function stopSchedules() {
+      if (schedTimer) clearInterval(schedTimer);
+      schedTimer = 0;
+    }
+
+    function watchSchedules() {
+      loadSchedules();
+      stopSchedules();
+      schedTimer = setInterval(loadSchedules, 4000);
+    }
+
+    function scheduleWhen(when) {
+      const at = Date.parse(when || "");
+      if (!at) return "When the device connects";
+      return new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+
+    async function loadSchedules() {
+      const note = document.getElementById("schednote");
+      const list = document.getElementById("schedrows");
+      const badge = document.getElementById("schedbadge");
+      if (!note || !list) return;
+      let tasks = [];
+      try {
+        const res = await fetch("/api/schedule", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          note.textContent = data.error || "Could not read Task Scheduler.";
+          list.replaceChildren();
+          if (badge) badge.hidden = true;
+          return;
+        }
+        tasks = data.tasks || [];
+      } catch (err) {
+        note.textContent = "Could not read Task Scheduler.";
+        list.replaceChildren();
+        if (badge) badge.hidden = true;
+        return;
+      }
+      if (badge) {
+        badge.hidden = !tasks.length;
+        badge.textContent = tasks.length > 99 ? "99+" : String(tasks.length);
+      }
+      if (!tasks.length) {
+        note.textContent = "Nothing is scheduled.";
+        list.replaceChildren();
+        return;
+      }
+      note.textContent = "Each one sends when its time has come and that device is connected. Cancel removes it.";
+      list.replaceChildren();
+      tasks.forEach((task) => {
+        const li = document.createElement("li");
+        const text = document.createElement("span");
+        text.className = "what";
+        const title = document.createElement("b");
+        title.textContent = task.label || "Device";
+        const detail = document.createElement("small");
+        const file = task.file || "File";
+        detail.textContent = file + "  ·  " + (task.missing ? "Missing" : scheduleWhen(task.when));
+        text.append(title, detail);
+        text.title = title.textContent + "  ·  " + detail.textContent;
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.textContent = "Cancel";
+        cancel.addEventListener("click", () => cancelSchedule(task.id));
+        li.append(text, cancel);
+        list.appendChild(li);
+      });
+    }
+
+    async function cancelSchedule(id) {
+      if (!id) return;
+      try {
+        const res = await fetch("/api/schedule/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          flash(data.error || "Could not cancel that send");
+          return;
+        }
+      } catch (err) {
+        flash("Could not cancel that send");
+        return;
+      }
+      loadSchedules();
     }
 
     // The directory is loaded once, then kept current from the feed. If the
@@ -3353,7 +3547,7 @@
     const devs = new Map();
     const typingUntil = new Map();
     const unreadBy = new Map();
-    const kindNames = { iphone: "iPhone", ipad: "iPad", android: "Android", other: "Phone" };
+    const kindNames = { iphone: "iPhone", ipad: "iPad", android: "Android", other: "" };
     let devSeq = -1;
     let devQuery = "";
     let convQuery = "";
@@ -3394,9 +3588,10 @@
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 16 16");
       svg.setAttribute("aria-hidden", "true");
-      svg.innerHTML = kind === "ipad"
-        ? '<rect x="2.5" y="2" width="11" height="12" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-        : '<rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>';
+      const phone = '<rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>';
+      const tablet = '<rect x="2.5" y="2" width="11" height="12" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>';
+      const screen = '<rect x="1.8" y="2.6" width="12.4" height="8.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 13.4h4M8 10.8v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>';
+      svg.innerHTML = kind === "ipad" ? tablet : (kind === "iphone" || kind === "android") ? phone : screen;
       return svg;
     }
 
@@ -3424,7 +3619,7 @@
       if (!devs.size) {
         const li = document.createElement("li");
         li.className = "none";
-        li.textContent = "No phone yet. Once the link is open on a phone it shows up here.";
+        li.textContent = "No device yet. Once the link is open in a browser it shows up here.";
         ul.appendChild(li);
         return;
       }
@@ -3438,7 +3633,7 @@
         const name = document.createElement("b");
         name.textContent = d.name;
         const sub = document.createElement("small");
-        sub.textContent = [kindNames[d.kind] || "Phone", statusText(d), d.files ? d.files + (d.files === 1 ? " file waiting" : " files waiting") : ""].filter(Boolean).join("  ·  ");
+        sub.textContent = [statusText(d), d.files ? d.files + (d.files === 1 ? " file waiting" : " files waiting") : ""].filter(Boolean).join("  ·  ");
         what.append(name, sub);
         const acts = document.createElement("div");
         acts.className = "acts";
@@ -3454,7 +3649,7 @@
       if (rows.length > ROW_CAP || !rows.length) {
         const li = document.createElement("li");
         li.className = "none";
-        li.textContent = rows.length ? "Showing " + ROW_CAP + " of " + rows.length + ". Search to find the rest." : "No phone matches that.";
+        li.textContent = rows.length ? "Showing " + ROW_CAP + " of " + rows.length + ". Search to find the rest." : "No device matches that.";
         ul.appendChild(li);
       }
     }
@@ -3464,7 +3659,7 @@
       const keep = ul.scrollTop;
       ul.replaceChildren();
       document.getElementById("convq").hidden = devs.size < 6;
-      const all = convButton({ handle: "all", name: "Everyone", kind: "" }, devs.size === 1 ? "1 phone" : devs.size + " phones");
+      const all = convButton({ handle: "all", name: "Everyone", kind: "" }, devs.size === 1 ? "1 device" : devs.size + " devices");
       ul.appendChild(all);
       const rows = sortedDevs(convQuery);
       rows.sort((a, b) => (unreadBy.get(b.handle) || 0) - (unreadBy.get(a.handle) || 0));
@@ -3597,7 +3792,7 @@
 
     const noteJoin = batcher(1200, (list) => {
       if (list.length === 1) toast(list[0] + " connected", "Send it files, or open Text to type to it.");
-      else toast(list.length + " phones connected", names(list));
+      else toast(list.length + " devices connected", names(list));
     });
 
     const noteClip = batcher(800, async (list) => {
@@ -3690,64 +3885,89 @@
       }
     }
 
+    async function postSend(url, devices, paths, when) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ devices, all: false, paths, when }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not send");
+      return data;
+    }
+
     async function sendSelection() {
       const devices = pickedTargets();
-      if (!devices.length) { flash("Pick a phone"); return; }
-      const paths = selectedFiles();
-      if (!paths.length) { flash("Select a file"); return; }
+      if (!devices.length) { flash("Pick a device"); return; }
+      const rels = sendQueue.filter((file) => file.rel).map((file) => file.rel);
+      const outside = sendQueue.filter((file) => file.path).map((file) => file.path);
+      if (!rels.length && !outside.length) { flash("Add a file"); return; }
       try {
-        const res = await fetch("/api/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devices, all: false, paths }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.count) { flash(data.error || "Could not send"); return; }
+        const when = chosenWhen();
+        let count = 0;
+        let reached = 0;
+        let scheduled = 0;
+        if (rels.length) {
+          const data = await postSend("/api/send", devices, rels, when);
+          count += data.count || 0;
+          reached = Math.max(reached, data.devices || 0);
+          scheduled += data.scheduled || 0;
+        }
+        if (outside.length) {
+          const data = await postSend("/api/send-outside", devices, outside, when);
+          count += data.count || 0;
+          reached = Math.max(reached, data.devices || 0);
+          scheduled += data.scheduled || 0;
+        }
+        if (!count && !scheduled) { flash("Could not send"); return; }
         rememberTargets();
+        sendQueue = [];
         closeSendModal();
-        sentToast(data.count, data.devices);
+        sentToast(count, reached, scheduled, devices, when);
+        loadSchedules();
       } catch (err) {
-        flash("Could not send");
+        flash(err && err.message ? err.message : "Could not send");
       }
     }
 
-    function sentToast(files, phones) {
+    function sentToast(files, phones, scheduled, handles, when) {
+      if (scheduled && when) {
+        toast("Scheduled", "It is in Scheduled. If the device is not connected at that time, it sends when the device connects.");
+        return;
+      }
+      if (scheduled && !phones) {
+        const one = handles && handles.length === 1 ? devs.get(handles[0]) : null;
+        const who = one ? one.name : "that device";
+        toast("Will send when " + who + " connects", "It is in Scheduled.");
+        return;
+      }
+      if (scheduled) {
+        toast("Sent to " + phones + (phones === 1 ? " device" : " devices"), scheduled + " more are in Scheduled and send when those devices connect.");
+        return;
+      }
       const one = phones === 1 ? devs.get(pickedTargets()[0]) : null;
-      const who = one ? one.name : phones + " phones";
-      toast((files === 1 ? "Sent 1 file to " : "Sent " + files + " files to ") + who, phones === 1 ? "Tap Save on the phone to keep it." : "Each phone taps Save to keep them. Phones that are away get them later.");
+      const who = one ? one.name : phones + " devices";
+      toast((files === 1 ? "Sent 1 file to " : "Sent " + files + " files to ") + who, phones === 1 ? "Tap Save on the device to keep it." : "Each device taps Save to keep them. Devices that are away get them later.");
     }
 
-    async function sendAnyFiles() {
-      const devices = pickedTargets();
-      if (!devices.length) { flash("Pick a phone"); return; }
+    async function addOutsideFiles() {
       try {
-        if (typeof sendPickedFiles === "function") {
-          const n = await sendPickedFiles(devices, false);
-          if (!n) return;
-          rememberTargets();
-          closeSendModal();
-          sentToast(n, devices.length);
-          return;
+        let paths = [];
+        if (typeof pickFilesForBluetooth === "function") paths = await pickFilesForBluetooth();
+        else {
+          const path = window.prompt("File to send");
+          if (path) paths = [path];
         }
-        const path = window.prompt("File to send");
-        if (!path) return;
-        const res = await fetch("/api/send-outside", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devices, all: false, paths: [path] }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.count) { flash(data.error || "Could not send"); return; }
-        rememberTargets();
-        closeSendModal();
-        sentToast(data.count, data.devices);
+        if (!paths || !paths.length) return;
+        addToSendQueue(paths.map((path) => ({ name: String(path).split(/[\\/]/).pop() || "File", path: String(path) })));
+        renderSendFiles();
       } catch (err) {
-        flash("Could not send");
+        flash("That file could not be added.");
       }
     }
 
     function showPage(name) {
-      if (name !== "files" && name !== "text" && name !== "connect") name = "files";
+      if (name !== "files" && name !== "text" && name !== "connect" && name !== "schedule") name = "files";
       hideMenu();
       document.getElementById("moremenu").hidden = true;
       if (name === page) return;
@@ -3761,6 +3981,9 @@
       document.getElementById("filesview").hidden = name !== "files";
       document.getElementById("textview").hidden = name !== "text";
       document.getElementById("connectview").hidden = name !== "connect";
+      document.getElementById("scheduleview").hidden = name !== "schedule";
+      if (name === "schedule") watchSchedules();
+      else stopSchedules();
       if (name === "files") list.focus();
       if (name === "connect") loadPhone();
       if (name === "text") {
@@ -3866,7 +4089,7 @@
 
     function restState() {
       if (!liveUp) setLiveState("", "Offline");
-      else if (conv === "all") setLiveState("live", devs.size === 1 ? "Goes to 1 phone" : "Goes to " + devs.size + " phones");
+      else if (conv === "all") setLiveState("live", devs.size === 1 ? "Goes to 1 device" : "Goes to " + devs.size + " devices");
       else if (convOnline) setLiveState("live", "Live with " + convName);
       else setLiveState("", convName + " is away, it catches up on return");
     }
@@ -3935,7 +4158,7 @@
           body: JSON.stringify({ device: target, text: livePad.value, tab: liveTab }),
         });
         if (res.status === 429) liveDirty = true;
-        if (res.status === 404 && conv === target) { flash("That phone is gone"); selectConv("all"); }
+        if (res.status === 404 && conv === target) { flash("That device is gone"); selectConv("all"); }
       } catch (err) {
         liveDirty = true;
       }
@@ -3978,8 +4201,8 @@
         const li = document.createElement("li");
         li.className = "none";
         li.textContent = conv === "all"
-          ? "Anything you send to everyone shows up here and on every phone."
-          : "Saved clips land here. Press Save as clip, or send one from the phone.";
+          ? "Anything you send to everyone shows up here and on every device."
+          : "Saved clips land here. Press Save as clip, or send one from the device.";
         ul.appendChild(li);
         return;
       }
@@ -4061,7 +4284,7 @@
 
     async function saveClip(text) {
       if (!text.trim()) { flash("Type something first"); return; }
-      if (conv === "all" && devs.size > 20 && !(await askUser("Send this to all " + devs.size + " phones?", "Send"))) return;
+      if (conv === "all" && devs.size > 20 && !(await askUser("Send this to all " + devs.size + " devices?", "Send"))) return;
       try {
         const res = await fetch("/api/desk/clip", {
           method: "POST",
@@ -4073,7 +4296,7 @@
         if (conv === "all") {
           swapPadText("");
           allDraft = "";
-          flash(devs.size === 1 ? "Sent to 1 phone" : "Sent to " + devs.size + " phones");
+          flash(devs.size === 1 ? "Sent to 1 device" : "Sent to " + devs.size + " devices");
         } else flash("Clip saved");
       } catch (err) {
         flash("Could not save the clip");
@@ -4081,7 +4304,7 @@
     }
 
     async function removeClip(id, all) {
-      if (all && !(await askUser(conv === "all" ? "Remove everything sent to everyone, on every phone too?" : "Remove every clip for " + convName + "?", "Clear all"))) return;
+      if (all && !(await askUser(conv === "all" ? "Remove everything sent to everyone, on every device too?" : "Remove every clip for " + convName + "?", "Clear all"))) return;
       try {
         await fetch("/api/desk/clip/remove", {
           method: "POST",
@@ -4180,6 +4403,8 @@
       applyTheme(next);
     });
     document.getElementById("sendicon").addEventListener("click", openSendModal);
+    document.getElementById("scantool").addEventListener("click", openScanModal);
+    document.getElementById("scanicon").addEventListener("click", openScanModal);
     document.getElementById("more").addEventListener("click", (event) => {
       event.stopPropagation();
       const menuEl = document.getElementById("moremenu");
@@ -4192,7 +4417,9 @@
       if (button.dataset.act === "send") openSendModal();
       else if (button.dataset.act === "files") {
         openSendModal();
+        addOutsideFiles();
       }
+      else if (button.dataset.act === "scan") openScanModal();
       else if (button.dataset.act === "phone") showPage("connect");
       else if (button.dataset.act === "folder") chooseSaveFolder();
       else if (button.dataset.act === "quit") {
@@ -4201,12 +4428,28 @@
       }
     });
     document.getElementById("sendclose").addEventListener("click", closeSendModal);
+    document.getElementById("scanclose").addEventListener("click", closeScanModal);
     document.getElementById("sendgo").addEventListener("click", sendSelection);
-    document.getElementById("sendpick").addEventListener("click", sendAnyFiles);
+    document.getElementById("sendpick").addEventListener("click", addOutsideFiles);
     document.getElementById("btsendgo").addEventListener("click", sendOverBluetooth);
     document.getElementById("btscan").addEventListener("click", scanNearby);
     document.getElementById("sendsrim").addEventListener("mousedown", (event) => {
       if (event.target.id === "sendsrim") closeSendModal();
+    });
+    document.getElementById("scanscrim").addEventListener("mousedown", (event) => {
+      if (event.target.id === "scanscrim") closeScanModal();
+    });
+    document.addEventListener("dragover", (event) => {
+      const types = event.dataTransfer && event.dataTransfer.types;
+      if (!types || ![...types].includes("Files")) return;
+      event.preventDefault();
+    });
+    document.addEventListener("drop", (event) => {
+      const files = event.dataTransfer && event.dataTransfer.files;
+      if (!files || !files.length) return;
+      event.preventDefault();
+      const paths = [...files].map((file) => file.path).filter(Boolean);
+      if (paths.length) window.addDroppedPaths(paths);
     });
     document.querySelectorAll(".head button").forEach((button) => {
       button.addEventListener("click", () => {
@@ -4417,7 +4660,7 @@
     document.addEventListener("contextmenu", (event) => {
       if (view.hidden && event.target.closest && event.target.closest("#livepad, #q, #iname")) { hideMenu(); return; }
       event.preventDefault();
-      if (!infoscrim.hidden || !ask.hidden || !document.getElementById("sendsrim").hidden) { hideMenu(); return; }
+      if (!infoscrim.hidden || !ask.hidden || !document.getElementById("sendsrim").hidden || !document.getElementById("scanscrim").hidden) { hideMenu(); return; }
       if (!view.hidden) {
         if (view.contains(event.target)) openPreviewMenu(event);
         else hideMenu();
@@ -4441,6 +4684,7 @@
       if (event.key === "Escape") {
         const moremenu = document.getElementById("moremenu");
         if (!moremenu.hidden) { moremenu.hidden = true; return; }
+        if (!document.getElementById("scanscrim").hidden) { closeScanModal(); return; }
         if (!document.getElementById("sendsrim").hidden) { closeSendModal(); return; }
         if (!menu.hidden) { hideMenu(); return; }
         if (!infoscrim.hidden) { closeInfo(); return; }
@@ -4448,12 +4692,12 @@
         if (page !== "files" && !typing) { showPage("files"); return; }
         return;
       }
-      if (event.ctrlKey && !event.shiftKey && !event.altKey && /^[123]$/.test(event.key) && view.hidden && infoscrim.hidden) {
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && /^[1234]$/.test(event.key) && view.hidden && infoscrim.hidden) {
         event.preventDefault();
-        showPage(["files", "text", "connect"][Number(event.key) - 1]);
+        showPage(["files", "text", "connect", "schedule"][Number(event.key) - 1]);
         return;
       }
-      if (!menu.hidden || !infoscrim.hidden || !ask.hidden || !document.getElementById("sendsrim").hidden || !document.getElementById("moremenu").hidden) return;
+      if (!menu.hidden || !infoscrim.hidden || !ask.hidden || !document.getElementById("sendsrim").hidden || !document.getElementById("scanscrim").hidden || !document.getElementById("moremenu").hidden) return;
       if (!view.hidden) {
         if (typing) return;
         if ((viewKind === "image" || viewKind === "pdf") && !editing) {
@@ -4526,6 +4770,7 @@
     renderDevices();
     paintConvHead();
     listenFeed();
+    loadSchedules();
     watchConv();
 
     let recvBusy = false;

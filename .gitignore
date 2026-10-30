@@ -8,6 +8,9 @@ fasttransfer.lock
 fasttransfer.log
 save-folder.txt
 save-folder.txt.tmp
+devices.json
+devices.json.tmp
+schedules/
 
 receive-check.bin
 *-check.bin

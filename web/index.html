@@ -226,6 +226,44 @@
     }
     .rows .chev { width: 16px; height: 16px; color: var(--muted); flex: none; margin-right: 8px; }
     .rows .empty { color: var(--muted); padding: 16px 12px; }
+    .rows .acts { display: flex; gap: 6px; flex: none; align-items: center; }
+    #viewer {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.72);
+    }
+    #viewer[hidden] { display: none; }
+    #viewcard {
+      width: min(960px, 100%);
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 12px;
+      background: var(--menu);
+      color: var(--ink);
+      overflow: auto;
+    }
+    #viewhead { display: flex; align-items: center; gap: 8px; }
+    #viewhead .what { flex: 1; min-width: 0; }
+    #viewhead b, #viewmeta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #viewmeta { color: var(--muted); font-size: 13px; font-weight: 400; }
+    #viewimg, #viewvideo { max-width: 100%; max-height: 70vh; margin: 0 auto; background: #000; }
+    #viewaudio { width: 100%; }
+    #viewtext {
+      margin: 0;
+      max-height: 70vh;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 14px/1.45 ui-monospace, Consolas, monospace;
+    }
 
     .btn {
       display: inline-flex;
@@ -452,7 +490,7 @@
         <h1>Text</h1>
         <span id="livestate">Connecting</span>
       </div>
-      <p class="lede">This pad is just between this phone and the PC. Both sides see it as they type.</p>
+      <p class="lede">This pad is just between this device and the PC. Both sides see it as they type.</p>
       <div class="card" id="padcard">
         <textarea id="livepad" maxlength="65536" placeholder="Type or paste here" autocapitalize="sentences"></textarea>
         <div class="cardfoot">
@@ -472,17 +510,17 @@
       <p class="lede">Files the PC sends show up here first. You can also open any folder on it.</p>
       <div class="card me">
         <div class="namerow" id="namerow">
-          <div class="what"><span>The PC sees this phone as</span><b id="myname"></b></div>
+          <div class="what"><span>The PC sees this device as</span><b id="myname"></b></div>
           <button class="btn small" type="button" id="renamebtn">Rename</button>
         </div>
         <form class="nameform" id="nameform" hidden>
-          <input id="namefield" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Name for this phone" />
+          <input id="namefield" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Name this device" aria-label="Name for this device" />
           <button class="btn primary small" type="submit">Save</button>
           <button class="btn quiet small" type="button" id="namecancel">Cancel</button>
         </form>
       </div>
       <div id="inboxwrap" hidden>
-        <div class="subhead"><h2>Sent to this phone</h2><button class="btn quiet small" type="button" id="clearinbox">Clear list</button></div>
+        <div class="subhead"><h2>Sent to this device</h2><button class="btn quiet small" type="button" id="clearinbox">Clear list</button></div>
         <ul class="rows card" id="incoming"></ul>
       </div>
       <h2>Browse</h2>
@@ -501,6 +539,18 @@
     <button type="button" data-page="text"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14v9.5h-7.2L6 17v-3H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.5 8h7M6.5 10.8h4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Text<span class="badge" id="textbadge" hidden></span></button>
     <button type="button" data-page="pc"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 16.5h6M10 13.5v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>PC<span class="badge" id="pcbadge" hidden></span></button>
   </nav>
+  <div id="viewer" hidden>
+    <div id="viewcard" role="dialog" aria-modal="true" aria-labelledby="viewtitle">
+      <div id="viewhead">
+        <div class="what"><b id="viewtitle">File</b><span id="viewmeta"></span></div>
+        <button class="btn small" type="button" id="viewclose">Close</button>
+      </div>
+      <img id="viewimg" alt="" hidden />
+      <video id="viewvideo" controls playsinline hidden></video>
+      <audio id="viewaudio" controls hidden></audio>
+      <pre id="viewtext" hidden></pre>
+    </div>
+  </div>
   <div id="toast" role="status" hidden></div>
 
   <script>
@@ -822,20 +872,33 @@
 
     // The device key stays in this browser so the PC knows it is the same phone
     // after a reload or a locked screen, and keeps its files and text waiting.
+    // It is read before the first hello. A later reply must not be what creates it.
     let deviceKey = "";
     let myName = "";
-    try {
-      deviceKey = localStorage.getItem("ft-device-key") || "";
-      myName = localStorage.getItem("ft-name") || "";
-    } catch (err) {}
-    if (!/^[0-9a-f]{32}$/.test(deviceKey)) {
-      deviceKey = hex(16);
-      try { localStorage.setItem("ft-device-key", deviceKey); } catch (err) {}
+    let shownName = "";
+    function storedDeviceKey() {
+      let id = "";
+      try { id = localStorage.getItem("ft-device-key") || ""; } catch (err) {}
+      if (!/^[0-9a-f]{32}$/.test(id)) {
+        const match = document.cookie.match(/(?:^|; )ft-device-key=([0-9a-f]{32})/);
+        id = match ? match[1] : "";
+      }
+      return /^[0-9a-f]{32}$/.test(id) ? id : "";
     }
-    if (!myName) {
-      myName = (phoneLabel() || "Phone") + " " + hex(2).toUpperCase();
-      try { localStorage.setItem("ft-name", myName); } catch (err) {}
+    function saveDeviceKey(id) {
+      if (!/^[0-9a-f]{32}$/.test(id)) return;
+      deviceKey = id;
+      try { localStorage.setItem("ft-device-key", id); } catch (err) {}
+      document.cookie = "ft-device-key=" + id + "; Path=/; Max-Age=31536000; SameSite=Lax";
     }
+    try { myName = localStorage.getItem("ft-name") || ""; } catch (err) {}
+    deviceKey = storedDeviceKey();
+    if (!deviceKey) saveDeviceKey(hex(16));
+    if (/^(iPhone|iPad|Android|Phone) [0-9A-F]{2,8}$/.test(myName)) {
+      myName = "";
+      try { localStorage.removeItem("ft-name"); } catch (err) {}
+    }
+    shownName = myName;
     const myKind = ({ iPhone: "iphone", iPad: "ipad", Android: "android" })[phoneLabel()] || "other";
 
     // Live text, the same model as the PC window: one request in flight, the
@@ -1064,14 +1127,42 @@
     }
 
     function paintName() {
-      $("myname").textContent = myName;
+      $("myname").textContent = shownName || myName || "This device";
+    }
+
+    async function deviceFacts() {
+      const facts = { platform: "", platformVersion: "", model: "" };
+      const data = navigator.userAgentData;
+      if (!data) return facts;
+      if (data.platform) facts.platform = data.platform;
+      if (!data.getHighEntropyValues) return facts;
+      try {
+        const high = await data.getHighEntropyValues(["platform", "platformVersion", "model"]);
+        if (high.platform) facts.platform = high.platform;
+        if (high.platformVersion) facts.platformVersion = high.platformVersion;
+        if (high.model) facts.model = high.model;
+      } catch (err) {}
+      return facts;
     }
 
     async function hello() {
+      const known = storedDeviceKey();
+      if (known) deviceKey = known;
+      const facts = await deviceFacts();
+      const again = storedDeviceKey();
+      if (again) deviceKey = again;
+      if (!/^[0-9a-f]{32}$/.test(deviceKey)) saveDeviceKey(hex(16));
       const res = await fetch("/api/phone/hello", {
         method: "POST",
         headers: head(),
-        body: JSON.stringify({ device: deviceKey, name: myName, kind: myKind }),
+        body: JSON.stringify({
+          device: deviceKey,
+          name: myName,
+          kind: myKind,
+          platform: facts.platform,
+          platformVersion: facts.platformVersion,
+          model: facts.model,
+        }),
       });
       let data = {};
       try { data = await res.json(); } catch (err) {}
@@ -1079,13 +1170,70 @@
       if (!res.ok || !data.session) throw new Error(String(res.status));
       session = data.session;
       mailVer = -1;
-      if (data.name && data.name !== myName) {
-        myName = data.name;
-        try { localStorage.setItem("ft-name", myName); } catch (err) {}
-        paintName();
-      }
+      if (data.device) saveDeviceKey(data.device);
+      if (data.name) shownName = data.name;
+      paintName();
       setLink("on", "Connected");
       if (liveDirty) pushLive();
+    }
+
+    function fileViewKind(name) {
+      const ext = ((name || "").split(".").pop() || "").toLowerCase();
+      if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
+      if (["mp4", "webm", "ogv", "mov", "m4v"].includes(ext)) return "video";
+      if (["mp3", "m4a", "aac", "wav", "ogg", "oga", "flac", "opus"].includes(ext)) return "audio";
+      if (["txt", "text", "md", "json", "csv", "log", "xml", "html", "htm", "css", "js", "svg"].includes(ext)) return "text";
+      return "plain";
+    }
+
+    function closeFileView() {
+      const video = $("viewvideo");
+      const audio = $("viewaudio");
+      [video, audio].forEach((media) => {
+        if (!media) return;
+        media.pause();
+        media.removeAttribute("src");
+        media.load();
+      });
+      $("viewimg").removeAttribute("src");
+      $("viewtext").textContent = "";
+      $("viewer").hidden = true;
+    }
+
+    async function openFileView(file) {
+      const kind = fileViewKind(file.name);
+      closeFileView();
+      $("viewtitle").textContent = file.name || "File";
+      $("viewmeta").textContent = fmt(file.size || 0);
+      const img = $("viewimg");
+      const video = $("viewvideo");
+      const audio = $("viewaudio");
+      const text = $("viewtext");
+      img.hidden = kind !== "image";
+      video.hidden = kind !== "video";
+      audio.hidden = kind !== "audio";
+      text.hidden = kind !== "text" && kind !== "plain";
+      const url = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id) + "&view=1";
+      if (kind === "image") {
+        img.alt = file.name || "File";
+        img.src = url;
+      } else if (kind === "video") {
+        video.src = url;
+      } else if (kind === "audio") {
+        audio.src = url;
+      } else if (kind === "text") {
+        text.textContent = "Loading";
+        try {
+          const res = await fetch(url, { headers: { "X-Transfer-Key": key } });
+          if (!res.ok) throw new Error(String(res.status));
+          text.textContent = (await res.text()).slice(0, 256 * 1024);
+        } catch (err) {
+          text.textContent = (file.name || "File") + "\n" + fmt(file.size || 0);
+        }
+      } else {
+        text.textContent = (file.name || "File") + "\n" + fmt(file.size || 0);
+      }
+      $("viewer").hidden = false;
     }
 
     function renderInbox(files) {
@@ -1105,6 +1253,16 @@
         const meta = document.createElement("span");
         meta.textContent = fmt(file.size || 0);
         what.append(name, meta);
+        const acts = document.createElement("div");
+        acts.className = "acts";
+        const view = document.createElement("button");
+        view.type = "button";
+        view.className = "btn small";
+        view.textContent = "View";
+        view.addEventListener("click", (event) => {
+          event.preventDefault();
+          openFileView(file);
+        });
         const save = document.createElement("a");
         save.className = "btn primary small";
         save.textContent = "Save";
@@ -1114,7 +1272,8 @@
           save.href = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id);
           meta.textContent = "Saving to your downloads";
         });
-        li.append(extBadge(file.name), what, save);
+        acts.append(view, save);
+        li.append(extBadge(file.name), what, acts);
         incoming.prepend(li);
       });
       return fresh;
@@ -1123,9 +1282,8 @@
     let firstMail = true;
     function applyMail(mail) {
       mailVer = mail.ver;
-      if (mail.name && mail.name !== myName) {
-        myName = mail.name;
-        try { localStorage.setItem("ft-name", myName); } catch (err) {}
+      if (mail.name && mail.name !== shownName) {
+        shownName = mail.name;
         paintName();
       }
       const fresh = renderInbox(mail.files || []);
@@ -1207,20 +1365,36 @@
       const next = $("namefield").value.trim().slice(0, 24);
       $("nameform").hidden = true;
       $("namerow").hidden = false;
-      if (!next || next === myName) return;
+      if (next === myName) return;
       myName = next;
-      try { localStorage.setItem("ft-name", myName); } catch (err) {}
-      paintName();
-      if (!session) return;
       try {
-        await fetch("/api/phone/name", { method: "POST", headers: head(), body: JSON.stringify({ session, name: myName }) });
-        toast("The PC now sees this phone as " + myName);
+        if (myName) localStorage.setItem("ft-name", myName);
+        else localStorage.removeItem("ft-name");
+      } catch (err) {}
+      if (!session) {
+        shownName = myName || shownName;
+        paintName();
+        return;
+      }
+      try {
+        const res = await fetch("/api/phone/name", { method: "POST", headers: head(), body: JSON.stringify({ session, name: myName }) });
+        const data = await res.json();
+        if (data.name) shownName = data.name;
+        paintName();
+        toast("The PC now sees this device as " + (shownName || myName));
       } catch (err) {
+        shownName = myName || shownName;
+        paintName();
         toast("Saved here. The PC picks it up when you reconnect.");
       }
     }
 
     $("clearinbox").addEventListener("click", dismissAll);
+    $("viewclose").addEventListener("click", closeFileView);
+    $("viewer").addEventListener("click", (event) => { if (event.target.id === "viewer") closeFileView(); });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !$("viewer").hidden) closeFileView();
+    });
     $("renamebtn").addEventListener("click", () => {
       $("namefield").value = myName;
       $("namerow").hidden = true;

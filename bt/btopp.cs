@@ -102,7 +102,11 @@ static class Program {
         string[] extra = new string[] {
             "System.Devices.Aep.DeviceAddress",
             "System.Devices.Aep.IsPaired",
-            "System.Devices.Aep.IsPresent"
+            "System.Devices.Aep.IsPresent",
+            "System.Devices.FriendlyName",
+            "System.ItemNameDisplay",
+            "System.Devices.ModelName",
+            "System.Software.ProductVersion"
         };
         scanWatcher = DeviceInformation.CreateWatcher(selector, extra, DeviceInformationKind.AssociationEndpoint);
         scanWatcher.Added += OnScanAdded;
@@ -159,10 +163,45 @@ static class Program {
         }
         object pairedProp = Prop(info, "System.Devices.Aep.IsPaired");
         if (pairedProp is bool && (bool)pairedProp) paired = true;
-        string address = "";
-        if (name.Length == 0) address = FormatAddress(addr, Prop(info, "System.Devices.Aep.DeviceAddress"));
-        if (name.Length == 0 && address.Length == 0) return;
-        Emit("{\"event\":\"device\",\"id\":\"" + JsonEscape(info.Id) + "\",\"name\":\"" + JsonEscape(name) + "\",\"address\":\"" + JsonEscape(address) + "\",\"paired\":" + (paired ? "true" : "false") + "}");
+        string friendly = PropString(info, "System.Devices.FriendlyName");
+        if (friendly.Length == 0) friendly = PropString(info, "System.ItemNameDisplay");
+        if (string.Equals(friendly, name, StringComparison.OrdinalIgnoreCase)) friendly = "";
+        string version = VersionOf(info);
+        string address = FormatAddress(addr, Prop(info, "System.Devices.Aep.DeviceAddress"));
+        if (name.Length == 0 && friendly.Length == 0 && address.Length == 0) return;
+        Emit("{\"event\":\"device\",\"id\":\"" + JsonEscape(info.Id) + "\",\"name\":\"" + JsonEscape(name) + "\",\"friendly\":\"" + JsonEscape(friendly) + "\",\"version\":\"" + JsonEscape(version) + "\",\"address\":\"" + JsonEscape(address) + "\",\"paired\":" + (paired ? "true" : "false") + "}");
+    }
+
+    static string PropString(DeviceInformation info, string key) {
+        object value = Prop(info, key);
+        if (value == null) return "";
+        string text = value as string;
+        if (text == null) text = Convert.ToString(value);
+        if (text == null) return "";
+        return text.Trim();
+    }
+
+    static string VersionOf(DeviceInformation info) {
+        string[] keys = new string[] {
+            "System.Software.ProductVersion",
+            "System.Devices.Aep.Bluetooth.DeviceVersion"
+        };
+        foreach (string key in keys) {
+            string value = PropString(info, key);
+            if (LooksLikeVersion(value)) return value;
+        }
+        return "";
+    }
+
+    static bool LooksLikeVersion(string value) {
+        if (string.IsNullOrEmpty(value) || value.Length > 16) return false;
+        bool digit = false;
+        foreach (char c in value) {
+            if (c >= '0' && c <= '9') { digit = true; continue; }
+            if (c == '.') continue;
+            return false;
+        }
+        return digit;
     }
 
     static bool IsPresent(DeviceInformation info) {

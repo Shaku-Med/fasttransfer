@@ -72,6 +72,11 @@ func main() {
 		}
 	}()
 
+	if id, ok := deliverArg(os.Args[1:]); ok {
+		_ = tryDeliverRemote(id)
+		return
+	}
+
 	dir, err := dataDir()
 	if err != nil {
 		report(err.Error())
@@ -86,6 +91,9 @@ func main() {
 		}
 		return
 	}
+
+	useDeviceFile(filepath.Join(appDir, "devices.json"))
+	hub.restoreSaved()
 
 	if err := initSaveRoot(); err != nil {
 		report(err.Error())
@@ -134,7 +142,9 @@ func main() {
 		report("FastTransfer could not open its page.")
 		return
 	}
-	runApp("http://127.0.0.1:" + port + "/desk?v=17")
+	go func() { _, _ = listSchedules() }()
+	startScheduleClock()
+	runApp("http://127.0.0.1:" + port + "/desk?v=21")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -190,6 +200,9 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/desk/clip/remove", guardLocal(s.deskClipRemove))
 	mux.HandleFunc("POST /api/send", guardLocal(s.sendSaved))
 	mux.HandleFunc("POST /api/send-outside", guardLocal(s.sendOutside))
+	mux.HandleFunc("GET /api/schedule", guardLocal(s.scheduleList))
+	mux.HandleFunc("POST /api/schedule/cancel", guardLocal(s.scheduleCancel))
+	mux.HandleFunc("POST /api/schedule/run", guardLocal(s.scheduleRun))
 	return mux
 }
 

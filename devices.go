@@ -87,8 +87,12 @@ type device struct {
 	tabs   []*tab
 	handle string
 	name   string
+	given  string
+	model  string
+	os     string
 	kind   string
 	seen   time.Time
+	joined time.Time
 	online bool
 	ver    int64
 	wake   chan struct{}
@@ -168,9 +172,11 @@ func (h *deviceHub) emit(ev feedEvent) {
 }
 
 func (h *deviceHub) touchLocked(d *device) {
-	d.seen = time.Now()
+	now := time.Now()
+	d.seen = now
 	if !d.online {
 		d.online = true
+		d.joined = now
 		h.emitLocked(feedEvent{Kind: "join", Handle: d.handle, Name: d.name, Device: d.kind})
 	}
 }
@@ -195,14 +201,17 @@ func (h *deviceHub) bySessionLocked(session string) *device {
 }
 
 // refreshLocked marks a phone away the moment its last live tab is gone,
-// instead of waiting for the sweep.
-func (h *deviceHub) refreshLocked(d *device) {
+// instead of waiting for the sweep. If another row for the same handset
+// connected in the last minute, this row is folded into that one.
+func (h *deviceHub) refreshLocked(d *device) (dropped []string, keep string) {
 	now := time.Now()
-	if d.online && !d.liveAt(now) {
-		d.online = false
-		d.seen = now
-		h.emitLocked(feedEvent{Kind: "leave", Handle: d.handle})
+	if d == nil || !d.online || d.liveAt(now) {
+		return nil, ""
 	}
+	d.online = false
+	d.seen = now
+	h.emitLocked(feedEvent{Kind: "leave", Handle: d.handle})
+	return h.foldIntoRecentLocked(d)
 }
 
 func (h *deviceHub) dropTabLocked(t *tab) {
@@ -238,42 +247,186 @@ func (h *deviceHub) dropLocked(d *device) {
 	d.bumpLocked()
 }
 
-// hello registers a phone or reattaches it to its old entry. A device keeps a
-// few sessions so two open tabs do not keep knocking each other off.
-func (h *deviceHub) hello(key, name, kind string) (*device, string, error) {
+// hello registers a phone or reattaches it to its old entry. The list is keyed
+// by the phone's device id. A new id that shows up within a minute of the same
+// handset going away reuses that row, so a reconnect does not add a second one.
+// A device keeps a few sessions so two open tabs do not knock each other off.
+func (h *deviceHub) hello(key string, facts phoneFacts, handleHint string) (*device, string, []string, error) {
 	session, err := randHex(32)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	d := h.byKey[key]
+	var d *device
+	if deviceKeyRe.MatchString(key) {
+		d = h.byKey[key]
+	}
+	if d == nil {
+		d = h.awayTwinLocked(facts)
+	}
 	if d == nil {
 		if len(h.byKey) >= maxDevices && !h.evictLocked() {
-			return nil, "", errHubFull
+			return nil, "", nil, errHubFull
 		}
-		handle, err := randHex(8)
-		if err != nil {
-			return nil, "", err
+		if !deviceKeyRe.MatchString(key) {
+			key, err = randHex(16)
+			if err != nil {
+				return nil, "", nil, err
+			}
+		}
+		handle := handleHint
+		if !handleRe.MatchString(handle) || h.byHandle[handle] != nil {
+			handle, err = randHex(8)
+			if err != nil {
+				return nil, "", nil, err
+			}
 		}
 		d = &device{key: key, handle: handle, wake: make(chan struct{})}
 		h.byKey[key] = d
 		h.byHandle[handle] = d
 	}
+	if facts.Given != "" {
+		d.given = facts.Given
+	}
+	if facts.Model != "" {
+		d.model = facts.Model
+	}
+	if facts.OS != "" {
+		d.os = facts.OS
+	}
+	if facts.Kind != "" && facts.Kind != "other" {
+		d.kind = facts.Kind
+	} else if d.kind == "" {
+		d.kind = "other"
+	}
+	name := composeLabel(d.given, d.model, d.os)
+	if name == "" {
+		name = facts.Label
+	}
+	if name == "" {
+		name = "This device"
+	}
+	if d.name != name && d.name != "" && d.online {
+		h.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
+	}
+	d.name = name
 	if len(d.tabs) >= maxTabsEach {
 		h.dropTabLocked(d.tabs[0])
 	}
 	t := &tab{session: session, dev: d, seen: time.Now()}
 	d.tabs = append(d.tabs, t)
 	h.bySession[session] = t
-	if d.name != name && d.name != "" && d.online {
-		h.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
-	}
-	d.name = name
-	d.kind = kind
 	h.touchLocked(d)
+	dropped := h.absorbRecentAwayLocked(d)
 	d.bumpLocked()
-	return d, session, nil
+	return d, session, dropped, nil
+}
+
+// awayTwinLocked is a phone with the same model and system version that went
+// away in the last minute. A phone that is still connected is left alone.
+func (h *deviceHub) awayTwinLocked(facts phoneFacts) *device {
+	if facts.Model == "" || facts.OS == "" {
+		return nil
+	}
+	now := time.Now()
+	var best *device
+	for _, d := range h.byKey {
+		if d.online || now.Sub(d.seen) > time.Minute || !factsMatch(d, facts) {
+			continue
+		}
+		if best == nil || d.seen.After(best.seen) {
+			best = d
+		}
+	}
+	return best
+}
+
+func factsMatch(d *device, facts phoneFacts) bool {
+	if d == nil || d.model == "" || d.os == "" || genericDevice(d.model) || genericDevice(facts.Model) {
+		return false
+	}
+	if !strings.EqualFold(d.model, facts.Model) || !strings.EqualFold(d.os, facts.OS) {
+		return false
+	}
+	if d.given != "" && facts.Given != "" && !strings.EqualFold(d.given, facts.Given) {
+		return false
+	}
+	return true
+}
+
+func sameHandset(a, b *device) bool {
+	if a == nil || b == nil || a == b {
+		return false
+	}
+	return factsMatch(a, phoneFacts{Given: b.given, Model: b.model, OS: b.os})
+}
+
+// absorbRecentAwayLocked pulls other rows for this handset that just went away
+// into the one that just connected. Two connected phones are not merged.
+func (h *deviceHub) absorbRecentAwayLocked(keep *device) []string {
+	now := time.Now()
+	var twins []*device
+	for _, other := range h.byKey {
+		if other == keep || other.online || now.Sub(other.seen) > time.Minute || !sameHandset(keep, other) {
+			continue
+		}
+		twins = append(twins, other)
+	}
+	dropped := make([]string, 0, len(twins))
+	for _, twin := range twins {
+		dropped = append(dropped, twin.key)
+		h.absorbLocked(keep, twin)
+	}
+	return dropped
+}
+
+// foldIntoRecentLocked runs when a row goes away. If the same handset just
+// connected as a second row, keep that row and drop this one.
+func (h *deviceHub) foldIntoRecentLocked(away *device) (dropped []string, keep string) {
+	if away == nil {
+		return nil, ""
+	}
+	now := time.Now()
+	var into *device
+	for _, other := range h.byKey {
+		if other == away || !other.online || other.joined.IsZero() || now.Sub(other.joined) > time.Minute || !sameHandset(away, other) {
+			continue
+		}
+		if into == nil || other.joined.After(into.joined) {
+			into = other
+		}
+	}
+	if into == nil {
+		return nil, ""
+	}
+	key := away.key
+	h.absorbLocked(into, away)
+	return []string{key}, into.key
+}
+
+func (h *deviceHub) absorbLocked(keep, twin *device) {
+	if keep == nil || twin == nil || keep == twin {
+		return
+	}
+	if keep.pad.text == "" && twin.pad.text != "" {
+		keep.pad = twin.pad
+		twin.pad = padState{}
+	}
+	if len(keep.clips) == 0 && len(twin.clips) > 0 {
+		keep.clips = twin.clips
+		twin.clips = nil
+	}
+	if len(twin.offers) > 0 {
+		keep.offers = append(keep.offers, twin.offers...)
+		twin.offers = nil
+		if len(keep.offers) > maxOffersEach {
+			keep.offers = keep.offers[len(keep.offers)-maxOffersEach:]
+		}
+	}
+	handle := twin.handle
+	h.dropLocked(twin)
+	h.emitLocked(feedEvent{Kind: "forget", Handle: handle})
 }
 
 func (h *deviceHub) evictLocked() bool {
@@ -439,27 +592,78 @@ func (s *server) phoneHello(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Device string `json:"device"`
-		Name   string `json:"name"`
-		Kind   string `json:"kind"`
+		Device          string `json:"device"`
+		Name            string `json:"name"`
+		Kind            string `json:"kind"`
+		Platform        string `json:"platform"`
+		PlatformVersion string `json:"platformVersion"`
+		Model           string `json:"model"`
 	}
 	if !readBody(w, r, &req) {
 		return
 	}
-	if !deviceKeyRe.MatchString(req.Device) {
+	req.Device = strings.ToLower(strings.TrimSpace(req.Device))
+	if req.Device != "" && !deviceKeyRe.MatchString(req.Device) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this page is out of date, reload it"})
 		return
 	}
-	kind := strings.ToLower(req.Kind)
-	if !kinds[kind] {
-		kind = "other"
+	req.Device = canonicalDeviceKey(req.Device)
+	facts := describePhone(
+		r.UserAgent(),
+		headerHint(r.Header.Get("Sec-CH-UA-Platform")),
+		headerHint(r.Header.Get("Sec-CH-UA-Platform-Version")),
+		headerHint(r.Header.Get("Sec-CH-UA-Model")),
+		req.Platform,
+		req.PlatformVersion,
+		req.Model,
+		req.Name,
+	)
+	if !kinds[facts.Kind] {
+		kind := strings.ToLower(req.Kind)
+		if kinds[kind] {
+			facts.Kind = kind
+		} else {
+			facts.Kind = "other"
+		}
 	}
-	d, session, err := hub.hello(req.Device, cleanPhoneName(req.Name), kind)
+	hint := ""
+	if prev, ok := savedWiFi(req.Device); ok {
+		hint = prev.Handle
+		if facts.Model == "" {
+			facts.Model = prev.Model
+		}
+		if facts.OS == "" {
+			facts.OS = prev.OS
+		}
+		if (facts.Kind == "" || facts.Kind == "other") && kinds[prev.Kind] && prev.Kind != "other" {
+			facts.Kind = prev.Kind
+		}
+		if facts.Given == "" {
+			facts.Given = prev.Name
+		}
+	}
+	facts.Label = composeLabel(facts.Given, facts.Model, facts.OS)
+	if facts.Label == "" {
+		facts.Label = "This device"
+	}
+	d, session, dropped, err := hub.hello(req.Device, facts, hint)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "the PC has too many phones connected"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "the PC has too many devices connected"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"session": session, "name": d.name})
+	if req.Device != "" && req.Device != d.key {
+		dropped = append(dropped, req.Device)
+	}
+	retargetWiFi(d, dropped)
+	deliverPending(d.key)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "ft-device-key",
+		Value:    d.key,
+		Path:     "/",
+		MaxAge:   365 * 24 * 3600,
+		SameSite: http.SameSiteLaxMode,
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"session": session, "name": d.name, "device": d.key})
 }
 
 func (s *server) phoneEvents(w http.ResponseWriter, r *http.Request) {
@@ -490,12 +694,15 @@ func (s *server) phoneEvents(w http.ResponseWriter, r *http.Request) {
 	// a phone that walked away stops looking connected right after this.
 	hub.mu.Lock()
 	t.polls--
+	v := hub.mailLocked(d)
+	var dropped []string
+	var keep string
 	if r.Context().Err() != nil {
 		t.seen = time.Time{}
-		hub.refreshLocked(d)
+		dropped, keep = hub.refreshLocked(d)
 	}
-	v := hub.mailLocked(d)
 	hub.mu.Unlock()
+	persistPhoneMerge(keep, dropped)
 	if !ok {
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many open connections"})
 		return
@@ -514,9 +721,9 @@ func (s *server) phoneBye(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hub.mu.Lock()
-	defer hub.mu.Unlock()
 	t := hub.tabLocked(req.Session)
 	if t == nil {
+		hub.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -526,7 +733,9 @@ func (s *server) phoneBye(w http.ResponseWriter, r *http.Request) {
 	} else {
 		t.away = true
 	}
-	hub.refreshLocked(d)
+	dropped, keep := hub.refreshLocked(d)
+	hub.mu.Unlock()
+	persistPhoneMerge(keep, dropped)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -542,7 +751,7 @@ func (s *server) phoneRename(w http.ResponseWriter, r *http.Request) {
 	if !readBody(w, r, &req) {
 		return
 	}
-	name := cleanPhoneName(req.Name)
+	given := chosenName(req.Name)
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 	d := hub.bySessionLocked(req.Session)
@@ -551,11 +760,10 @@ func (s *server) phoneRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hub.touchLocked(d)
-	if d.name != name {
-		d.name = name
-		d.bumpLocked()
-		hub.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
-	}
+	name := applyPhoneLabel(d, given)
+	d.bumpLocked()
+	hub.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
+	rememberWiFi(d.key, d)
 	writeJSON(w, http.StatusOK, map[string]string{"name": name})
 }
 
@@ -656,6 +864,19 @@ func (s *server) phoneFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	viewing := r.URL.Query().Get("view") == "1"
+	viewType, viewKind := "", ""
+	if viewing {
+		viewType, viewKind = previewType(name)
+		if viewKind == "" {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "no preview"})
+			return
+		}
+		if viewKind == "text" && info.Size() > 256<<10 {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "too large to view"})
+			return
+		}
+	}
 	if !takeSlot(r, downloadSlots) {
 		return
 	}
@@ -666,12 +887,56 @@ func (s *server) phoneFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-store")
+	if viewing {
+		w.Header().Set("Content-Type", viewType)
+		w.Header().Set("Content-Disposition", "inline")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		http.ServeContent(w, r, "preview", info.ModTime(), f)
+		return
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", attachmentDisposition(name))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'")
-	w.Header().Set("Cache-Control", "no-store")
 	http.ServeContent(w, r, name, info.ModTime(), f)
+}
+
+func previewType(name string) (string, string) {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg", "image"
+	case ".png":
+		return "image/png", "image"
+	case ".gif":
+		return "image/gif", "image"
+	case ".webp":
+		return "image/webp", "image"
+	case ".bmp":
+		return "image/bmp", "image"
+	case ".mp4", ".m4v":
+		return "video/mp4", "video"
+	case ".webm":
+		return "video/webm", "video"
+	case ".ogv":
+		return "video/ogg", "video"
+	case ".mov":
+		return "video/quicktime", "video"
+	case ".mp3":
+		return "audio/mpeg", "audio"
+	case ".m4a", ".aac":
+		return "audio/mp4", "audio"
+	case ".wav":
+		return "audio/wav", "audio"
+	case ".ogg", ".oga", ".opus":
+		return "audio/ogg", "audio"
+	case ".flac":
+		return "audio/flac", "audio"
+	case ".txt", ".text", ".md", ".csv", ".log", ".json", ".xml", ".html", ".htm", ".css", ".js", ".svg":
+		return "text/plain; charset=utf-8", "text"
+	default:
+		return "", ""
+	}
 }
 
 type deviceView struct {
@@ -688,7 +953,12 @@ func (h *deviceHub) directory() (int64, []deviceView) {
 	defer h.mu.Unlock()
 	now := time.Now()
 	rows := make([]deviceView, 0, len(h.byKey))
+	seenHandle := map[string]bool{}
 	for _, d := range h.byKey {
+		if d == nil || seenHandle[d.handle] {
+			continue
+		}
+		seenHandle[d.handle] = true
 		rows = append(rows, deviceView{Handle: d.handle, Name: d.name, Kind: d.kind, Online: d.online, Age: now.Sub(d.seen).Milliseconds(), Files: len(d.offers)})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -775,12 +1045,15 @@ func (s *server) deskDevice(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
-	name := cleanPhoneName(req.Name)
-	if d.name != name {
-		d.name = name
-		d.bumpLocked()
-		hub.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
+	given := chosenName(req.Name)
+	if given == "" {
+		writeJSON(w, http.StatusOK, map[string]string{"name": d.name})
+		return
 	}
+	name := applyPhoneLabel(d, given)
+	d.bumpLocked()
+	hub.emitLocked(feedEvent{Kind: "rename", Handle: d.handle, Name: name})
+	rememberWiFi(d.key, d)
 	writeJSON(w, http.StatusOK, map[string]string{"name": name})
 }
 
@@ -788,6 +1061,7 @@ type sendRequest struct {
 	Devices []string `json:"devices"`
 	All     bool     `json:"all"`
 	Paths   []string `json:"paths"`
+	When    string   `json:"when"`
 }
 
 // deliver hands the same files to every target. Each offer only points at a
@@ -873,22 +1147,19 @@ func outsideFiles(paths []string) []*sendFile {
 	return out
 }
 
-func sendResult(w http.ResponseWriter, files, devices int, err error) {
-	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]int{"count": files, "devices": devices})
-}
-
 func (s *server) sendSaved(w http.ResponseWriter, r *http.Request) {
 	var req sendRequest
 	if !readBody(w, r, &req) {
 		return
 	}
+	when, timed, err := parseWhen(req.When)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
 	files := savedFiles(req.Paths)
-	n, err := hub.deliver(files, req.Devices, req.All)
-	sendResult(w, len(files), n, err)
+	sent, scheduled, err := dispatchSend(files, req.Devices, req.All, when, timed)
+	writeSendResult(w, len(files), sent, scheduled, err)
 }
 
 func (s *server) sendOutside(w http.ResponseWriter, r *http.Request) {
@@ -896,15 +1167,25 @@ func (s *server) sendOutside(w http.ResponseWriter, r *http.Request) {
 	if !readBody(w, r, &req) {
 		return
 	}
+	when, timed, err := parseWhen(req.When)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
 	files := outsideFiles(req.Paths)
-	n, err := hub.deliver(files, req.Devices, req.All)
-	sendResult(w, len(files), n, err)
+	sent, scheduled, err := dispatchSend(files, req.Devices, req.All, when, timed)
+	writeSendResult(w, len(files), sent, scheduled, err)
 }
 
-func queueOutside(handles []string, all bool, paths []string) (int, error) {
-	files := outsideFiles(paths)
-	if _, err := hub.deliver(files, handles, all); err != nil {
-		return 0, err
+func queueOutside(handles []string, all bool, paths []string, whenRaw string) (map[string]any, error) {
+	when, timed, err := parseWhen(whenRaw)
+	if err != nil {
+		return map[string]any{"count": 0, "devices": 0, "scheduled": 0, "error": err.Error()}, nil
 	}
-	return len(files), nil
+	files := outsideFiles(paths)
+	sent, scheduled, err := dispatchSend(files, handles, all, when, timed)
+	if err != nil {
+		return map[string]any{"count": 0, "devices": sent, "scheduled": scheduled, "error": err.Error()}, nil
+	}
+	return map[string]any{"count": len(files), "devices": sent, "scheduled": scheduled}, nil
 }

@@ -211,6 +211,7 @@ func startBluetoothScan() {
 			if ev, _ := m["event"].(string); ev == "scan-done" {
 				sawDone = true
 			}
+			noteBluetoothEvent(m)
 			emitBt(m)
 		})
 		if ctx.Err() != nil {

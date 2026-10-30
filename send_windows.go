@@ -4,16 +4,16 @@ package main
 
 import "errors"
 
-func sendPickedFiles(devices []string, all bool) (int, error) {
+func sendPickedFiles(devices []string, all bool, when string) (map[string]any, error) {
 	paths, err := pickFiles()
 	if err != nil {
 		if errors.Is(err, errPickCancelled) {
-			return 0, nil
+			return map[string]any{"count": 0, "devices": 0, "scheduled": 0}, nil
 		}
-		return 0, err
+		return nil, err
 	}
 	if len(paths) == 0 {
-		return 0, nil
+		return map[string]any{"count": 0, "devices": 0, "scheduled": 0}, nil
 	}
-	return queueOutside(devices, all, paths)
+	return queueOutside(devices, all, paths, when)
 }

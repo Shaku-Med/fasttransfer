@@ -149,6 +149,7 @@ func runApp(pageURL string) {
 	_ = w.Bind("startBluetoothSend", startBluetoothSend)
 	_ = w.Bind("startBluetoothScan", startBluetoothScan)
 	_ = w.Bind("stopBluetoothScan", stopBluetoothScan)
+	_ = w.Bind("listSavedBluetooth", listSavedBluetooth)
 	w.Navigate(pageURL)
 	w.Run()
 }
@@ -611,6 +612,7 @@ func refreshChrome(hwnd uintptr) {
 	roundCorners(hwnd)
 	placeCaption(hwnd)
 	clipCaption(hwnd)
+	offerFileDrop(hwnd)
 }
 
 func setCaptionHeld(held bool) {
