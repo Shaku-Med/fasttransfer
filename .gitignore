@@ -5,6 +5,8 @@ webview/
 transfer-key
 fasttransfer.lock
 fasttransfer.log
+save-folder.txt
+save-folder.txt.tmp
 
 receive-check.bin
 *-check.bin

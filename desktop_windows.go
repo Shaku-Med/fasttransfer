@@ -138,6 +138,15 @@ func runApp(pageURL string) {
 	_ = w.Bind("setTitleTheme", func(dark bool) { applyTitleTheme(hwnd, dark) })
 	_ = w.Bind("setCaptionHeld", func(held bool) { setCaptionHeld(held) })
 	_ = w.Bind("copyImageFile", func(rel string) error { return copyImageFile(rel) })
+	_ = w.Bind("clipboardRead", readClipboardText)
+	_ = w.Bind("clipboardWrite", writeClipboardText)
+	_ = w.Bind("pickSaveFolder", pickSaveFolder)
+	_ = w.Bind("sendPickedFiles", sendPickedFiles)
+	_ = w.Bind("listBluetoothPhones", listBluetoothPhones)
+	_ = w.Bind("pickFilesForBluetooth", pickFilesForBluetooth)
+	_ = w.Bind("startBluetoothSend", startBluetoothSend)
+	_ = w.Bind("startBluetoothScan", startBluetoothScan)
+	_ = w.Bind("stopBluetoothScan", stopBluetoothScan)
 	w.Navigate(pageURL)
 	w.Run()
 }
@@ -1149,20 +1158,11 @@ func putClipboardImage(img image.Image) error {
 		return err
 	}
 	user32 := windows.NewLazySystemDLL("user32.dll")
-	open := user32.NewProc("OpenClipboard")
 	pngName, _ := windows.UTF16PtrFromString("PNG")
 	pngFmt, _, _ := user32.NewProc("RegisterClipboardFormatW").Call(uintptr(unsafe.Pointer(pngName)))
 	runtime.KeepAlive(pngName)
 
-	var opened uintptr
-	for i := 0; i < 12; i++ {
-		opened, _, _ = open.Call(topHwnd)
-		if opened != 0 {
-			break
-		}
-		time.Sleep(15 * time.Millisecond)
-	}
-	if opened == 0 {
+	if !openClipboard() {
 		return errors.New("clipboard busy")
 	}
 	defer user32.NewProc("CloseClipboard").Call()
@@ -1174,6 +1174,72 @@ func putClipboardImage(img image.Image) error {
 		_ = clipboardSet(pngFmt, pngBuf.Bytes())
 	}
 	return nil
+}
+
+const cfUnicodeText = 13
+
+func openClipboard() bool {
+	open := windows.NewLazySystemDLL("user32.dll").NewProc("OpenClipboard")
+	for i := 0; i < 12; i++ {
+		if ok, _, _ := open.Call(topHwnd); ok != 0 {
+			return true
+		}
+		time.Sleep(15 * time.Millisecond)
+	}
+	return false
+}
+
+// The page could use navigator.clipboard, but that needs focus. A clip that
+// arrives from the phone while the window sits in the background still lands here.
+func writeClipboardText(text string) error {
+	if len(text) > maxLiveText {
+		return errors.New("too long")
+	}
+	units, err := windows.UTF16FromString(strings.ReplaceAll(text, "\x00", ""))
+	if err != nil {
+		return err
+	}
+	data := unsafe.Slice((*byte)(unsafe.Pointer(&units[0])), len(units)*2)
+	if !openClipboard() {
+		return errors.New("clipboard busy")
+	}
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	defer user32.NewProc("CloseClipboard").Call()
+	user32.NewProc("EmptyClipboard").Call()
+	err = clipboardSet(cfUnicodeText, data)
+	runtime.KeepAlive(units)
+	return err
+}
+
+func readClipboardText() (string, error) {
+	if !openClipboard() {
+		return "", errors.New("clipboard busy")
+	}
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+	defer user32.NewProc("CloseClipboard").Call()
+	h, _, _ := user32.NewProc("GetClipboardData").Call(cfUnicodeText)
+	if h == 0 {
+		return "", nil
+	}
+	ptr, _, _ := kernel32.NewProc("GlobalLock").Call(h)
+	if ptr == 0 {
+		return "", nil
+	}
+	defer kernel32.NewProc("GlobalUnlock").Call(h)
+	size, _, _ := kernel32.NewProc("GlobalSize").Call(h)
+	n := int(size / 2)
+	if n > maxLiveText {
+		n = maxLiveText
+	}
+	units := unsafe.Slice((*uint16)(unsafe.Pointer(ptr)), n)
+	for i, u := range units {
+		if u == 0 {
+			units = units[:i]
+			break
+		}
+	}
+	return windows.UTF16ToString(units), nil
 }
 
 func clipboardSet(format uintptr, data []byte) error {

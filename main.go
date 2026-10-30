@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"embed"
 	"encoding/base32"
 	"encoding/json"
@@ -38,9 +37,8 @@ const (
 // Uploads and the key sit next to the executable so a double-clicked app keeps its files.
 // go run builds a throwaway binary under a go-build temp dir, so that case stays in the working directory.
 var (
-	appDir     string
-	uploadRoot string
-	keyPath    string
+	appDir  string
+	keyPath string
 )
 
 // Screenshot folders by device, plus one folder that takes any kind of file.
@@ -60,6 +58,7 @@ type server struct {
 	key    string
 	mu     sync.Mutex
 	misses map[string][]time.Time
+	phones map[string]time.Time
 }
 
 func main() {
@@ -75,7 +74,6 @@ func main() {
 		return
 	}
 	appDir = dir
-	uploadRoot = filepath.Join(appDir, "uploads")
 	keyPath = filepath.Join(appDir, "transfer-key")
 
 	if !claimApp() {
@@ -85,55 +83,28 @@ func main() {
 		return
 	}
 
-	if err := os.MkdirAll(uploadRoot, 0o755); err != nil {
+	if err := initSaveRoot(); err != nil {
 		report(err.Error())
 		return
-	}
-	for name := range destinations {
-		_ = os.MkdirAll(filepath.Join(uploadRoot, name), 0o755)
 	}
 	key, err := loadKey()
 	if err != nil {
 		report(err.Error())
 		return
 	}
-	s := &server{key: key, misses: map[string][]time.Time{}}
+	s := &server{key: key, misses: map[string][]time.Time{}, phones: map[string]time.Time{}}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", phonePage)
-	mux.HandleFunc("GET /index.html", phonePage)
-	mux.HandleFunc("GET /desk", deskPage)
-	mux.HandleFunc("GET /api/health", guardLocal(health))
-	mux.HandleFunc("GET /api/desk", guardLocal(s.deskInfo))
-	mux.HandleFunc("GET /api/dir", guardLocal(s.dirList))
-	mux.HandleFunc("GET /api/file", guardLocal(s.file))
-	mux.HandleFunc("GET /api/video", guardLocal(s.videoInfo))
-	mux.HandleFunc("GET /api/pdf", guardLocal(s.pdfPage))
-	mux.HandleFunc("GET /desk/pdf", guardLocal(s.pdfPage))
-	mux.HandleFunc("GET /api/audio", guardLocal(s.audioInfo))
-	mux.HandleFunc("GET /api/cover", guardLocal(s.audioCover))
-	mux.HandleFunc("GET /api/office", guardLocal(s.officeText))
-	mux.HandleFunc("GET /api/text", guardLocal(s.readText))
-	mux.HandleFunc("GET /api/zip", guardLocal(s.zipNames))
-	mux.HandleFunc("POST /api/save", guardLocal(s.saveText))
-	mux.HandleFunc("POST /api/rename", guardLocal(s.renameEntry))
-	mux.HandleFunc("POST /api/delete", guardLocal(s.deleteFile))
-	mux.HandleFunc("GET /qr.png", guardLocal(s.qr))
-	mux.HandleFunc("POST /api/shutdown", guardLocal(s.shutdown))
-	mux.HandleFunc("GET /api/recv", guardLocal(recvStatus))
-	mux.HandleFunc("GET /api/info", s.guard(s.info))
-	mux.HandleFunc("POST /api/upload", s.guard(s.upload))
-	mux.HandleFunc("GET /api/list", s.guard(s.list))
+	mux := s.routes()
 
 	fmt.Println()
-	fmt.Println("  FastTransfer: send files from your phone to this PC")
+	fmt.Println("  FastTransfer: send files between this PC and your phone")
 	fmt.Println("  ----------------------------------------------------")
 	fmt.Println("  On this PC:   http://127.0.0.1:" + port + "/desk")
 	for _, ip := range lanIPs() {
 		fmt.Println("  On phone:     http://" + ip + ":" + port + "/?k=" + key)
 	}
-	fmt.Println("  Saves into:   " + abs(uploadRoot) + string(os.PathSeparator) + "{iphone,ipad,android,other,files}")
-	fmt.Println("  Only links with this key can send. Delete the transfer-key file to make a new one.")
+	fmt.Println("  Saves into:   " + abs(saveRoot()) + string(os.PathSeparator) + "{iphone,ipad,android,other,files}")
+	fmt.Println("  Only links with this key can send or take files. Delete the transfer-key file to make a new one.")
 	fmt.Println()
 
 	ln, err := net.Listen("tcp", "0.0.0.0:"+port)
@@ -156,11 +127,59 @@ func main() {
 		report("FastTransfer could not open its page.")
 		return
 	}
-	runApp("http://127.0.0.1:" + port + "/desk?v=8")
+	runApp("http://127.0.0.1:" + port + "/desk?v=15")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
+}
+
+func (s *server) routes() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", phonePage)
+	mux.HandleFunc("GET /index.html", phonePage)
+	mux.HandleFunc("GET /desk", deskPage)
+	mux.HandleFunc("GET /api/health", guardLocal(health))
+	mux.HandleFunc("GET /api/desk", guardLocal(s.deskInfo))
+	mux.HandleFunc("GET /api/dir", guardLocal(s.dirList))
+	mux.HandleFunc("GET /api/file", guardLocal(s.file))
+	mux.HandleFunc("GET /api/video", guardLocal(s.videoInfo))
+	mux.HandleFunc("GET /api/pdf", guardLocal(s.pdfPage))
+	mux.HandleFunc("GET /desk/pdf", guardLocal(s.pdfPage))
+	mux.HandleFunc("GET /api/audio", guardLocal(s.audioInfo))
+	mux.HandleFunc("GET /api/cover", guardLocal(s.audioCover))
+	mux.HandleFunc("GET /api/office", guardLocal(s.officeText))
+	mux.HandleFunc("GET /api/text", guardLocal(s.readText))
+	mux.HandleFunc("GET /api/zip", guardLocal(s.zipNames))
+	mux.HandleFunc("POST /api/save", guardLocal(s.saveText))
+	mux.HandleFunc("POST /api/rename", guardLocal(s.renameEntry))
+	mux.HandleFunc("POST /api/delete", guardLocal(s.deleteFile))
+	mux.HandleFunc("GET /qr.png", guardLocal(s.qr))
+	mux.HandleFunc("POST /api/shutdown", guardLocal(s.shutdown))
+	mux.HandleFunc("GET /api/recv", guardLocal(recvStatus))
+	mux.HandleFunc("POST /api/root", guardLocal(s.setRoot))
+	mux.HandleFunc("GET /api/info", s.guard(s.info))
+	mux.HandleFunc("POST /api/upload", s.guard(s.upload))
+	mux.HandleFunc("GET /api/list", s.guard(s.list))
+	mux.HandleFunc("GET /api/browse", s.guard(s.phoneBrowse))
+	mux.HandleFunc("GET /api/get", s.guardPhone(s.phoneSavedGet))
+	mux.HandleFunc("GET /api/pack", s.guardPhone(s.phonePack))
+	mux.HandleFunc("POST /api/phone/hello", s.guard(s.phoneHello))
+	mux.HandleFunc("POST /api/phone/pulse", s.guard(s.phonePulse))
+	mux.HandleFunc("GET /api/phone/inbox", s.guard(s.phoneInbox))
+	mux.HandleFunc("GET /api/phone/file", s.guardPhone(s.phoneFile))
+	mux.HandleFunc("GET /api/phones", guardLocal(s.phoneDirectory))
+	mux.HandleFunc("POST /api/send", guardLocal(s.sendSaved))
+	mux.HandleFunc("POST /api/send-outside", guardLocal(s.sendOutside))
+	mux.HandleFunc("GET /api/live", s.guard(liveGet))
+	mux.HandleFunc("POST /api/live", s.guard(liveTyping(true)))
+	mux.HandleFunc("POST /api/clip", s.guard(clipAdd(true)))
+	mux.HandleFunc("POST /api/clip/remove", s.guard(clipRemove))
+	mux.HandleFunc("GET /api/desk/live", guardLocal(liveGet))
+	mux.HandleFunc("POST /api/desk/live", guardLocal(liveTyping(false)))
+	mux.HandleFunc("POST /api/desk/clip", guardLocal(clipAdd(false)))
+	mux.HandleFunc("POST /api/desk/clip/remove", guardLocal(clipRemove))
+	return mux
 }
 
 // The key lives in a file so the link on the phone keeps working after a restart.
@@ -183,24 +202,13 @@ func loadKey() (string, error) {
 
 // guard lets only this page, opened with the key, read or write.
 func (s *server) guard(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "requests from other sites are not allowed"})
-			return
-		}
-		ip := clientIP(r)
-		if s.tooManyMisses(ip) {
-			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many wrong keys, wait a few minutes"})
-			return
-		}
-		got := r.Header.Get("X-Transfer-Key")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(s.key)) != 1 {
-			s.miss(ip)
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "open the link printed on the PC, it has the key"})
-			return
-		}
-		next(w, r)
-	}
+	return s.protect(next, false)
+}
+
+// guardPhone is the same check. A normal browser download may also use the
+// short-lived cookie that a successful key request just set.
+func (s *server) guardPhone(next http.HandlerFunc) http.HandlerFunc {
+	return s.protect(next, true)
 }
 
 func (s *server) recent(ip string) []time.Time {
@@ -244,7 +252,7 @@ func (s *server) list(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pick a folder"})
 		return
 	}
-	entries, err := os.ReadDir(filepath.Join(uploadRoot, to))
+	entries, err := os.ReadDir(filepath.Join(saveRoot(), to))
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"files": []string{}})
 		return
@@ -285,7 +293,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "send the files as a form upload"})
 		return
 	}
-	dir := filepath.Join(uploadRoot, to)
+	dir := filepath.Join(saveRoot(), to)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not create folder"})
 		return
@@ -328,7 +336,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		"to":     to,
 		"count":  len(saved),
 		"files":  saved,
-		"folder": filepath.Join(uploadRoot, to),
+		"folder": filepath.Join(saveRoot(), to),
 	})
 }
 
