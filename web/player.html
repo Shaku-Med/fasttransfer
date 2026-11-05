@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Player · FastTransfer</title>
   <script>
     (function () {
@@ -224,14 +225,15 @@
     #resume button { height: 26px; padding: 0 10px; border-radius: 13px; background: var(--hover); }
     #resume button:hover { background: var(--press); }
 
+    /* The bar has three parts: what is playing on the left, the transport in
+       the middle, and the extras on the right. Rows have fixed heights, so
+       opening the playlist never changes how tall the bar is. */
     #controls {
       position: relative;
-      flex: 0 0 121px;
-      height: 121px;
-      max-height: 121px;
+      flex: none;
+      height: 100px;
       box-sizing: border-box;
-      overflow: hidden;
-      padding: 8px 16px 12px;
+      padding: 6px 16px 10px;
       background: var(--menu);
       border-top: 1px solid var(--line);
     }
@@ -241,16 +243,14 @@
       right: 0;
       bottom: 0;
       background: var(--menu);
+      transition: opacity 200ms var(--ease);
     }
     body.idle #stage:fullscreen #controls, body.idle #stage:-webkit-full-screen #controls { opacity: 0; pointer-events: none; }
-    #titlerow { display: flex; align-items: center; gap: 8px; min-width: 0; height: 20px; overflow: hidden; }
-    #titlerow b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-    #titlerow span { flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
-    #seekrow { display: flex; align-items: center; gap: 10px; height: 28px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+    #seekrow { display: flex; align-items: center; gap: 12px; height: 28px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
     #seekrow span { min-width: 44px; }
     #seekrow span:last-child { text-align: right; }
     #seek { position: relative; flex: 1; height: 24px; cursor: pointer; touch-action: none; }
-    #seek .track, #seek .buf, #seek .fill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; }
+    #seek .track, #seek .buf, #seek .fill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; transition: height 120ms var(--ease), margin 120ms var(--ease); }
     #seek .track { right: 0; background: var(--line); }
     #seek .buf { width: calc(var(--b, 0) * 1%); background: var(--press); }
     #seek .fill { width: calc(var(--p, 0) * 1%); background: var(--accent); }
@@ -283,8 +283,13 @@
       pointer-events: none;
       white-space: nowrap;
     }
-    #btnrow { display: flex; align-items: center; gap: 4px; margin-top: 4px; height: 48px; overflow: hidden; }
-    #btnrow .grow { flex: 1 1 auto; min-width: 8px; height: 1px; }
+    #btnrow { display: grid; grid-template-columns: minmax(160px, 1fr) auto minmax(max-content, 1fr); align-items: center; gap: 24px; height: 56px; }
+    .zone { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .zone.right { justify-content: flex-end; }
+    #nowinfo { flex-direction: column; align-items: flex-start; gap: 2px; }
+    #nowinfo b, #nowinfo span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #nowinfo b { font-size: 14px; font-weight: 600; }
+    #nowinfo span { color: var(--muted); font-size: 12px; }
     .ib {
       position: relative;
       display: inline-flex;
@@ -294,7 +299,7 @@
       height: 40px;
       flex: 0 0 40px;
       border-radius: 8px;
-      overflow: hidden;
+      color: var(--ink);
       transition: background 120ms ease;
     }
     .ib:hover { background: var(--hover); }
@@ -302,15 +307,20 @@
     .ib.on { background: var(--sel); }
     .ib:disabled { opacity: 0.4; cursor: default; background: none; }
     .ib .badge { position: absolute; right: 5px; bottom: 5px; font-size: 9px; font-weight: 700; line-height: 1; }
-    #play { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; background: var(--accent); color: var(--on-accent); margin: 0 10px; }
+    .zone.mid { gap: 6px; }
+    .zone.mid .ib svg { width: 20px; height: 20px; }
+    .zone.right .ib svg { width: 18px; height: 18px; }
+    .zone.mid #shuffle svg, .zone.mid #repeat svg { width: 18px; height: 18px; }
+    #play { width: 48px; height: 48px; flex: 0 0 48px; margin: 0 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16); transition: transform 120ms var(--ease), filter 120ms ease; }
     #play:hover { background: var(--accent); filter: brightness(1.08); }
-    #play svg { width: 18px; height: 18px; max-width: 18px; max-height: 18px; }
-    #btnrow svg { width: 16px; height: 16px; max-width: 16px; max-height: 16px; }
-    .txt { width: auto; min-width: 36px; padding: 0 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    #play:active { transform: scale(0.96); }
+    .zone.mid #play svg { width: 20px; height: 20px; }
+    .txt { width: auto; min-width: 40px; padding: 0 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .vol { display: flex; align-items: center; margin-right: 6px; }
     #vol {
-      width: 96px;
+      width: 88px;
       height: 4px;
-      margin: 0 4px;
+      margin: 0 6px 0 2px;
       flex: none;
       appearance: none;
       -webkit-appearance: none;
@@ -320,6 +330,23 @@
     }
     #vol::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--menu); }
     #vol::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--menu); }
+    #morebtn { display: none; }
+
+    /* Narrower windows keep the transport and fold the extras into the More
+       menu, so nothing is squeezed or cut off. */
+    @media (max-width: 1000px) {
+      #btnrow .fold1 { display: none; }
+      #morebtn { display: inline-flex; }
+    }
+    @media (max-width: 860px) {
+      #btnrow .fold2, #vol { display: none; }
+      .vol { margin-right: 0; }
+    }
+    @media (max-width: 620px) {
+      #btnrow { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+      #nowinfo { display: none; }
+      #controls { padding: 6px 10px 10px; }
+    }
 
     .pop {
       position: absolute;
@@ -332,9 +359,11 @@
       box-shadow: var(--shadow);
       animation: rise 120ms var(--ease);
     }
-    .pop button { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; height: 30px; padding: 0 10px; border-radius: 4px; text-align: left; }
+    .pop button { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border-radius: 4px; text-align: left; white-space: nowrap; }
     .pop button:hover { background: var(--hover); }
     .pop button.on { background: var(--sel); }
+    .pop button svg { width: 16px; height: 16px; color: var(--muted); }
+    .pop .val { margin-left: auto; padding-left: 16px; color: var(--muted); font-size: 12px; }
     @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
 
     #drawer {
@@ -347,7 +376,6 @@
       background: var(--list);
       border: 0;
     }
-    body[data-drawer="more"] #drawer,
     body[data-drawer="queue"] #drawer,
     body[data-drawer="inbox"] #drawer {
       display: flex;
@@ -359,12 +387,9 @@
       overflow: hidden;
       border-left: 1px solid var(--line);
     }
-    #morepane, #queue, #inbox { display: none; flex: 1; min-height: 0; flex-direction: column; background: transparent; }
-    body[data-drawer="more"] #morepane,
+    #queue, #inbox { display: none; flex: 1; min-height: 0; flex-direction: column; background: transparent; }
     body[data-drawer="queue"] #queue,
     body[data-drawer="inbox"] #inbox { display: flex; }
-    #inboxopen { width: 100%; height: 36px; margin: 8px 0 4px; padding: 0 10px; border-radius: 6px; text-align: left; background: var(--hover); }
-    #inboxopen:hover { background: var(--press); }
     #ibox { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 0 8px 12px; list-style: none; }
     #ibox button { display: block; width: 100%; min-height: 48px; padding: 6px 8px; border-radius: 6px; text-align: left; }
     #ibox button:hover { background: var(--hover); }
@@ -386,10 +411,6 @@
       box-shadow: var(--shadow);
       cursor: pointer;
     }
-    .morebody { overflow: auto; padding: 4px 12px 16px; }
-    .morelabel { margin: 12px 4px 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
-    .morerow { display: flex; align-items: center; gap: 4px; min-height: 44px; }
-    .morerow #vol { flex: 1; width: auto; }
     .qhead { display: flex; align-items: center; gap: 8px; padding: 14px 8px 8px 16px; }
     .qhead b { flex: 1; }
     .qhead b { font-size: 14px; font-weight: 600; }
@@ -444,7 +465,6 @@
     .qempty { padding: 24px 12px; color: var(--muted); text-align: center; }
 
     @media (max-width: 860px) {
-      body[data-drawer="more"] #drawer,
       body[data-drawer="queue"] #drawer,
       body[data-drawer="inbox"] #drawer {
         position: absolute;
@@ -461,7 +481,6 @@
         border-top: 1px solid var(--line);
       }
       #cover { flex-direction: column; gap: 16px; text-align: center; padding: 24px 16px; }
-      #titlerow span { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -493,33 +512,6 @@
       <div id="resume" hidden><span id="resumetext"></span><button id="restart" type="button">Start over</button></div>
       </div>
       <aside id="drawer">
-        <div id="morepane">
-          <div class="qhead"><b>Playback</b><button class="ib" id="moreclose" type="button" aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></div>
-          <div class="morebody">
-            <p class="morelabel">Volume</p>
-            <div class="morerow">
-              <button class="ib" id="mute" type="button" title="Mute  M" aria-label="Mute"></button>
-              <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
-            </div>
-            <p class="morelabel">Skip</p>
-            <div class="morerow">
-              <button class="ib" id="prev" type="button" title="Previous  Shift+P" aria-label="Previous"></button>
-              <button class="ib" id="back" type="button" title="Back 10 seconds  J" aria-label="Back 10 seconds"></button>
-              <button class="ib" id="fwd" type="button" title="Forward 10 seconds  L" aria-label="Forward 10 seconds"></button>
-              <button class="ib" id="next" type="button" title="Next  Shift+N" aria-label="Next"></button>
-            </div>
-            <p class="morelabel">More</p>
-            <div class="morerow">
-              <button class="ib" id="shuffle" type="button" title="Shuffle  S" aria-label="Shuffle" aria-pressed="false"></button>
-              <button class="ib" id="repeat" type="button" title="Repeat  R" aria-label="Repeat"></button>
-              <button class="ib txt" id="speed" type="button" title="Speed" aria-label="Speed" aria-haspopup="true">1×</button>
-              <button class="ib" id="fit" type="button" title="Fill the window" aria-label="Fill the window" aria-pressed="false"></button>
-              <button class="ib" id="pip" type="button" title="Picture in picture" aria-label="Picture in picture"></button>
-            </div>
-            <p class="morelabel">Received</p>
-            <button id="inboxopen" type="button">Received</button>
-          </div>
-        </div>
         <div id="inbox" aria-label="Received">
           <div class="qhead"><b>Received</b><button class="ib" id="inboxclose" type="button" aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></div>
           <ol id="ibox"></ol>
@@ -532,7 +524,6 @@
       </aside>
       </div>
       <div id="controls">
-        <div id="titlerow"><b id="nowname"></b><span id="nowsub"></span></div>
         <div id="seekrow">
           <span id="now">0:00</span>
           <div id="seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
@@ -542,11 +533,29 @@
           <span id="dur">0:00</span>
         </div>
         <div id="btnrow">
-          <button class="ib" id="play" type="button" title="Play  Space" aria-label="Play"></button>
-          <span class="grow"></span>
-          <button class="ib" id="qbtn" type="button" title="Playlist  Q" aria-label="Playlist" aria-pressed="false"></button>
-          <button class="ib" id="morebtn" type="button" title="More" aria-label="More" aria-pressed="false"></button>
-          <button class="ib" id="full" type="button" title="Full screen  F" aria-label="Full screen"></button>
+          <div class="zone" id="nowinfo"><b id="nowname"></b><span id="nowsub"></span></div>
+          <div class="zone mid">
+            <button class="ib fold2" id="shuffle" type="button" title="Shuffle  S" aria-label="Shuffle" aria-pressed="false"></button>
+            <button class="ib" id="prev" type="button" title="Previous  Shift+P" aria-label="Previous"></button>
+            <button class="ib fold2" id="back" type="button" title="Back 10 seconds  J" aria-label="Back 10 seconds"></button>
+            <button class="ib" id="play" type="button" title="Play  Space" aria-label="Play"></button>
+            <button class="ib fold2" id="fwd" type="button" title="Forward 10 seconds  L" aria-label="Forward 10 seconds"></button>
+            <button class="ib" id="next" type="button" title="Next  Shift+N" aria-label="Next"></button>
+            <button class="ib fold2" id="repeat" type="button" title="Repeat  R" aria-label="Repeat"></button>
+          </div>
+          <div class="zone right">
+            <div class="vol">
+              <button class="ib" id="mute" type="button" title="Mute  M" aria-label="Mute"></button>
+              <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+            </div>
+            <button class="ib txt fold1" id="speed" type="button" title="Speed" aria-label="Speed" aria-haspopup="true">1×</button>
+            <button class="ib fold1" id="fit" type="button" title="Fill the window" aria-label="Fill the window" aria-pressed="false"></button>
+            <button class="ib fold1" id="pip" type="button" title="Picture in picture" aria-label="Picture in picture"></button>
+            <button class="ib fold1" id="ibtn" type="button" title="Received" aria-label="Received" aria-pressed="false"></button>
+            <button class="ib" id="qbtn" type="button" title="Playlist  Q" aria-label="Playlist" aria-pressed="false"></button>
+            <button class="ib" id="morebtn" type="button" title="More" aria-label="More" aria-haspopup="true"></button>
+            <button class="ib" id="full" type="button" title="Full screen  F" aria-label="Full screen"></button>
+          </div>
         </div>
       </div>
     </main>
@@ -579,12 +588,15 @@
       unfull: '<path d="M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5" ' + S + '/>',
       film: '<rect x="2" y="3" width="12" height="10" rx="1.5" ' + S + '/><path d="M6.5 6v4L10 8z" fill="currentColor"/>',
       note: '<path d="M6 12.5V3.5l7-1.5v9" ' + S + '/><circle cx="4.5" cy="12.5" r="1.6" ' + S + '/><circle cx="11.5" cy="11" r="1.6" ' + S + '/>',
+      speed: '<path d="M2.6 11.5a5.6 5.6 0 1 1 10.8 0" ' + S + '/><path d="m8 9.6 2.7-3" ' + S + '/><circle cx="8" cy="9.8" r="0.9" fill="currentColor"/>',
+      inbox: '<path d="M2 9.2 3.6 4.4A1.4 1.4 0 0 1 5 3.5h6a1.4 1.4 0 0 1 1.4.9L14 9.2v2.9a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 12.1z" ' + S + '/><path d="M2 9.2h3.2a2.8 2.8 0 0 0 5.6 0H14" ' + S + '/>',
     };
     const svg = (name) => '<svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[name] + "</svg>";
     ["prev", "next", "back", "fwd", "shuffle", "repeat", "pip", "full"].forEach((id) => { $(id).innerHTML = svg(id); });
     $("fit").innerHTML = svg("fit");
     $("qbtn").innerHTML = svg("queue");
     $("morebtn").innerHTML = svg("more");
+    $("ibtn").innerHTML = svg("inbox");
 
     let queue = [];
     let order = [];
@@ -1032,11 +1044,11 @@
       if (name) document.body.dataset.drawer = name;
       else delete document.body.dataset.drawer;
       const queue = name === "queue";
-      const more = name === "more";
+      const inbox = name === "inbox";
       $("qbtn").classList.toggle("on", queue);
       $("qbtn").setAttribute("aria-pressed", String(queue));
-      $("morebtn").classList.toggle("on", more);
-      $("morebtn").setAttribute("aria-pressed", String(more));
+      $("ibtn").classList.toggle("on", inbox);
+      $("ibtn").setAttribute("aria-pressed", String(inbox));
       if (queue) paintQueue();
       if (name === "inbox") loadPlayerInbox();
       requestAnimationFrame(fitMedia);
@@ -1048,8 +1060,58 @@
       if (remember !== false) store.set("ft-queue", open);
     }
 
-    function toggleMore() {
-      setDrawer(document.body.dataset.drawer === "more" ? "" : "more");
+    // The More menu lists whichever buttons the window is too narrow to show,
+    // and runs the real button when picked, so both stay in step.
+    function moreMenu() {
+      if (closePop()) return;
+      const items = [
+        ["shuffle", "Shuffle", () => (shuffle ? "On" : "")],
+        ["back", "Back 10 seconds"],
+        ["fwd", "Forward 10 seconds"],
+        ["repeat", "Repeat", () => ({ all: "All", one: "One", off: "" })[repeat]],
+        ["speed", "Speed", () => $("speed").textContent],
+        ["fit", "Fill the window", () => (document.body.classList.contains("fill") ? "On" : "")],
+        ["pip", "Picture in picture"],
+        ["ibtn", "Received"],
+      ].filter(([id]) => !$(id).hidden && getComputedStyle($(id)).display === "none");
+      if (!items.length) return;
+      pop = document.createElement("div");
+      pop.className = "pop";
+      pop.setAttribute("role", "menu");
+      items.forEach(([id, label, value]) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.setAttribute("role", "menuitem");
+        const glyph = $(id).querySelector("svg");
+        if (glyph) item.appendChild(glyph.cloneNode(true));
+        else item.insertAdjacentHTML("beforeend", svg(id));
+        const text = document.createElement("span");
+        text.textContent = label;
+        item.appendChild(text);
+        const now = value ? value() : "";
+        if (now) {
+          const tag = document.createElement("span");
+          tag.className = "val";
+          tag.textContent = now;
+          item.appendChild(tag);
+        }
+        item.addEventListener("click", () => {
+          closePop();
+          if (id === "speed") speedMenu($("morebtn"));
+          else $(id).click();
+        });
+        pop.appendChild(item);
+      });
+      placePop($("morebtn"));
+    }
+
+    function placePop(anchor) {
+      $("stage").appendChild(pop);
+      const button = anchor.getBoundingClientRect();
+      const stage = $("stage").getBoundingClientRect();
+      const left = button.right - stage.left - pop.offsetWidth;
+      pop.style.left = Math.max(8, Math.min(left, stage.width - pop.offsetWidth - 8)) + "px";
+      pop.style.top = button.top - stage.top - pop.offsetHeight - 8 + "px";
     }
 
     function closePop() {
@@ -1059,7 +1121,7 @@
       return true;
     }
 
-    function speedMenu() {
+    function speedMenu(anchor) {
       if (closePop()) return;
       pop = document.createElement("div");
       pop.className = "pop";
@@ -1074,11 +1136,7 @@
         item.addEventListener("click", () => { setSpeed(rate); closePop(); });
         pop.appendChild(item);
       });
-      $("stage").appendChild(pop);
-      const button = $("speed").getBoundingClientRect();
-      const stage = $("stage").getBoundingClientRect();
-      pop.style.left = Math.min(button.left - stage.left, stage.width - pop.offsetWidth - 8) + "px";
-      pop.style.top = button.top - stage.top - pop.offsetHeight - 8 + "px";
+      placePop(anchor || $("speed"));
     }
 
     // Controls fade out while a video plays and the mouse rests.
@@ -1257,8 +1315,7 @@
       else media.requestPictureInPicture().catch(() => {});
     });
     $("qbtn").addEventListener("click", () => toggleQueue());
-    $("morebtn").addEventListener("click", toggleMore);
-    $("moreclose").addEventListener("click", () => setDrawer(""));
+    $("morebtn").addEventListener("click", (event) => { event.stopPropagation(); moreMenu(); });
     $("queueclose").addEventListener("click", () => toggleQueue(false));
     $("full").addEventListener("click", toggleFull);
     $("restart").addEventListener("click", () => { seekTo(0); $("resume").hidden = true; });
@@ -1281,7 +1338,7 @@
     $("stage").addEventListener("pointermove", wake);
     $("stage").addEventListener("pointerdown", wake);
     document.addEventListener("pointerdown", (event) => {
-      if (pop && !pop.contains(event.target) && event.target !== $("speed")) closePop();
+      if (pop && !pop.contains(event.target) && !event.target.closest("#speed, #morebtn")) closePop();
     });
 
     document.addEventListener("contextmenu", (event) => {
@@ -1434,7 +1491,7 @@
       } catch (err) {}
     }
 
-    $("inboxopen").addEventListener("click", () => setDrawer("inbox"));
+    $("ibtn").addEventListener("click", () => setDrawer(document.body.dataset.drawer === "inbox" ? "" : "inbox"));
     $("inboxclose").addEventListener("click", () => setDrawer(""));
     $("ptoast").addEventListener("click", () => {
       const item = playerToastItem;
@@ -1443,6 +1500,7 @@
     });
     setInterval(loadPlayerInbox, 4000);
 
+    window.addEventListener("resize", () => { if (pop) closePop(); });
     window.addEventListener("hashchange", readHash);
     window.addEventListener("pagehide", rememberSpot);
 

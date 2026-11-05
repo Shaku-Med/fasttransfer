@@ -805,41 +805,64 @@
     #asktext { margin: 0; }
 
     #shell { flex: 1; min-height: 0; display: flex; }
+    /* The sidebar follows Windows 11 navigation: pages at the top, the
+       device and app settings pinned to the bottom, a pill on the current
+       page, and a compact rail with small labels on narrower windows. */
     #rail {
-      width: 208px;
+      width: 232px;
       flex: none;
       display: flex;
       flex-direction: column;
       gap: 2px;
-      padding: 4px 8px 12px;
+      padding: 4px 10px 12px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
       user-select: none;
     }
+    #rail::-webkit-scrollbar { display: none; }
     .navitem {
       position: relative;
+      flex: none;
       display: flex;
       align-items: center;
-      gap: 12px;
-      height: 36px;
+      gap: 14px;
+      height: 40px;
       padding: 0 12px;
-      border-radius: 6px;
+      border-radius: 8px;
       color: var(--ink);
+      font-size: 13.5px;
       text-align: left;
       transition: background 120ms var(--ease);
     }
-    .navitem svg { width: 16px; height: 16px; flex: none; }
+    .navitem svg {
+      width: 20px;
+      height: 20px;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .navitem svg [fill="currentColor"] { stroke: none; }
+    .navitem.on svg .f { fill: currentColor; fill-opacity: 0.14; }
     .navitem .lab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .navitem:hover { background: var(--hover); }
     .navitem:active { background: var(--press); }
+    .navitem:active svg { transform: scale(0.92); }
+    .navitem svg { transition: transform 120ms var(--ease); }
     .navitem.on { background: var(--hover); font-weight: 600; }
     .navitem.on:hover { background: var(--press); }
+    .navitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .navitem.on::before {
       content: "";
       position: absolute;
       left: 0;
       top: 50%;
       width: 3px;
-      height: 16px;
-      margin-top: -8px;
+      height: 18px;
+      margin-top: -9px;
       border-radius: 2px;
       background: var(--accent);
       animation: pill 167ms var(--ease);
@@ -857,7 +880,8 @@
       line-height: 18px;
       text-align: center;
     }
-    #rail .grow { flex: 1; }
+    .railsep { flex: none; height: 1px; margin: 8px 12px; background: var(--line); }
+    #rail .grow { flex: 1; min-height: 12px; }
     #docsview { overflow: hidden; }
     #pdfhost { position: fixed; top: 40px; right: 0; bottom: 0; left: 0; z-index: 55; }
     body.docos #pdfhost { top: 0; }
@@ -880,10 +904,16 @@
     .page { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: enter 250ms var(--ease); }
     @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     @media (max-width: 1000px) {
-      #rail { width: 56px; }
-      .navitem { justify-content: center; padding: 0; }
+      #rail { width: 76px; padding: 4px 6px 10px; }
+      .navitem { flex-direction: column; justify-content: center; gap: 4px; height: 56px; padding: 0 2px; font-size: 11px; text-align: center; }
+      .navitem .lab { flex: none; max-width: 100%; }
+      .navitem.on { font-weight: 600; }
+      .navitem .badge { position: absolute; top: 5px; left: 50%; margin-left: 6px; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }
+      .railsep { margin: 6px 14px; }
+    }
+    @media (max-width: 1000px) and (max-height: 640px) {
+      .navitem { height: 44px; }
       .navitem .lab { display: none; }
-      .navitem .badge { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }
     }
 
     #toolbar { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px 12px 0; }
@@ -1296,7 +1326,6 @@
         <option value="dark">Dark</option>
       </select>
       <button id="scanicon" class="icon" type="button" title="Scan Bluetooth" aria-label="Scan Bluetooth"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2v11.6l4.2-3.2L8 7.4l4.2-3.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M3.8 5.2 8 8 3.8 10.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <button id="themebtn" class="icon" type="button" title="Theme" aria-label="Theme"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.6v1.6M8 12.8v1.6M1.6 8H3.2M12.8 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
       <div id="morewrap">
         <button id="more" class="icon" type="button" title="More" aria-label="More"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
         <div id="moremenu" hidden>
@@ -1316,15 +1345,17 @@
     </header>
     <div id="shell">
       <nav id="rail" aria-label="Pages">
-        <button class="navitem on" type="button" data-view="files" title="Files"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 4.2h4l1.2 1.4H14.2V13H1.8V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="lab">Files</span></button>
-        <button class="navitem" type="button" data-view="received" title="Received"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 9.2 4.2 3.8h7.6l2 5.4M2.2 9.2h3.2a2.6 2.6 0 0 0 5.2 0h3.2V13H2.2V9.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="lab">Received</span><span class="badge" id="inboxbadge" hidden></span></button>
-        <button class="navitem" type="button" data-view="text" title="Text"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7.5H8.6L5.5 13.4V11h-3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 6.4h6M5 8.6h3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Text</span><span class="badge" id="textbadge" hidden></span></button>
-        <button class="navitem" type="button" data-view="docs" title="Docs"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.8h5.2L12.8 5.4V14H4V1.8zM9 1.8V5.6h3.6M6 8.5h4.5M6 11h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="lab">Docs</span></button>
-        <button class="navitem" type="button" data-view="connect" title="Connect"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Connect</span><span class="badge" id="phonebadge" hidden></span></button>
-        <button class="navitem" type="button" data-view="schedule" title="Scheduled"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lab">Scheduled</span><span class="badge" id="schedbadge" hidden></span></button>
-        <button class="navitem" type="button" data-view="social" title="Social media"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.2v3.6L10.4 8z" fill="currentColor"/></svg><span class="lab">Social media</span></button>
+        <button class="navitem on" type="button" data-view="files" title="Files"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M2.75 5.75c0-1.1.9-2 2-2h2.9c.5 0 .98.2 1.33.55l1.27 1.2h5c1.1 0 2 .9 2 2v7.75c0 1.1-.9 2-2 2H4.75c-1.1 0-2-.9-2-2z"/><path d="M2.75 8.25h14.5"/></svg><span class="lab">Files</span></button>
+        <button class="navitem" type="button" data-view="received" title="Received"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M2.75 11.25 4.6 5.1a2 2 0 0 1 1.9-1.35h7a2 2 0 0 1 1.9 1.35l1.85 6.15v3a2 2 0 0 1-2 2H4.75a2 2 0 0 1-2-2z"/><path d="M2.75 11.25h3.6a3.65 3.65 0 0 0 7.3 0h3.6"/></svg><span class="lab">Received</span><span class="badge" id="inboxbadge" hidden></span></button>
+        <button class="navitem" type="button" data-view="text" title="Text"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M4.75 3.5h10.5c1.1 0 2 .9 2 2v6.75c0 1.1-.9 2-2 2H10.4l-3.9 2.9v-2.9H4.75c-1.1 0-2-.9-2-2V5.5c0-1.1.9-2 2-2z"/><path d="M6.5 7.4h7M6.5 10.3h4.5"/></svg><span class="lab">Text</span><span class="badge" id="textbadge" hidden></span></button>
+        <button class="navitem" type="button" data-view="docs" title="Docs"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M5.75 2.75h5.4l4.1 4.1v9.4c0 .55-.45 1-1 1h-8.5c-.55 0-1-.45-1-1V3.75c0-.55.45-1 1-1z"/><path d="M11 2.9V7h4.1M7.5 10.25h5M7.5 13.25h3.5"/></svg><span class="lab">Docs</span></button>
+        <span class="railsep" aria-hidden="true"></span>
+        <button class="navitem" type="button" data-view="social" title="Social media"><svg viewBox="0 0 20 20" aria-hidden="true"><rect class="f" x="2.75" y="4.25" width="14.5" height="11.5" rx="2.5"/><path d="M8.5 7.6v4.8l4.1-2.4z" fill="currentColor"/></svg><span class="lab">Social media</span></button>
+        <button class="navitem" type="button" data-view="schedule" title="Scheduled"><svg viewBox="0 0 20 20" aria-hidden="true"><circle class="f" cx="10" cy="10" r="7.25"/><path d="M10 6.1V10l2.7 1.7"/></svg><span class="lab">Scheduled</span><span class="badge" id="schedbadge" hidden></span></button>
         <span class="grow"></span>
-        <button class="navitem" type="button" data-act="folder" title="Save folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 4.2h4l1.2 1.4h6.4v6.8H2.2V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 7.6v3M6.5 9.1h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Save folder</span></button>
+        <button class="navitem" type="button" data-view="connect" title="Connect"><svg viewBox="0 0 20 20" aria-hidden="true"><rect class="f" x="5.75" y="2.25" width="8.5" height="15.5" rx="2"/><path d="M8.75 14.75h2.5"/></svg><span class="lab">Connect</span><span class="badge" id="phonebadge" hidden></span></button>
+        <button class="navitem" type="button" data-act="folder" title="Save folder"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="f" d="M2.75 5.75c0-1.1.9-2 2-2h2.9c.5 0 .98.2 1.33.55l1.27 1.2h5c1.1 0 2 .9 2 2v7.75c0 1.1-.9 2-2 2H4.75c-1.1 0-2-.9-2-2z"/><path d="M10 8.5v4.75M7.9 11.2 10 13.3l2.1-2.1"/></svg><span class="lab">Save folder</span></button>
+        <button class="navitem" id="themebtn" type="button" data-act="theme" title="Theme"><svg viewBox="0 0 20 20" aria-hidden="true"><circle class="f" cx="10" cy="10" r="7.25"/><path d="M10 2.75a7.25 7.25 0 0 1 0 14.5z" fill="currentColor"/></svg><span class="lab">Theme</span></button>
       </nav>
       <main id="pane">
         <section id="filesview" class="page">
@@ -3231,7 +3262,11 @@
       document.documentElement.dataset.choice = mode;
       themeSel.value = mode;
       const themeBtn = document.getElementById("themebtn");
-      if (themeBtn) themeBtn.title = mode === "light" ? "Light" : mode === "dark" ? "Dark" : "System";
+      if (themeBtn) {
+        const name = mode === "light" ? "Light" : mode === "dark" ? "Dark" : "System";
+        themeBtn.title = "Theme: " + name;
+        themeBtn.querySelector(".lab").textContent = name + " theme";
+      }
       try { localStorage.setItem("ft-theme", mode); } catch (err) {}
       if (typeof setTitleTheme === "function") setTitleTheme(dark);
     }
@@ -5065,7 +5100,7 @@
     document.querySelectorAll("#rail .navitem").forEach((item) => {
       item.addEventListener("click", () => {
         if (item.dataset.act === "folder") chooseSaveFolder();
-        else showPage(item.dataset.view);
+        else if (item.dataset.view) showPage(item.dataset.view);
       });
     });
     qInput.addEventListener("input", () => {
