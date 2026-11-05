@@ -27,6 +27,7 @@ var (
 	procSetWindowPos   = ctlUser32.NewProc("SetWindowPos")
 	procLayeredAttrs   = ctlUser32.NewProc("SetLayeredWindowAttributes")
 	procDisplayAff     = ctlUser32.NewProc("SetWindowDisplayAffinity")
+	procSetProp        = ctlUser32.NewProc("SetPropW")
 	procGetMessage     = ctlUser32.NewProc("GetMessageW")
 	procDispatch       = ctlUser32.NewProc("DispatchMessageW")
 	procPostThreadMsg  = ctlUser32.NewProc("PostThreadMessageW")
@@ -71,6 +72,7 @@ var (
 	keyHookCb     = syscall.NewCallback(keyHook)
 	mouseHookCb   = syscall.NewCallback(mouseHook)
 	curtainClass  = func() *uint16 { p, _ := windows.UTF16PtrFromString("FastTransferCurtain"); return p }()
+	nonRude       = func() *uint16 { p, _ := windows.UTF16PtrFromString("NonRudeHWND"); return p }()
 	classOnce     sync.Once
 )
 
@@ -205,6 +207,9 @@ func (cs *curtainState) run(ready chan<- error) {
 		ready <- errCurtainOld
 		return
 	}
+	// A window over every screen looks like a game to the taskbar, which then
+	// refuses to pop up from the screen edge. This marks it as not one.
+	procSetProp.Call(hwnd, uintptr(unsafe.Pointer(nonRude)), 1)
 	procShowWindow.Call(hwnd, 4) // SW_SHOWNOACTIVATE
 	procSetTimer.Call(hwnd, 1, 400, 0)
 
