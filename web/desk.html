@@ -1238,6 +1238,10 @@
     #phonesnow .acts { display: flex; gap: 2px; flex: none; }
     #phonesnow .none { justify-content: center; min-height: 64px; color: var(--muted); font-size: 12px; }
     .sum { color: var(--muted); font-size: 12px; padding-right: 8px; white-space: nowrap; }
+    #updsub { white-space: normal; }
+    #updbar { height: 4px; margin: 0 16px 14px; border-radius: 2px; background: var(--hover); overflow: hidden; }
+    #updbar span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 200ms var(--ease); }
+    #updnotes { margin: 0; padding: 12px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; white-space: pre-line; max-height: 160px; overflow: auto; }
     .dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--line); }
     .dot.on { background: var(--accent); }
     .find {
@@ -1467,6 +1471,15 @@
                   <div class="cardhead"><h2>Devices</h2><span id="phonesum" class="sum"></span></div>
                   <div class="findrow" id="devfindrow" hidden><input id="devq" class="find" type="search" placeholder="Find a device by name" aria-label="Find a device" maxlength="40" autocomplete="off" spellcheck="false" /></div>
                   <ul id="phonesnow"></ul>
+                </div>
+                <div class="card" id="updcard">
+                  <div class="cardhead"><h2>FastTransfer</h2><span id="updver" class="sum"></span></div>
+                  <div class="setting">
+                    <div class="what"><b id="updline">Updates are checked on their own</b><span id="updsub"></span></div>
+                    <button id="updbtn" class="btn" type="button">Check for updates</button>
+                  </div>
+                  <div id="updbar" hidden><span></span></div>
+                  <p id="updnotes" hidden></p>
                 </div>
               </div>
             </div>
@@ -4111,6 +4124,8 @@
         noteRecv(ev);
       } else if (ev.kind === "inbox") {
         noteInbox(ev);
+      } else if (ev.kind === "update") {
+        loadUpdate();
       } else if (ev.kind === "control-ask" || ev.kind === "control") {
         loadControl();
         if (ev.kind === "control" && ev.text === "start" && ev.name) {
@@ -4118,6 +4133,76 @@
         }
       }
     }
+
+    // Updates. The PC checks GitHub on its own every few hours; a new version
+    // is offered once with a note, and installing restarts the app.
+    const updEls = { ver: document.getElementById("updver"), line: document.getElementById("updline"), sub: document.getElementById("updsub"), btn: document.getElementById("updbtn"), bar: document.getElementById("updbar"), notes: document.getElementById("updnotes") };
+    let upd = null;
+    let updToasted = "";
+
+    function sentence(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : ""; }
+    function megabytes(n) { return (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB"; }
+
+    function paintUpdate(v) {
+      if (!v || !v.state) return;
+      upd = v;
+      const next = v.latest ? v.latest.version : "";
+      let line = "Updates are checked on their own", sub = "", label = "Check for updates", busy = false, offer = false;
+      switch (v.state) {
+        case "dev": line = "Updates are off"; sub = "This copy was built by hand, not from a release"; busy = true; break;
+        case "checking": line = "Checking for updates"; busy = true; break;
+        case "latest": line = "You have the latest version"; break;
+        case "failed": line = "Could not check for updates"; sub = sentence(v.error); break;
+        case "available": line = "Version " + next + " is out"; sub = sentence(v.error) || megabytes(v.latest.size) + " download, the app restarts by itself"; label = "Update and restart"; offer = true; break;
+        case "downloading": line = "Downloading version " + next; sub = Math.floor((v.progress || 0) * 100) + "%"; busy = true; break;
+        case "restarting": line = "Restarting into version " + next; busy = true; break;
+      }
+      updEls.ver.textContent = v.state === "dev" ? "Dev build" : "Version " + v.version;
+      updEls.line.textContent = line;
+      updEls.sub.textContent = sub;
+      updEls.sub.hidden = !sub;
+      updEls.btn.textContent = label;
+      updEls.btn.disabled = busy;
+      updEls.btn.hidden = v.state === "dev";
+      updEls.btn.classList.toggle("primary", offer);
+      updEls.bar.hidden = v.state !== "downloading";
+      updEls.bar.firstElementChild.style.width = Math.round((v.progress || 0) * 100) + "%";
+      const notes = (offer || v.state === "downloading") && v.latest ? v.latest.notes : "";
+      updEls.notes.textContent = notes;
+      updEls.notes.hidden = !notes;
+      if (offer && updToasted !== next) {
+        updToasted = next;
+        toast("FastTransfer " + next + " is out", (v.latest.notes || "").split("\n")[0] || "Update now and the app restarts by itself", { label: "Update", run: installUpdate });
+      }
+    }
+
+    async function loadUpdate() {
+      try {
+        const res = await fetch("/api/desk/update", { cache: "no-store" });
+        if (res.ok) paintUpdate(await res.json());
+      } catch (err) {}
+    }
+
+    async function updateAction(action) {
+      updEls.btn.disabled = true;
+      try {
+        const res = await fetch("/api/desk/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+        const data = await res.json().catch(() => ({}));
+        paintUpdate(res.ok ? data : data.update);
+        if (!res.ok && action === "install" && data.error) toast("The update did not install", sentence(data.error));
+      } catch (err) {
+        if (action === "install") toast("The update did not install", "Could not reach FastTransfer");
+      } finally {
+        if (upd) paintUpdate(upd);
+      }
+    }
+
+    function installUpdate() { updateAction("install"); }
+
+    updEls.btn.addEventListener("click", () => {
+      if (upd && upd.state === "available") installUpdate();
+      else updateAction("check");
+    });
 
     // Remote control. A phone's request pops up here and waits for a person.
     // Deny has the focus, so a stray Enter while typing never lets one in.
@@ -5534,6 +5619,7 @@
     paintConvHead();
     listenFeed();
     loadControl();
+    loadUpdate();
     loadInbox();
     loadSchedules();
     watchConv();

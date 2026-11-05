@@ -1,6 +1,7 @@
 uploads/
 tools/
 tmp/
+/release/
 webview/
 *.exe
 !bt/btopp.exe

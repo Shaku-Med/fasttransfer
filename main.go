@@ -85,13 +85,17 @@ func main() {
 	appDir = dir
 	keyPath = filepath.Join(appDir, "transfer-key")
 
-	if !claimApp() {
+	// Right after an update the old copy is still closing, so the new one
+	// waits for it rather than deciding another copy is already open.
+	updated := justUpdated(os.Args[1:])
+	if !claimSoon(updated) {
 		if !focusExisting() {
 			report("FastTransfer is already open.")
 		}
 		return
 	}
 
+	afterUpdate()
 	useDeviceFile(filepath.Join(appDir, "devices.json"))
 	useInboxFile(filepath.Join(appDir, "received.json"))
 	useControlFile(filepath.Join(appDir, "control.json"))
@@ -123,7 +127,7 @@ func main() {
 	fmt.Println("  Only links with this key can send or take files. Delete the transfer-key file to make a new one.")
 	fmt.Println()
 
-	ln, err := net.Listen("tcp", "0.0.0.0:"+port)
+	ln, err := listenSoon(updated)
 	if err != nil {
 		if alreadyServing() {
 			if !focusExisting() {
@@ -145,6 +149,7 @@ func main() {
 	go hub.run(stopCh)
 	go docs.run(stopCh)
 	go control.run(stopCh)
+	go updates.run(stopCh)
 	if !waitReady() {
 		report("FastTransfer could not open its page.")
 		return
@@ -209,6 +214,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/phone/control/screen", s.guard(s.phoneControlScreen))
 	mux.HandleFunc("GET /api/phone/control/sound", s.guard(s.phoneControlSound))
 	mux.HandleFunc("POST /api/phone/control/end", s.guard(s.phoneControlEnd))
+	mux.HandleFunc("GET /api/desk/update", guardLocal(s.deskUpdate))
+	mux.HandleFunc("POST /api/desk/update", guardLocal(s.deskUpdateSet))
 	mux.HandleFunc("GET /api/desk/control", guardLocal(s.deskControl))
 	mux.HandleFunc("POST /api/desk/control", guardLocal(s.deskControlSet))
 	mux.HandleFunc("POST /api/desk/control/answer", guardLocal(s.deskControlAnswer))
@@ -228,6 +235,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /docs.css", asset("web/docs.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /remote.js", asset("web/remote.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /remote.css", asset("web/remote.css", "text/css; charset=utf-8"))
+	mux.HandleFunc("GET /awake.mp4", awakeClip)
 	for _, side := range []struct {
 		prefix string
 		wrap   func(http.HandlerFunc) http.HandlerFunc
@@ -616,6 +624,30 @@ func dataDir() (string, error) {
 		return os.Getwd()
 	}
 	return dir, nil
+}
+
+func claimSoon(wait bool) bool {
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		if claimApp() {
+			return true
+		}
+		if !wait || time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+func listenSoon(wait bool) (net.Listener, error) {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		ln, err := net.Listen("tcp", "0.0.0.0:"+port)
+		if err == nil || !wait || time.Now().After(deadline) {
+			return ln, err
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 }
 
 func waitReady() bool {

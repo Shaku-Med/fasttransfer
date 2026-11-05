@@ -19,6 +19,7 @@ var (
 	ctlUser32       = windows.NewLazySystemDLL("user32.dll")
 	ctlGdi32        = windows.NewLazySystemDLL("gdi32.dll")
 	procSendInput   = ctlUser32.NewProc("SendInput")
+	procExecState   = windows.NewLazySystemDLL("kernel32.dll").NewProc("SetThreadExecutionState")
 	procMapVK       = ctlUser32.NewProc("MapVirtualKeyW")
 	procMetrics     = ctlUser32.NewProc("GetSystemMetrics")
 	procGetDC       = ctlUser32.NewProc("GetDC")
@@ -329,8 +330,9 @@ func drawPointer(dc uintptr, vx, vy int32, scale float64) {
 	if ok, _, _ := procCursorInfo.Call(uintptr(unsafe.Pointer(&ci))); ok == 0 || ci.Flags&1 == 0 || ci.Cursor == 0 {
 		return
 	}
+	look := pointerLook(ci.Cursor)
 	var ii iconInfo
-	if ok, _, _ := procIconInfo.Call(ci.Cursor, uintptr(unsafe.Pointer(&ii))); ok != 0 {
+	if ok, _, _ := procIconInfo.Call(look, uintptr(unsafe.Pointer(&ii))); ok != 0 {
 		if ii.MaskBmp != 0 {
 			procDeleteObj.Call(ii.MaskBmp)
 		}
@@ -347,7 +349,7 @@ func drawPointer(dc uintptr, vx, vy int32, scale float64) {
 	k := size / float64(metric(13))
 	x := int32(float64(ci.X-vx)*scale - float64(ii.HotX)*k)
 	y := int32(float64(ci.Y-vy)*scale - float64(ii.HotY)*k)
-	procDrawIconEx.Call(dc, uintptr(x), uintptr(y), ci.Cursor, uintptr(int32(size)), uintptr(int32(size)), 0, 0, 3)
+	procDrawIconEx.Call(dc, uintptr(x), uintptr(y), look, uintptr(int32(size)), uintptr(int32(size)), 0, 0, 3)
 }
 
 type flashInfo struct {
@@ -443,4 +445,12 @@ func caretBox() (x, y, w, h float64, ok bool) {
 		return 0, 0, 0, 0, false
 	}
 	return x, y, float64(cw) / float64(vw), float64(ch) / float64(vh), true
+}
+
+// stayAwake resets the sleep and screen off timers once. The control loop
+// calls it every couple of seconds while a phone is in control, so nothing is
+// left switched on after control ends.
+func stayAwake() {
+	const systemRequired, displayRequired = 0x1, 0x2
+	procExecState.Call(systemRequired | displayRequired)
 }

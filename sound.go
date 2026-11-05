@@ -99,10 +99,16 @@ func (h *soundHub) ended(stop chan struct{}) {
 	h.stop = nil
 }
 
-func grantAlive(g *controlGrant) bool {
+// stillUsing counts watching the screen or listening as using the PC, so a
+// long video does not run into the idle limit, and says whether g is current.
+func stillUsing(g *controlGrant) bool {
 	control.mu.Lock()
 	defer control.mu.Unlock()
-	return control.grants[g.handle] == g
+	if control.grants[g.handle] != g {
+		return false
+	}
+	g.used = time.Now()
+	return true
 }
 
 // phoneControlSound streams the PC's sound as 16 bit stereo at the rate in
@@ -112,9 +118,10 @@ func (s *server) phoneControlSound(w http.ResponseWriter, r *http.Request) {
 		slowDown(w)
 		return
 	}
-	g := grantFor(r, r.URL.Query().Get("session"))
+	session := r.URL.Query().Get("session")
+	g := grantFor(r, session)
 	if g == nil {
-		controlEnded(w)
+		controlEnded(w, session)
 		return
 	}
 	if !loopbackSupported {
@@ -158,7 +165,7 @@ func (s *server) phoneControlSound(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-tick.C:
-			if !grantAlive(g) {
+			if !stillUsing(g) {
 				return
 			}
 		case <-r.Context().Done():

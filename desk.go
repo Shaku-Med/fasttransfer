@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -170,6 +171,23 @@ func asset(name, ctype string) http.HandlerFunc {
 		w.Header().Set("Content-Type", ctype)
 		writeShipped(w, r, name, b)
 	}
+}
+
+// awakeClip is a two second black video the remote loops out of sight. A
+// playing video keeps a phone from dimming and locking, which the screen
+// wake lock cannot do on a plain http address. Phones fetch video in ranges,
+// so it goes through ServeContent.
+var awakeBytes, _ = webFiles.ReadFile("web/awake.mp4")
+
+func awakeClip(w http.ResponseWriter, r *http.Request) {
+	if len(awakeBytes) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp4")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(w, r, "awake.mp4", time.Time{}, bytes.NewReader(awakeBytes))
 }
 
 func deskPage(w http.ResponseWriter, r *http.Request) {

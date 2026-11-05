@@ -27,6 +27,7 @@
     zoom: '<svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m12.3 12.3 4.2 4.2M6.5 8.5h4M8.5 6.5v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
     full: '<svg viewBox="0 0 20 20"><path d="M7.5 3.5h-4v4M12.5 3.5h4v4M7.5 16.5h-4v-4M12.5 16.5h4v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     lock: '<svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+    hide: '<svg viewBox="0 0 20 20"><path d="M3 10s2.6-5 7-5c1.3 0 2.4.4 3.4 1M17 10s-2.6 5-7 5c-1.3 0-2.4-.4-3.4-1M8.2 11.8a2.5 2.5 0 0 1 3.6-3.6M3.5 16.5l13-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     sleep: '<svg viewBox="0 0 20 20"><path d="M15.5 12.2A6 6 0 0 1 7.8 4.5a6 6 0 1 0 7.7 7.7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   };
 
@@ -97,6 +98,7 @@
           <b>Controlling the PC</b>
           <span class="grow"></span>
           <button class="btn small rm-sound" type="button" aria-pressed="false">${icon.sound}<span>Sound</span></button>
+          <button class="btn small rm-hide" type="button" aria-pressed="false">${icon.hide}<span>Hide PC</span></button>
           <button class="btn small rm-end" type="button">Stop</button>
         </div>
         <div class="rm-modes" role="tablist"></div>
@@ -255,6 +257,7 @@
       else stopScreen();
       if (state === "live" && visible && soundOn) startSound();
       else stopSound();
+      keepAwake();
       if (!quiet) buzz();
     }
 
@@ -280,6 +283,7 @@
       queue = [];
       stopScreen();
       stopSound();
+      setHidden(false);
       if (state === "live") {
         state = "idle";
         paint();
@@ -331,7 +335,8 @@
     async function endControl() {
       askRun++;
       const had = token;
-      ended("");
+      const locks = pcHidden;
+      ended(locks ? "The PC locked, since its screen was hidden" : "");
       state = "idle";
       paint();
       if (had) {
@@ -374,7 +379,7 @@
       try {
         if (batch.length) {
           const { res, data } = await post("input", { events: batch });
-          if (res.status === 403 && data.ended) { ended("Control ended on the PC"); return; }
+          if (res.status === 403 && data.ended) { ended(data.why || "Control ended on the PC"); return; }
           else if (res.status === 409 && data.busy) {
             // Another phone is driving. Drop what piled up and show a quiet,
             // throttled note instead of fighting for the cursor.
@@ -863,10 +868,12 @@
           const url = "/api/phone/control/screen?session=" + encodeURIComponent(session) + "&w=" + width + "&q=" + quality + (frameTag ? "&last=" + frameTag : "");
           const res = await fetch(url, { headers: headers(), cache: "no-store" });
           if (run !== screenRun) return;
-          if (res.status === 403) { const data = await res.json().catch(() => ({})); if (data.ended) { ended("Control ended on the PC"); return; } }
+          if (res.status === 403) { const data = await res.json().catch(() => ({})); if (data.ended) { ended(data.why || "Control ended on the PC"); return; } }
           if (res.status === 404) { await opts.renew(); continue; }
           onPointer(res.headers.get("X-Pointer"));
           onCaret(res.headers.get("X-Caret"));
+          const hiddenNow = res.headers.get("X-Hidden");
+          if (hiddenNow === "1" || hiddenNow === "0") setHidden(hiddenNow === "1");
           if (res.status === 204) continue;
           if (!res.ok) throw new Error(String(res.status));
           const blob = await res.blob();
@@ -933,8 +940,38 @@
     // after the last so it plays without gaps. A small lead soaks up Wi-Fi
     // hiccups, and pieces are skipped when the lead grows, so it never lags far.
     let actx = null;
-    let soundOn = false;
+    let soundOn = store("local", "ft-remote-sound") !== "off";
+    // Hiding blacks out and mutes the PC itself while this phone still sees
+    // and hears it. The PC locks if anyone there touches it, or once control
+    // ends, so nothing is left showing.
+    let pcHidden = false;
+    const hideBtn = q(".rm-hide");
+    function setHidden(on) {
+      pcHidden = on;
+      hideBtn.classList.toggle("on", on);
+      hideBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      hideBtn.querySelector("span").textContent = on ? "Hidden" : "Hide PC";
+    }
+    hideBtn.addEventListener("click", async () => {
+      if (state !== "live" || hideBtn.disabled) return;
+      const want = !pcHidden;
+      hideBtn.disabled = true;
+      buzz();
+      try {
+        const { res, data } = await post("input", { events: [{ t: "p", k: want ? "hide" : "show" }] });
+        if (res.status === 403 && data.ended) { ended(data.why || "Control ended on the PC"); return; }
+        if (!res.ok) { opts.toast(data.error || "The PC did not answer"); return; }
+        setHidden(want);
+        opts.toast(want ? "The PC screen is black and muted. Touching it locks it." : "The PC screen is back");
+      } catch (err) {
+        opts.toast("Could not reach the PC");
+      } finally {
+        hideBtn.disabled = false;
+      }
+    });
+
     let soundRun = 0;
+    let soundLive = false;
     let soundReader = null;
     const soundBtn = q(".rm-sound");
 
@@ -943,37 +980,66 @@
       soundBtn.setAttribute("aria-pressed", soundOn ? "true" : "false");
     }
 
-    soundBtn.addEventListener("click", () => {
-      soundOn = !soundOn;
-      if (soundOn) {
-        // Phones only let a page make sound from inside a tap.
-        try {
-          if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-          actx.resume().catch(() => {});
-        } catch (err) {
-          soundOn = false;
-          opts.toast("This browser cannot play the sound");
-        }
+    // Phones only let a page start sound from inside a tap, and an iPhone on
+    // silent mutes page sound unless it is marked as media. Sound is on unless
+    // turned off, and every tap on the remote retries, so it starts with the
+    // first touch, the Take control tap included.
+    function unlockAudio() {
+      if (!soundOn) return;
+      try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (err) {}
+      try {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (err) {
+        return;
       }
+      if (actx.state !== "running") {
+        actx.resume().catch(() => {});
+        // A silent blip inside the tap is what wakes older iPhones.
+        try {
+          const src = actx.createBufferSource();
+          src.buffer = actx.createBuffer(1, 1, 22050);
+          src.connect(actx.destination);
+          src.start(0);
+        } catch (err) {}
+      }
+      if (state === "live" && visible) startSound();
+    }
+    ["pointerup", "touchend", "click"].forEach((type) => root.addEventListener(type, () => { unlockAudio(); keepAwake(); }, true));
+
+    soundBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      soundOn = !soundOn;
+      store("local", "ft-remote-sound", soundOn ? "" : "off");
       paintSound();
-      if (soundOn && state === "live" && visible) startSound();
+      if (soundOn) unlockAudio();
       else stopSound();
       buzz();
     });
+    paintSound();
 
     function startSound() {
-      if (soundReader || !actx) return;
-      if (actx.state === "suspended") actx.resume().catch(() => {});
+      if (soundLive || !actx) return;
+      if (actx.state !== "running") actx.resume().catch(() => {});
+      soundLive = true;
       pullSound(++soundRun);
     }
 
     function stopSound() {
       soundRun++;
+      soundLive = false;
       if (soundReader) soundReader.cancel().catch(() => {});
       soundReader = null;
     }
 
     async function pullSound(run) {
+      try {
+        await pullSoundLoop(run);
+      } finally {
+        if (run === soundRun) soundLive = false;
+      }
+    }
+
+    async function pullSoundLoop(run) {
       let misses = 0;
       while (run === soundRun && soundOn && state === "live" && visible) {
         try {
@@ -983,7 +1049,7 @@
           if (res.status === 404) { await opts.renew(); continue; }
           if (!res.ok || !res.body) {
             const data = await res.json().catch(() => ({}));
-            if (res.status === 403 && data.ended) { ended("Control ended on the PC"); return; }
+            if (res.status === 403 && data.ended) { ended(data.why || "Control ended on the PC"); return; }
             if (res.status === 501 || res.status === 503) {
               soundOn = false;
               paintSound();
@@ -1011,6 +1077,9 @@
             const frames = Math.floor(bytes.length / 4);
             carry = bytes.length % 4 ? bytes.slice(frames * 4) : null;
             if (!frames) continue;
+            // While the phone holds the sound back, pieces are dropped, so it
+            // picks up live instead of playing a backlog.
+            if (actx.state !== "running") { next = 0; continue; }
             const now = actx.currentTime;
             if (next < now + 0.02) next = now + 0.15;
             if (next > now + 0.6) continue;
@@ -1038,6 +1107,45 @@
       }
     }
 
+    // The phone stays awake the whole time it is in control. The screen wake
+    // lock only exists on https pages, which a home Wi-Fi address is not, so
+    // a tiny black clip loops out of sight instead: phones do not dim or lock
+    // while a video plays.
+    let wakeLock = null;
+    const awakeClip = el("video", "rm-awake");
+    awakeClip.muted = true;
+    awakeClip.loop = true;
+    awakeClip.playsInline = true;
+    awakeClip.preload = "none";
+    ["muted", "playsinline", "aria-hidden"].forEach((a) => awakeClip.setAttribute(a, a === "aria-hidden" ? "true" : ""));
+    awakeClip.src = "/awake.mp4";
+    root.appendChild(awakeClip);
+
+    function keepAwake() {
+      const on = state === "live" && visible && !document.hidden;
+      if (!on) {
+        if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+        if (!awakeClip.paused) awakeClip.pause();
+        return;
+      }
+      if (navigator.wakeLock && window.isSecureContext) {
+        if (!wakeLock) {
+          navigator.wakeLock.request("screen").then((lock) => {
+            wakeLock = lock;
+            lock.addEventListener("release", () => { if (wakeLock === lock) wakeLock = null; });
+          }).catch(() => {});
+        }
+        return;
+      }
+      if (awakeClip.paused) awakeClip.play().catch(() => {});
+    }
+    // Coming back to the page drops the lock and pauses video, so take them
+    // up again, and let the sound pick up too.
+    document.addEventListener("visibilitychange", () => {
+      keepAwake();
+      if (!document.hidden && actx && actx.state !== "running") actx.resume().catch(() => {});
+    });
+
     // A finger that left the page mid drag must not leave the button held.
     function letGo() {
       releasePad();
@@ -1052,7 +1160,7 @@
         try {
           const { res, data } = await post("input", { events: [] });
           if (res.ok) { state = "live"; paint(); return; }
-          if (res.status === 403 && data.ended) ended("");
+          if (res.status === 403 && data.ended) ended(data.why || "");
         } catch (err) {
           state = "live";
           paint();
@@ -1070,7 +1178,7 @@
       if (state !== "live" || !visible || inflight || queue.length || document.hidden) return;
       try {
         const { res, data } = await post("input", { events: [] });
-        if (res.status === 403 && data.ended) ended("Control ended on the PC");
+        if (res.status === 403 && data.ended) ended(data.why || "Control ended on the PC");
       } catch (err) {}
     }, 4000);
 

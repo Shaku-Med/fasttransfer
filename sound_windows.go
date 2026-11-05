@@ -221,3 +221,47 @@ func captureSound(stop <-chan struct{}, ready chan<- soundStart, push func([]byt
 		}
 	}
 }
+
+var iidEndpointVolume = windows.GUID{Data1: 0x5CDF2C82, Data2: 0x841E, Data3: 0x4546, Data4: [8]byte{0x97, 0x22, 0x0C, 0xF7, 0x40, 0x78, 0x22, 0x9A}}
+
+// muteSpeakers mutes or unmutes the default speakers and says whether they
+// were muted before. Loopback copies the sound ahead of the mute, so a phone
+// listening still hears everything.
+func muteSpeakers(mute bool) (was bool, err error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	switch err := windows.CoInitializeEx(0, windows.COINIT_MULTITHREADED); {
+	case err == nil, err == syscall.Errno(windows.S_FALSE):
+		defer windows.CoUninitialize()
+	case err == syscall.Errno(windows.RPC_E_CHANGED_MODE):
+	default:
+		return false, err
+	}
+	var enum, device, vol unsafe.Pointer
+	defer func() {
+		soundRelease(vol)
+		soundRelease(device)
+		soundRelease(enum)
+	}()
+	if hr, _, _ := soundCoCreate.Call(uintptr(unsafe.Pointer(&clsidEnumerator)), 0, 0x17, uintptr(unsafe.Pointer(&iidEnumerator)), uintptr(unsafe.Pointer(&enum))); int32(hr) < 0 || enum == nil {
+		return false, errSoundNoSpeaker
+	}
+	if soundCall(enum, 4, 0, 0, uintptr(unsafe.Pointer(&device))) < 0 || device == nil {
+		return false, errSoundNoSpeaker
+	}
+	if soundCall(device, 3, uintptr(unsafe.Pointer(&iidEndpointVolume)), 0x17, 0, uintptr(unsafe.Pointer(&vol))) < 0 || vol == nil {
+		return false, errSoundNoSpeaker
+	}
+	var muted int32
+	if soundCall(vol, 15, uintptr(unsafe.Pointer(&muted))) < 0 {
+		return false, errSoundNoSpeaker
+	}
+	want := uintptr(0)
+	if mute {
+		want = 1
+	}
+	if soundCall(vol, 14, want, 0) < 0 {
+		return muted != 0, errSoundNoSpeaker
+	}
+	return muted != 0, nil
+}
