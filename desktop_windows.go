@@ -84,9 +84,12 @@ func report(text string) {
 	_, _ = windows.MessageBox(0, body, title, windows.MB_OK|windows.MB_ICONINFORMATION)
 }
 
+// Terminate posts WM_QUIT to the calling thread's queue, so from a server
+// goroutine it would land where nobody reads it. Dispatch runs it on the
+// window's own thread, where the message loop sees it and returns.
 func stopWindow() {
-	if appView != nil {
-		appView.Terminate()
+	if view := appView; view != nil {
+		view.Dispatch(view.Terminate)
 	}
 }
 
@@ -97,9 +100,14 @@ func runApp(pageURL string) {
 		data = filepath.Join(appDir, "webview")
 	}
 	_ = os.MkdirAll(data, 0o755)
+	// The player opens in its own window, which has had no click yet, so
+	// media there may start without one. The profile is this app's alone.
+	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required")
+	}
 
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
-		Debug:     false,
+		Debug:     webviewDebug(),
 		AutoFocus: true,
 		DataPath:  data,
 		WindowOptions: webview2.WindowOptions{
@@ -119,7 +127,9 @@ func runApp(pageURL string) {
 		<-stopCh
 		return
 	}
+	lockWebView(w)
 	appView = w
+	webviewData = data
 	hwnd := uintptr(w.Window())
 	installCaption(hwnd)
 	matchTitleBar(hwnd)
@@ -136,9 +146,16 @@ func runApp(pageURL string) {
 	_ = w.Bind("setCaptionBounds", func(maxB, minB, closeB, header [4]float64, controls [][4]float64) {
 		setCaptionBounds(hwnd, maxB, minB, closeB, header, controls)
 	})
-	_ = w.Bind("setTitleTheme", func(dark bool) { applyTitleTheme(hwnd, dark) })
+	_ = w.Bind("setTitleTheme", func(dark bool) {
+		applyTitleTheme(hwnd, dark)
+		themePlayer(dark)
+	})
+	_ = w.Bind("showPlayer", func(hash string, dark bool) {
+		w.Dispatch(func() { showPlayer(hash, dark) })
+	})
 	_ = w.Bind("setCaptionHeld", func(held bool) { setCaptionHeld(held) })
 	_ = w.Bind("setCaptionOverlay", setCaptionOverlay)
+	_ = w.Bind("setFullscreen", func(on bool) { setFullscreen(hwnd, on) })
 	_ = w.Bind("copyImageFile", func(rel string) error { return copyImageFile(rel) })
 	_ = w.Bind("clipboardRead", readClipboardText)
 	_ = w.Bind("clipboardWrite", writeClipboardText)
@@ -408,6 +425,9 @@ func screenOf(r winRect) winRect {
 }
 
 func borderHit(hwnd, lp uintptr) (uintptr, bool) {
+	if fullOn.Load() {
+		return 0, false
+	}
 	x, y := screenPoint(lp)
 	var rc winRect
 	windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowRect").Call(hwnd, uintptr(unsafe.Pointer(&rc)))
@@ -563,6 +583,10 @@ func calcSize(hwnd, wp, lp uintptr) uintptr {
 	user32.NewProc("DefWindowProcW").Call(hwnd, wmNCCalcSize, wp, lp)
 	fx, fy := frameSize(hwnd)
 	zoomed, _, _ := user32.NewProc("IsZoomed").Call(hwnd)
+	if fullOn.Load() {
+		params.rgrc[0] = window
+		return 0
+	}
 	params.rgrc[0].l = window.l + fx
 	params.rgrc[0].r = window.r - fx
 	params.rgrc[0].b = window.b - fy
@@ -592,6 +616,9 @@ func frameSize(hwnd uintptr) (int32, int32) {
 
 func roundCorners(hwnd uintptr) {
 	pref := int32(dwmRound)
+	if fullOn.Load() {
+		pref = 1 // DWMWCP_DONOTROUND, so the screen corners stay square
+	}
 	dwmAttr(hwnd, dwmwaCorner, unsafe.Pointer(&pref), unsafe.Sizeof(pref))
 	m := margins{top: 1}
 	windows.NewLazySystemDLL("dwmapi.dll").NewProc("DwmExtendFrameIntoClientArea").Call(hwnd, uintptr(unsafe.Pointer(&m)))
@@ -1388,4 +1415,55 @@ func dibBytes(img image.Image) []byte {
 		}
 	}
 	return buf
+}
+
+// Full screen covers the whole monitor, taskbar included, the way F11 does in
+// a browser. The window's old spot is saved and put back exactly on the way out.
+type windowPlacement struct {
+	length  uint32
+	flags   uint32
+	showCmd uint32
+	minPos  struct{ x, y int32 }
+	maxPos  struct{ x, y int32 }
+	normal  winRect
+}
+
+var (
+	fullOn    atomic.Bool
+	fullPlace windowPlacement
+)
+
+func setFullscreen(hwnd uintptr, on bool) {
+	if hwnd == 0 || fullOn.Load() == on {
+		return
+	}
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	if !on {
+		fullOn.Store(false)
+		user32.NewProc("SetWindowPlacement").Call(hwnd, uintptr(unsafe.Pointer(&fullPlace)))
+		user32.NewProc("SetWindowPos").Call(hwnd, 0, 0, 0, 0, 0, 0x0001|0x0002|0x0004|0x0020|0x0200) // NOMOVE NOSIZE NOZORDER FRAMECHANGED NOOWNERZORDER
+		roundCorners(hwnd)
+		return
+	}
+	fullPlace = windowPlacement{}
+	fullPlace.length = uint32(unsafe.Sizeof(fullPlace))
+	user32.NewProc("GetWindowPlacement").Call(hwnd, uintptr(unsafe.Pointer(&fullPlace)))
+	mon, _, _ := user32.NewProc("MonitorFromWindow").Call(hwnd, 2) // MONITOR_DEFAULTTONEAREST
+	info := struct {
+		size    uint32
+		monitor winRect
+		work    winRect
+		flags   uint32
+	}{}
+	info.size = uint32(unsafe.Sizeof(info))
+	if ok, _, _ := user32.NewProc("GetMonitorInfoW").Call(mon, uintptr(unsafe.Pointer(&info))); ok == 0 {
+		return
+	}
+	if zoomed, _, _ := user32.NewProc("IsZoomed").Call(hwnd); zoomed != 0 {
+		user32.NewProc("ShowWindow").Call(hwnd, 9) // SW_RESTORE, so the frame math starts clean
+	}
+	fullOn.Store(true)
+	roundCorners(hwnd)
+	r := info.monitor
+	user32.NewProc("SetWindowPos").Call(hwnd, 0, uintptr(r.l), uintptr(r.t), uintptr(r.r-r.l), uintptr(r.b-r.t), 0x0020|0x0200|0x0040) // FRAMECHANGED NOOWNERZORDER SHOWWINDOW
 }

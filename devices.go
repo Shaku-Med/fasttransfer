@@ -125,6 +125,7 @@ type feedEvent struct {
 	Text   string `json:"text,omitempty"`
 	Count  int    `json:"count,omitempty"`
 	Dest   string `json:"dest,omitempty"`
+	Path   string `json:"path,omitempty"`
 }
 
 type deviceHub struct {

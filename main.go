@@ -93,6 +93,8 @@ func main() {
 	}
 
 	useDeviceFile(filepath.Join(appDir, "devices.json"))
+	useInboxFile(filepath.Join(appDir, "received.json"))
+	useControlFile(filepath.Join(appDir, "control.json"))
 	hub.restoreSaved()
 
 	if err := initSaveRoot(); err != nil {
@@ -104,6 +106,8 @@ func main() {
 		report(err.Error())
 		return
 	}
+	// Documents are optional: if their folder cannot be made the rest of the app still runs.
+	_ = docs.open(filepath.Join(appDir, "docs"))
 	s := &server{key: key, misses: map[string][]time.Time{}, phones: map[string]time.Time{}}
 
 	mux := s.routes()
@@ -137,18 +141,22 @@ func main() {
 		MaxHeaderBytes:    64 << 10,
 	}
 	go func() { _ = srv.Serve(ln) }()
+	extractBundledTools()
 	go hub.run(stopCh)
+	go docs.run(stopCh)
+	go control.run(stopCh)
 	if !waitReady() {
 		report("FastTransfer could not open its page.")
 		return
 	}
 	go func() { _, _ = listSchedules() }()
 	startScheduleClock()
-	runApp("http://127.0.0.1:" + port + "/desk?v=21")
+	runApp("http://127.0.0.1:" + port + "/desk?v=27")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
+	docs.saveDirty()
 }
 
 func (s *server) routes() *http.ServeMux {
@@ -156,17 +164,18 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /{$}", phonePage)
 	mux.HandleFunc("GET /index.html", phonePage)
 	mux.HandleFunc("GET /desk", deskPage)
+	mux.HandleFunc("GET /player", playerPage)
 	mux.HandleFunc("GET /api/health", guardLocal(health))
 	mux.HandleFunc("GET /api/desk", guardLocal(s.deskInfo))
 	mux.HandleFunc("GET /api/dir", guardLocal(s.dirList))
 	mux.HandleFunc("GET /api/file", guardLocal(s.file))
 	mux.HandleFunc("GET /api/thumb", guardLocal(s.thumb))
 	mux.HandleFunc("GET /api/video", guardLocal(s.videoInfo))
-	mux.HandleFunc("GET /api/pdf", guardLocal(s.pdfPage))
-	mux.HandleFunc("GET /desk/pdf", guardLocal(s.pdfPage))
+	mux.HandleFunc("POST /api/pdf/save", guardLocal(s.pdfSave))
 	mux.HandleFunc("GET /api/audio", guardLocal(s.audioInfo))
 	mux.HandleFunc("GET /api/cover", guardLocal(s.audioCover))
 	mux.HandleFunc("GET /api/office", guardLocal(s.officeText))
+	mux.HandleFunc("GET /api/office/doc", guardLocal(s.wordPreview))
 	mux.HandleFunc("GET /api/text", guardLocal(s.readText))
 	mux.HandleFunc("GET /api/zip", guardLocal(s.zipNames))
 	mux.HandleFunc("POST /api/save", guardLocal(s.saveText))
@@ -190,7 +199,19 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/phone/live", s.guard(s.phoneLive))
 	mux.HandleFunc("POST /api/phone/clip", s.guard(s.phoneClip))
 	mux.HandleFunc("POST /api/phone/clip/remove", s.guard(s.phoneClipRemove))
+	mux.HandleFunc("POST /api/phone/social", s.guard(s.phoneSocial))
+	mux.HandleFunc("GET /api/phone/social", s.guard(s.phoneSocialStatus))
 	mux.HandleFunc("GET /api/phone/file", s.guardPhone(s.phoneFile))
+	mux.HandleFunc("POST /api/phone/pdf/save", s.guard(s.phonePDFSave))
+	mux.HandleFunc("POST /api/phone/control/ask", s.guard(s.phoneControlAsk))
+	mux.HandleFunc("POST /api/phone/control/wait", s.guard(s.phoneControlWait))
+	mux.HandleFunc("POST /api/phone/control/input", s.guard(s.phoneControlInput))
+	mux.HandleFunc("GET /api/phone/control/screen", s.guard(s.phoneControlScreen))
+	mux.HandleFunc("GET /api/phone/control/sound", s.guard(s.phoneControlSound))
+	mux.HandleFunc("POST /api/phone/control/end", s.guard(s.phoneControlEnd))
+	mux.HandleFunc("GET /api/desk/control", guardLocal(s.deskControl))
+	mux.HandleFunc("POST /api/desk/control", guardLocal(s.deskControlSet))
+	mux.HandleFunc("POST /api/desk/control/answer", guardLocal(s.deskControlAnswer))
 	mux.HandleFunc("GET /api/desk/devices", guardLocal(s.deskDevices))
 	mux.HandleFunc("GET /api/desk/feed", guardLocal(s.deskFeed))
 	mux.HandleFunc("POST /api/desk/device", guardLocal(s.deskDevice))
@@ -200,6 +221,44 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/desk/clip/remove", guardLocal(s.deskClipRemove))
 	mux.HandleFunc("POST /api/send", guardLocal(s.sendSaved))
 	mux.HandleFunc("POST /api/send-outside", guardLocal(s.sendOutside))
+	mux.HandleFunc("GET /vendor/{path...}", vendorFile)
+	mux.HandleFunc("GET /pdfedit.mjs", asset("web/pdfedit.mjs", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /pdfedit.css", asset("web/pdfedit.css", "text/css; charset=utf-8"))
+	mux.HandleFunc("GET /docs.js", asset("web/docs.js", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /docs.css", asset("web/docs.css", "text/css; charset=utf-8"))
+	mux.HandleFunc("GET /remote.js", asset("web/remote.js", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /remote.css", asset("web/remote.css", "text/css; charset=utf-8"))
+	for _, side := range []struct {
+		prefix string
+		wrap   func(http.HandlerFunc) http.HandlerFunc
+		beacon func(http.HandlerFunc) http.HandlerFunc
+		who    docIdentity
+	}{
+		{"/api/desk/docs", guardLocal, guardLocal, deskIdentity},
+		{"/api/phone/docs", s.guard, s.guardPhone, phoneIdentity},
+	} {
+		mux.HandleFunc("GET "+side.prefix, side.wrap(docsList(side.who)))
+		mux.HandleFunc("POST "+side.prefix+"/new", side.wrap(docsCreate(side.who)))
+		mux.HandleFunc("POST "+side.prefix+"/rename", side.wrap(docsRename(side.who)))
+		mux.HandleFunc("GET "+side.prefix+"/open", side.wrap(docsOpen(side.who)))
+		mux.HandleFunc("POST "+side.prefix+"/edit", side.wrap(docsEdit(side.who)))
+		mux.HandleFunc("GET "+side.prefix+"/events", side.wrap(docsEvents(side.who)))
+		mux.HandleFunc("POST "+side.prefix+"/cursor", side.wrap(docsCursor(side.who)))
+		mux.HandleFunc("POST "+side.prefix+"/leave", side.beacon(docsLeave(side.who)))
+		mux.HandleFunc("GET "+side.prefix+"/export", side.beacon(docsExport(side.who)))
+		mux.HandleFunc("POST "+side.prefix+"/image", side.wrap(docsImage(side.who)))
+	}
+	mux.HandleFunc("GET /docmedia/{doc}/{file}", s.docMedia)
+	mux.HandleFunc("POST /api/desk/docs/delete", guardLocal(docsDelete))
+	mux.HandleFunc("POST /api/desk/docs/save", guardLocal(docsSaveCopy))
+	mux.HandleFunc("POST /api/desk/docs/import", guardLocal(docsImport))
+	mux.HandleFunc("GET /api/inbox", guardLocal(s.inboxList))
+	mux.HandleFunc("POST /api/inbox/seen", guardLocal(s.inboxSeen))
+	mux.HandleFunc("POST /api/inbox/dismiss", guardLocal(s.inboxDismiss))
+	mux.HandleFunc("POST /api/inbox/clear", guardLocal(s.inboxClear))
+	mux.HandleFunc("GET /api/social", guardLocal(s.socialStatus))
+	mux.HandleFunc("POST /api/social", guardLocal(s.socialStart))
+	mux.HandleFunc("POST /api/social/cancel", guardLocal(s.socialCancel))
 	mux.HandleFunc("GET /api/schedule", guardLocal(s.scheduleList))
 	mux.HandleFunc("POST /api/schedule/cancel", guardLocal(s.scheduleCancel))
 	mux.HandleFunc("POST /api/schedule/run", guardLocal(s.scheduleRun))
@@ -359,6 +418,9 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	uploads.finish(up, len(saved))
 	finished = true
+	for _, name := range saved {
+		receiveUpload(up.from, to, name)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":     true,
 		"to":     to,

@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net"
@@ -129,7 +131,7 @@ func health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"app": "fasttransfer"})
 }
 
-func phonePage(w http.ResponseWriter, _ *http.Request) {
+func phonePage(w http.ResponseWriter, r *http.Request) {
 	b, err := webFiles.ReadFile("web/index.html")
 	if err != nil {
 		http.Error(w, "missing page", http.StatusInternalServerError)
@@ -139,10 +141,35 @@ func phonePage(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Accept-CH", "Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version, Sec-CH-UA-Model")
 	w.Header().Set("Permissions-Policy", "ch-ua-platform=(self), ch-ua-platform-version=(self), ch-ua-model=(self)")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; img-src 'self' blob:; media-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; worker-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(b)
+	writeShipped(w, r, "web/index.html", b)
+}
+
+// asset serves a file shipped inside the app. It holds no secrets, so phones
+// load it before they have shown the key. Browsers check back every time
+// with the fingerprint, so a new build is picked up at once and an unchanged
+// file costs one tiny request.
+func asset(name, ctype string) http.HandlerFunc {
+	b, err := webFiles.ReadFile(name)
+	sum := sha256.Sum256(b)
+	etag := `"` + hex.EncodeToString(sum[:8]) + `"`
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("ETag", etag)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", ctype)
+		writeShipped(w, r, name, b)
+	}
 }
 
 func deskPage(w http.ResponseWriter, r *http.Request) {
@@ -157,9 +184,29 @@ func deskPage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self'; font-src 'self' data:; worker-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	_, _ = w.Write(b)
+	writeShipped(w, r, "web/desk.html", b)
+}
+
+// playerPage is the media window the desk opens. Like the desk it only
+// answers this computer.
+func playerPage(w http.ResponseWriter, r *http.Request) {
+	if !allowLocal(r) {
+		http.NotFound(w, r)
+		return
+	}
+	b, err := webFiles.ReadFile("web/player.html")
+	if err != nil {
+		http.Error(w, "missing page", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	writeShipped(w, r, "web/player.html", b)
 }
 
 type phoneLink struct {
@@ -597,6 +644,9 @@ func fileKind(name string, dir bool) string {
 }
 
 func mediaType(ext string) (string, bool) {
+	if ext == ".pdf" {
+		return "application/pdf", true
+	}
 	if ctype, ok := imageTypes[ext]; ok {
 		return ctype, true
 	}

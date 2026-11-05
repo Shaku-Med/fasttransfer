@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="color-scheme" content="light dark" />
   <title>FastTransfer</title>
+  <link rel="stylesheet" href="/vendor/quill/quill.core.css" />
+  <link rel="stylesheet" href="/docs.css?v=2" />
   <script>
     (function () {
       var mode = "system";
@@ -186,16 +188,25 @@
     #btfill { height: 100%; width: 0; background: var(--accent); }
     #sendwhen { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
     #sendat { height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); color: inherit; }
-    #schedbody { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px 24px; }
-    #schedrows { list-style: none; margin: 0; padding: 0; background: var(--menu); border: 1px solid var(--line); border-radius: 8px; }
-    #schedrows:empty { display: none; }
-    #schedrows li { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px 6px 16px; }
-    #schedrows li + li { border-top: 1px solid var(--line); }
-    #schedrows .what { flex: 1; min-width: 0; }
-    #schedrows .what b, #schedrows .what small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #schedrows .what b { font-weight: 500; }
-    #schedrows .what small { margin-top: 1px; color: var(--muted); font-size: 12px; }
-    #schedrows button { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
+    #socialbody { padding: 16px 24px 24px; max-width: 720px; }
+    #socialform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    #socialurl { flex: 1; min-width: 240px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); color: inherit; }
+    #socialline { margin: 12px 0 0; min-height: 1.2em; overflow-wrap: anywhere; }
+    #socialbar { height: 4px; margin: 12px 0 0; border-radius: 2px; background: var(--line); overflow: hidden; }
+    #socialfill { height: 100%; width: 0; background: var(--accent); }
+    #socialhelp { margin: 16px 0 0; }
+    #schedbody, #inboxbody { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px 24px; }
+    #schedrows, #inboxrows { list-style: none; margin: 0; padding: 0; background: var(--menu); border: 1px solid var(--line); border-radius: 8px; }
+    #schedrows:empty, #inboxrows:empty { display: none; }
+    #schedrows li, #inboxrows li { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px 6px 16px; }
+    #schedrows li + li, #inboxrows li + li { border-top: 1px solid var(--line); }
+    #schedrows .what, #inboxrows .what { flex: 1; min-width: 0; }
+    #schedrows .what b, #schedrows .what small, #inboxrows .what b, #inboxrows .what small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #schedrows .what b, #inboxrows .what b { font-weight: 500; }
+    #schedrows .what small, #inboxrows .what small { margin-top: 1px; color: var(--muted); font-size: 12px; }
+    #schedrows button, #inboxrows button { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
+    #inboxrows button:disabled { opacity: 0.45; }
+    .toast.click { cursor: pointer; }
     #btfoot { display: flex; justify-content: flex-end; gap: 8px; }
     #btscan { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
     #btscan:disabled { opacity: 0.6; }
@@ -549,6 +560,8 @@
       font: 13px/1.45 Consolas, "Cascadia Mono", ui-monospace, monospace;
     }
     #veditor { border: 0; resize: none; outline: none; }
+    #vword { flex: 1; min-height: 0; padding-top: 48px; box-sizing: border-box; }
+    #vword .fd-page { width: min(816px, 100%); }
     #vnote { max-width: 640px; padding: 24px; }
     #vnote p { margin: 0 0 16px; }
     #vzip { margin: 0; padding: 16px 16px 16px 32px; width: 100%; box-sizing: border-box; }
@@ -845,6 +858,14 @@
       text-align: center;
     }
     #rail .grow { flex: 1; }
+    #docsview { overflow: hidden; }
+    #pdfhost { position: fixed; top: 40px; right: 0; bottom: 0; left: 0; z-index: 55; }
+    body.docos #pdfhost { top: 0; }
+    body.docfull #rail { display: none; }
+    body.docfull #pane { border-left: 0; border-top-left-radius: 0; }
+    body.docos #header { display: none; }
+    body.docos #pane { border-top: 0; }
+    #docsroot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #pane {
       flex: 1;
       min-width: 0;
@@ -936,12 +957,13 @@
       position: relative;
       display: flex;
       flex-direction: column;
+      min-width: 0;
       height: auto;
       padding: 8px;
       border-radius: 6px;
     }
     #list.grid .row > span:not(.name) { display: none; }
-    #list.grid .row .name { flex-direction: column; gap: 8px; padding: 0; overflow: visible; }
+    #list.grid .row .name { flex-direction: column; gap: 8px; width: 100%; min-width: 0; padding: 0; overflow: hidden; }
     #list.grid .row .name > svg,
     #list.grid .row .thumb {
       width: 100%;
@@ -950,7 +972,20 @@
     }
     #list.grid .row .name > svg { padding: 28px; box-sizing: border-box; background: var(--hover); }
     #list.grid .row.dir .name > svg { color: var(--muted); }
-    #list.grid .row .label { width: 100%; text-align: center; font-size: 12px; white-space: nowrap; }
+    /* Long names wrap to two lines and then trail off, so a tile never grows
+       past its column. */
+    #list.grid .row .label {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      width: 100%;
+      min-height: 32px;
+      line-height: 16px;
+      text-align: center;
+      font-size: 12px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
     #list.grid .row .info { position: absolute; top: 12px; right: 12px; background: var(--menu); opacity: 0; }
     #list.grid .row:hover .info, #list.grid .row.sel .info { opacity: 1; }
     #list.grid #empty { grid-column: 1 / -1; }
@@ -1057,6 +1092,72 @@
     .switch input:checked + .track::after { transform: translateX(20px); background: var(--on-accent); }
     .switch input:focus-visible + .track { outline: 2px solid var(--ink); outline-offset: 2px; }
     .switch .txt { font-size: 12px; color: var(--muted); }
+
+    #ctlcard .switch { border-top: 0; }
+    #ctllist { margin: 0; padding: 0; list-style: none; }
+    #ctllist li { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 8px 6px 16px; border-top: 1px solid var(--line); }
+    #ctllist .what { flex: 1; min-width: 0; }
+    #ctllist .what b, #ctllist .what small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #ctllist .what b { font-weight: 500; }
+    #ctllist .what small { margin-top: 1px; color: var(--muted); font-size: 12px; }
+    #ctllist .live { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--sel); }
+    #ctllist .kept { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--line); }
+    #ctlask {
+      position: fixed;
+      inset: 0;
+      z-index: 65;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.48);
+    }
+    #ctlbox {
+      width: min(400px, 100%);
+      padding: 20px;
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      animation: pop 160ms var(--ease);
+    }
+    #ctlbox .glyph { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; margin-bottom: 12px; border-radius: 8px; background: var(--hover); }
+    #ctlbox .glyph svg { width: 20px; height: 20px; }
+    #ctltitle { margin: 0 0 6px; font: 600 15px/1.35 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; overflow-wrap: anywhere; }
+    #ctlbox p { margin: 0; color: var(--muted); }
+    #ctlbox .always { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer; }
+    #ctlbox .always input { margin: 0; accent-color: var(--accent); }
+    #ctlbox .rowbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    #ctlbox .rowbtns button { height: 32px; min-width: 84px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--menu); }
+    #ctlbox .rowbtns button:hover { background: var(--hover); }
+    #ctlbox #ctlok { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+    #ctlbox #ctlok:hover { filter: brightness(1.08); }
+    #ctlexpire { margin-right: auto; align-self: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    #ctlbanner {
+      position: fixed;
+      top: 4px;
+      left: 50%;
+      z-index: 58;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: min(480px, 50vw);
+      height: 32px;
+      box-sizing: border-box;
+      padding: 0 3px 0 12px;
+      transform: translateX(-50%);
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    #ctlbanner .live { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); animation: ctlbeat 2s var(--ease) infinite; }
+    #ctlwho { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #ctlstop { flex: none; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--hover); font-weight: 600; }
+    #ctlstop:hover { background: var(--press); }
+    @keyframes ctlbeat { 0%, 100% { box-shadow: 0 0 0 0 var(--sel); } 50% { box-shadow: 0 0 0 5px var(--sel); } }
+    @media (prefers-reduced-motion: reduce) { #ctlbanner .live, #ctlbox { animation: none; } }
 
     #connectview .body { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px 24px; }
     #connectgrid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; align-items: start; max-width: 860px; }
@@ -1216,9 +1317,12 @@
     <div id="shell">
       <nav id="rail" aria-label="Pages">
         <button class="navitem on" type="button" data-view="files" title="Files"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 4.2h4l1.2 1.4H14.2V13H1.8V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="lab">Files</span></button>
+        <button class="navitem" type="button" data-view="received" title="Received"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 9.2 4.2 3.8h7.6l2 5.4M2.2 9.2h3.2a2.6 2.6 0 0 0 5.2 0h3.2V13H2.2V9.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="lab">Received</span><span class="badge" id="inboxbadge" hidden></span></button>
         <button class="navitem" type="button" data-view="text" title="Text"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7.5H8.6L5.5 13.4V11h-3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 6.4h6M5 8.6h3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Text</span><span class="badge" id="textbadge" hidden></span></button>
+        <button class="navitem" type="button" data-view="docs" title="Docs"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.8h5.2L12.8 5.4V14H4V1.8zM9 1.8V5.6h3.6M6 8.5h4.5M6 11h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="lab">Docs</span></button>
         <button class="navitem" type="button" data-view="connect" title="Connect"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12.5h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Connect</span><span class="badge" id="phonebadge" hidden></span></button>
         <button class="navitem" type="button" data-view="schedule" title="Scheduled"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lab">Scheduled</span><span class="badge" id="schedbadge" hidden></span></button>
+        <button class="navitem" type="button" data-view="social" title="Social media"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.2v3.6L10.4 8z" fill="currentColor"/></svg><span class="lab">Social media</span></button>
         <span class="grow"></span>
         <button class="navitem" type="button" data-act="folder" title="Save folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 4.2h4l1.2 1.4h6.4v6.8H2.2V4.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 7.6v3M6.5 9.1h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="lab">Save folder</span></button>
       </nav>
@@ -1296,11 +1400,11 @@
           <div class="body">
             <div id="connectgrid">
               <div id="qrcard" class="card">
-                <img id="qr" alt="QR code for the phone link" width="200" height="200" />
+                <img id="qr" alt="QR code for the device link" width="200" height="200" />
                 <div id="ips"></div>
                 <ol class="steps">
                   <li>Open the link in that device's browser</li>
-                  <li>On a phone, the camera can scan the code</li>
+                  <li>On a phone or tablet, the camera can scan the code. On a computer or TV, type the link</li>
                   <li>Add the page to the home screen to keep it handy</li>
                 </ol>
               </div>
@@ -1315,6 +1419,11 @@
                     <button id="changeroot" class="btn" type="button">Change</button>
                   </div>
                 </div>
+                <div class="card" id="ctlcard">
+                  <div class="cardhead"><h2>Remote control</h2><span id="ctlsum" class="sum"></span></div>
+                  <label class="switch"><input id="ctlallow" type="checkbox" /><span class="track"></span><span class="txt" id="ctlline">Phones can ask to use this PC's mouse, keyboard and screen. You allow each one.</span></label>
+                  <ul id="ctllist"></ul>
+                </div>
                 <div class="card">
                   <div class="cardhead"><h2>Devices</h2><span id="phonesum" class="sum"></span></div>
                   <div class="findrow" id="devfindrow" hidden><input id="devq" class="find" type="search" placeholder="Find a device by name" aria-label="Find a device" maxlength="40" autocomplete="off" spellcheck="false" /></div>
@@ -1325,6 +1434,14 @@
           </div>
         </section>
 
+        <section id="receivedview" class="page" hidden>
+          <div class="pagehead"><h1>Received</h1><span class="spacer"></span><button id="inboxclear" class="btn" type="button">Clear</button></div>
+          <p class="lede" id="inboxnote">Files that arrive on this PC show up here.</p>
+          <div id="inboxbody">
+            <ul id="inboxrows"></ul>
+          </div>
+        </section>
+
         <section id="scheduleview" class="page" hidden>
           <div class="pagehead"><h1>Scheduled</h1></div>
           <p class="lede" id="schednote">Nothing is scheduled.</p>
@@ -1332,9 +1449,29 @@
             <ul id="schedrows"></ul>
           </div>
         </section>
+
+        <section id="socialview" class="page" hidden>
+          <div class="pagehead"><h1>Social media</h1></div>
+          <p class="lede" id="socialnote">Paste a public link. The file is kept in Social media, then sent to a connected device.</p>
+          <div id="socialbody">
+            <form id="socialform">
+              <input id="socialurl" type="url" inputmode="url" placeholder="Paste a link" aria-label="Link" maxlength="2000" autocomplete="off" spellcheck="false" />
+              <button id="socialgo" class="btn primary" type="submit">Download</button>
+              <button id="socialcancel" class="btn" type="button" hidden>Cancel</button>
+            </form>
+            <p id="socialline"></p>
+            <div id="socialbar" hidden><div id="socialfill"></div></div>
+            <p class="lede" id="socialhelp">Share this one FastTransfer.exe. The other Windows PC needs WebView2, which comes with Edge. The first launch may extract helper tools.</p>
+          </div>
+        </section>
+
+        <section id="docsview" class="page" hidden>
+          <div id="docsroot"></div>
+        </section>
       </main>
     </div>
   </div>
+  <div id="pdfhost" hidden></div>
   <div id="toasts" aria-live="polite"></div>
   <div id="menu" hidden></div>
   <div id="view" hidden>
@@ -1345,6 +1482,7 @@
       <img id="vimg" alt="" draggable="false" hidden />
       <video id="vvid" hidden></video>
       <pre id="vpre" hidden></pre>
+      <div id="vword" class="fd" hidden><div class="fd-scroll"><div class="fd-page"></div></div></div>
       <textarea id="veditor" hidden spellcheck="false"></textarea>
       <div id="vnote" hidden></div>
       <ul id="vzip" hidden></ul>
@@ -1361,6 +1499,7 @@
       <button id="vnext" class="edge right" type="button" aria-label="Next"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <span id="vtitle"></span>
       <div id="vtools">
+        <button id="vdocs" type="button" title="Edit in Docs" aria-label="Edit in Docs" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.8h6.2L15 6.6V9M10.8 2.8v4h4.2M5 2.8V17.2h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><path d="m14.6 10.6 2 2-4.6 4.6H10v-2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
         <button id="vedit" type="button" title="Edit" aria-label="Edit" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.2 4.2 15.8 7.8 7 16.6H3.4V13L12.2 4.2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
         <button id="vsave" type="button" title="Save" aria-label="Save" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4.5h9.2L16 7.3V15.5H4V4.5zM7 4.5V8h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
         <button id="vcancel" type="button" title="Cancel" aria-label="Cancel" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
@@ -1435,6 +1574,24 @@
       </div>
     </div>
   </div>
+  <div id="ctlask" hidden>
+    <div id="ctlbox" role="alertdialog" aria-modal="true" aria-labelledby="ctltitle" aria-describedby="ctldesc">
+      <div class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 2.5 12 7.3l-3.6.9-1.9 3.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="m8.6 8.6 2.9 3.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <h2 id="ctltitle"></h2>
+      <p id="ctldesc">It will be able to move the mouse, type, see your screen and hear its sound until you stop it. Only allow a phone you know.</p>
+      <label class="always"><input id="ctlalways" type="checkbox" /><span>Always allow this phone</span></label>
+      <div class="rowbtns">
+        <span id="ctlexpire"></span>
+        <button id="ctldeny" type="button">Deny</button>
+        <button id="ctlok" type="button">Allow</button>
+      </div>
+    </div>
+  </div>
+  <div id="ctlbanner" role="status" hidden>
+    <span class="live" aria-hidden="true"></span>
+    <span id="ctlwho"></span>
+    <button id="ctlstop" type="button">Stop</button>
+  </div>
   <div id="ask" hidden>
     <div id="askbox" role="dialog" aria-modal="true">
       <p id="asktext"></p>
@@ -1445,6 +1602,8 @@
       </div>
     </div>
   </div>
+  <script src="/vendor/quill/quill.js"></script>
+  <script src="/docs.js?v=2"></script>
   <script>
     const list = document.getElementById("list");
     const rowsEl = document.getElementById("rows");
@@ -1492,9 +1651,6 @@
     let playRel = "";
     let playGen = 0;
     let playTriedFFmpeg = false;
-    let pdfPage = 1;
-    let pdfPages = 0;
-    let pdfRel = "";
     let seeking = false;
     let seekHold = 0;
     let seekHoldUntil = 0;
@@ -1712,6 +1868,50 @@
       return "/api/thumb?path=" + encodeURIComponent(entry.rel) + "&w=" + size;
     }
 
+    // A PDF tile shows the file icon until it scrolls into view, then pdf.js
+    // draws its first page. Drawn pages are kept for the visit.
+    const pdfTiles = new Map();
+    let pdfTileWatch = null;
+    function pdfTile(entry) {
+      const key = entry.rel + "|" + entry.size + "|" + entry.modified;
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.alt = "";
+      img.draggable = false;
+      if (pdfTiles.has(key)) {
+        img.src = pdfTiles.get(key);
+        return img;
+      }
+      const glyph = fileGlyph(false);
+      if (!pdfTileWatch) {
+        pdfTileWatch = new IntersectionObserver((seen) => seen.forEach((item) => {
+          if (!item.isIntersecting) return;
+          pdfTileWatch.unobserve(item.target);
+          item.target.drawPdf();
+        }), { rootMargin: "200px" });
+      }
+      glyph.drawPdf = async () => {
+        try {
+          const { pdfThumb } = await import("/pdfedit.mjs");
+          let url = pdfTiles.get(key);
+          if (!url) {
+            url = await pdfThumb("/api/file?path=" + encodeURIComponent(entry.rel), 320);
+            pdfTiles.set(key, url);
+            if (pdfTiles.size > 400) {
+              const [oldest, oldURL] = pdfTiles.entries().next().value;
+              pdfTiles.delete(oldest);
+              URL.revokeObjectURL(oldURL);
+            }
+          }
+          if (!glyph.isConnected) return;
+          img.src = url;
+          glyph.replaceWith(img);
+        } catch (err) {}
+      };
+      pdfTileWatch.observe(glyph);
+      return glyph;
+    }
+
     function thumbImg(src, fallback) {
       const img = document.createElement("img");
       img.className = "thumb";
@@ -1734,7 +1934,7 @@
         return thumbImg(thumbURL(entry, px), () => fileGlyph(false));
       }
       if (kind === "video" && (tiles || size)) return thumbImg(thumbURL(entry, px), filmGlyph);
-      if (kind === "pdf" && tiles) return thumbImg("/api/pdf?path=" + encodeURIComponent(entry.rel) + "&page=1&w=320", () => fileGlyph(false));
+      if (kind === "pdf" && tiles) return pdfTile(entry);
       if (kind === "video") return filmGlyph();
       return fileGlyph(!!entry.dir);
     }
@@ -1779,6 +1979,7 @@
         const label = document.createElement("span");
         label.className = "label";
         label.textContent = entry.label;
+        label.title = entry.label;
         const info = document.createElement("button");
         info.type = "button";
         info.className = "info";
@@ -1840,6 +2041,15 @@
         if (id !== loadId) return;
         apply(data);
         updateNav();
+        if (pendingOpen) {
+          const rel = pendingOpen;
+          pendingOpen = "";
+          if (entries.some((entry) => entry.rel === rel)) openPreview(rel);
+        } else if (pendingSelect) {
+          const rel = pendingSelect;
+          pendingSelect = "";
+          if (entries.some((entry) => entry.rel === rel)) selectOnly(rel);
+        }
       } catch (err) {
         if (id !== loadId) return;
         rowsEl.replaceChildren();
@@ -2128,6 +2338,9 @@
       aud.load();
       document.getElementById("vpre").hidden = true;
       document.getElementById("vpre").textContent = "";
+      document.getElementById("vword").hidden = true;
+      document.getElementById("vword").querySelector(".fd-page").replaceChildren();
+      document.getElementById("vdocs").hidden = true;
       document.getElementById("veditor").hidden = true;
       document.getElementById("veditor").value = "";
       document.getElementById("vnote").hidden = true;
@@ -2143,7 +2356,6 @@
       document.getElementById("vline").hidden = true;
       document.getElementById("vextra").textContent = "";
       document.getElementById("vextra").hidden = true;
-      pdfPages = 0;
       document.getElementById("vplayer").hidden = true;
       document.getElementById("ibar").hidden = true;
       document.getElementById("vedit").hidden = true;
@@ -2380,66 +2592,50 @@
       if (pending && pending.catch) pending.catch(() => {});
     }
 
-    function showPDFPage(file, n) {
-      if (n < 1 || n > pdfPages) return;
-      pdfPage = n;
-      resetViewTF();
-      const img = document.getElementById("vimg");
-      img.hidden = false;
-      img.alt = "Page " + n;
-      img.onerror = () => {
-        if (viewKind !== "pdf" || pdfPage !== n) return;
-        img.hidden = true;
-        showNote("This page could not be rendered.");
-      };
-      img.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + n + "&w=" + pdfWidth();
-      document.getElementById("vtitle").textContent = file.label + "   " + n + " / " + pdfPages;
-      document.getElementById("vprev").disabled = n <= 1;
-      document.getElementById("vnext").disabled = n >= pdfPages;
-      const strip = document.getElementById("strip");
-      strip.hidden = false;
-      strip.replaceChildren();
-      const from = Math.max(1, n - 4);
-      const to = Math.min(pdfPages, n + 5);
-      for (let i = from; i <= to; i++) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = i === n ? "on" : "";
-        button.title = "Page " + i;
-        const thumb = document.createElement("img");
-        thumb.alt = "";
-        thumb.draggable = false;
-        thumb.src = "/api/pdf?path=" + encodeURIComponent(pdfRel) + "&page=" + i + "&w=" + Math.round(96 * (window.devicePixelRatio || 1));
-        button.appendChild(thumb);
-        button.addEventListener("click", () => showPDFPage(file, i));
-        strip.appendChild(button);
-      }
-      const on = strip.querySelector(".on");
-      if (on) on.scrollIntoView({ inline: "center", block: "nearest" });
-    }
-
-    async function openPDF(file) {
-      pdfRel = file.rel;
-      pdfPage = 1;
-      pdfPages = 0;
-      let info = null;
-      try { info = await getJSON("/api/pdf?path=" + encodeURIComponent(file.rel)); } catch (err) { info = null; }
+    // Word files show as a formatted read only page, and can be pulled into
+    // Docs to edit with everyone, then saved back to the same file.
+    async function showWord(file) {
+      document.getElementById("vstage").classList.add("paper");
+      let data = null;
+      try { data = await getJSON("/api/office/doc?path=" + encodeURIComponent(file.rel)); } catch (err) { data = null; }
       if (view.hidden || previewRel !== file.rel) return;
-      if (!info || !info.pages) {
-        showNote("This PDF could not be rendered.");
-        showFacts(file);
-        return;
-      }
-      pdfPages = info.pages;
-      showPDFPage(file, 1);
+      if (!data || !window.Quill) { showOffice(file); return; }
+      const box = document.getElementById("vword");
+      const page = box.querySelector(".fd-page");
+      const host = document.createElement("div");
+      host.className = "fd-quill";
+      page.replaceChildren(host);
+      const reader = new Quill(host, { readOnly: true, modules: { toolbar: false } });
+      reader.setContents(data.ops || [], "silent");
+      box.hidden = false;
+      document.getElementById("vdocs").hidden = false;
     }
 
-    function turnPage(delta) {
-      if (viewKind !== "pdf" || !pdfPages) return;
+    async function editInDocs() {
       const files = filesOnly();
       const file = files.find((item) => item.rel === previewRel);
-      if (!file) return;
-      showPDFPage(file, pdfPage + delta);
+      if (!file || !docsUI) return;
+      const button = document.getElementById("vdocs");
+      button.disabled = true;
+      let res = null;
+      try {
+        res = await fetch("/api/desk/docs/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: file.rel }),
+        });
+      } catch (err) { res = null; }
+      button.disabled = false;
+      let data = {};
+      try { data = res ? await res.json() : {}; } catch (err) {}
+      if (!res || !res.ok || !data.id) {
+        toast(data.error || "Could not open it in Docs");
+        return;
+      }
+      closeView();
+      showPage("docs");
+      docsUI.open(data.id);
+      toast("Opened in Docs", "Use File, Save to the Word file to write your changes back.");
     }
 
     async function showOffice(file) {
@@ -2625,11 +2821,6 @@
       if (typeof setCaptionOverlay === "function") setCaptionOverlay(on);
     }
 
-    function pdfWidth() {
-      const px = document.getElementById("vstage").clientWidth * (window.devicePixelRatio || 1);
-      return Math.min(2400, Math.max(800, Math.ceil(px / 400) * 400));
-    }
-
     // Where a picture lands in the stage: contained, and never blown up past its own pixels.
     function fitRect(w, h) {
       const stage = document.getElementById("vstage").getBoundingClientRect();
@@ -2792,6 +2983,15 @@
       if (at < 0) { closeView(); return; }
       const file = files[at];
       selectOnly(file.rel);
+      if (kindOf(file) === "pdf") {
+        if (!view.hidden) closeView();
+        openPdfFile(file);
+        return;
+      }
+      if ((kindOf(file) === "video" || kindOf(file) === "audio") && openPlayer(file)) {
+        if (!view.hidden) closeView();
+        return;
+      }
       clearMedia();
       const kind = kindOf(file);
       viewKind = kind;
@@ -2808,9 +3008,9 @@
       document.getElementById("strip").hidden = solo;
       document.getElementById("vprev").hidden = solo;
       document.getElementById("vnext").hidden = solo;
-      document.getElementById("ibar").hidden = kind !== "image" && kind !== "pdf";
+      document.getElementById("ibar").hidden = kind !== "image";
       if (opening) captionOverlay(true);
-      if (solo || kind === "pdf") document.getElementById("strip").replaceChildren();
+      if (solo) document.getElementById("strip").replaceChildren();
       else renderStrip(files, at);
       if (opening) enterView(kind);
       else nudgeStage(dir);
@@ -2828,8 +3028,8 @@
           showNote("This file is too large to preview.");
           showFacts(file);
         }
-      } else if (kind === "pdf") {
-        openPDF(file);
+      } else if (kind === "office" && /\.docx$/i.test(file.name)) {
+        showWord(file);
       } else if (kind === "office") {
         showOffice(file);
       } else if (kind === "zip") {
@@ -3814,18 +4014,19 @@
       }
     });
 
-    const noteRecv = batcher(1000, (list) => {
-      const count = list.reduce((sum, ev) => sum + (ev.count || 0), 0);
-      const from = names(list.map((ev) => ev.name));
-      const dests = [...new Set(list.map((ev) => ev.dest))];
-      let title;
-      if (list.length === 1 && count === 1) title = (list[0].text || "File") + " saved";
-      else title = count + " files saved";
-      const body = (dests.length === 1 ? "In " + folderName(dests[0]) : "In " + dests.length + " folders") + (from ? ", from " + from : "");
-      toast(title, body, dests.length === 1 ? { label: "Show", run: () => { showPage("files"); go(dests[0], true); } } : null);
-      flash(title + (from ? " from " + from : ""), 6000);
+    const noteRecv = batcher(1000, () => {
       lastSig = "";
       load();
+    });
+
+    const noteInbox = batcher(600, (list) => {
+      loadInbox();
+      if (list.length === 1) {
+        const ev = list[0];
+        toast(ev.text || "Saved", "", { label: "Open", whole: true, run: () => openInboxId(ev.handle) });
+      } else {
+        toast(list.length + " new files", "In Received", { label: "Open", whole: true, run: () => showPage("received") });
+      }
     });
 
     function applyEvent(ev) {
@@ -3865,8 +4066,156 @@
         noteClip(ev);
       } else if (ev.kind === "recv") {
         noteRecv(ev);
+      } else if (ev.kind === "inbox") {
+        noteInbox(ev);
+      } else if (ev.kind === "control-ask" || ev.kind === "control") {
+        loadControl();
+        if (ev.kind === "control" && ev.text === "start" && ev.name) {
+          toast(ev.name + " is controlling this PC", "", { label: "Stop", run: () => stopControl(ev.handle) });
+        }
       }
     }
+
+    // Remote control. A phone's request pops up here and waits for a person.
+    // Deny has the focus, so a stray Enter while typing never lets one in.
+    const ctlAskEl = document.getElementById("ctlask");
+    let ctl = { supported: true, off: false, active: [], asks: [], trusted: [] };
+    let ctlAsk = null;
+    let ctlShownAt = 0;
+    let ctlTick = 0;
+    let ctlLoading = null;
+
+    function loadControl() {
+      if (ctlLoading) return ctlLoading;
+      ctlLoading = fetch("/api/desk/control", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => { if (data) { ctl = data; paintControl(); } })
+        .catch(() => {})
+        .finally(() => { ctlLoading = null; });
+      return ctlLoading;
+    }
+
+    function startedAgo(seconds) {
+      if (seconds < 60) return "started just now";
+      const m = Math.round(seconds / 60);
+      if (m < 60) return "started " + m + " min ago";
+      return "started " + Math.round(m / 60) + " h ago";
+    }
+
+    function paintControl() {
+      const banner = document.getElementById("ctlbanner");
+      const active = ctl.active || [];
+      banner.hidden = !active.length;
+      if (active.length === 1) document.getElementById("ctlwho").textContent = active[0].name + " is in control";
+      else if (active.length > 1) document.getElementById("ctlwho").textContent = active.length + " phones are in control";
+      if (typeof setCaptionBounds === "function") reportCaption();
+
+      const allow = document.getElementById("ctlallow");
+      allow.checked = !ctl.off && ctl.supported;
+      allow.disabled = !ctl.supported;
+      document.getElementById("ctlline").textContent = !ctl.supported
+        ? "Remote control works on Windows PCs for now."
+        : ctl.off
+          ? "Turned off. Phones cannot ask to control this PC."
+          : "Phones can ask to use this PC's mouse, keyboard and screen. You allow each one.";
+      document.getElementById("ctlsum").textContent = active.length ? active.length + " in control" : "";
+
+      const listEl = document.getElementById("ctllist");
+      listEl.textContent = "";
+      const row = (dot, name, note, label, run) => {
+        const li = document.createElement("li");
+        const d = document.createElement("span");
+        d.className = dot;
+        const what = document.createElement("div");
+        what.className = "what";
+        const b = document.createElement("b");
+        b.textContent = name;
+        const small = document.createElement("small");
+        small.textContent = note;
+        what.append(b, small);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn small";
+        btn.textContent = label;
+        btn.addEventListener("click", run);
+        li.append(d, what, btn);
+        listEl.appendChild(li);
+      };
+      active.forEach((a) => row("live", a.name, "In control, " + startedAgo(a.since), "Stop", () => stopControl(a.handle)));
+      (ctl.trusted || []).forEach((t) => row("kept", t.name || "A phone", "Always allowed since " + t.added, "Remove", () => setControl({ forget: t.id })));
+
+      const asks = ctl.asks || [];
+      if (ctlAsk && !asks.some((a) => a.id === ctlAsk.id)) closeControlAsk();
+      if (!ctlAsk && asks.length) openControlAsk(asks[0]);
+    }
+
+    function openControlAsk(a) {
+      ctlAsk = a;
+      ctlShownAt = Date.now();
+      document.getElementById("ctltitle").textContent = a.name + " wants to control this PC";
+      const others = (ctl.active || []).filter((x) => x.handle !== a.handle);
+      document.getElementById("ctldesc").textContent = others.length
+        ? "It can move the mouse, type, see your screen and hear its sound. " + others[0].name + " is already connected, so they take turns; whoever is still gets the controls. Only allow a phone you know."
+        : "It will be able to move the mouse, type, see your screen and hear its sound until you stop it. Only allow a phone you know.";
+      document.getElementById("ctlalways").checked = false;
+      ctlAskEl.hidden = false;
+      document.getElementById("ctldeny").focus();
+      clearInterval(ctlTick);
+      const paintLeft = () => {
+        const left = Math.max(0, 60 - Math.round((Date.now() - ctlShownAt) / 1000));
+        document.getElementById("ctlexpire").textContent = "Closes in " + left + " s";
+        if (!left) loadControl();
+      };
+      paintLeft();
+      ctlTick = setInterval(paintLeft, 1000);
+    }
+
+    function closeControlAsk() {
+      ctlAsk = null;
+      ctlAskEl.hidden = true;
+      clearInterval(ctlTick);
+    }
+
+    async function answerControl(allow) {
+      if (!ctlAsk) return;
+      // A click already on its way when the box appeared is not an answer.
+      if (allow && Date.now() - ctlShownAt < 600) return;
+      const id = ctlAsk.id;
+      const always = document.getElementById("ctlalways").checked;
+      closeControlAsk();
+      try {
+        const res = await fetch("/api/desk/control/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ask: id, allow, always: allow && always }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          flash(data.error || "Could not answer");
+        }
+      } catch (err) {}
+      loadControl();
+    }
+
+    async function setControl(body) {
+      try {
+        const res = await fetch("/api/desk/control", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) { ctl = await res.json(); paintControl(); }
+      } catch (err) {}
+    }
+
+    function stopControl(handle) {
+      return setControl({ stop: handle || "all" });
+    }
+
+    document.getElementById("ctlok").addEventListener("click", () => answerControl(true));
+    document.getElementById("ctldeny").addEventListener("click", () => answerControl(false));
+    document.getElementById("ctlstop").addEventListener("click", () => stopControl((ctl.active || []).length === 1 ? ctl.active[0].handle : "all"));
+    document.getElementById("ctlallow").addEventListener("change", (event) => setControl({ off: !event.target.checked }));
 
     async function listenFeed() {
       for (;;) {
@@ -3966,8 +4315,332 @@
       }
     }
 
+    // Whole-monitor full screen for an open doc. The Windows window covers the
+    // monitor itself; in Chrome on a Mac or Linux the browser does it.
+    let docFull = false;
+    const fullWatchers = [];
+    function setDocFull(on) {
+      on = !!on;
+      if (on === docFull) return;
+      docFull = on;
+      document.body.classList.toggle("docos", on);
+      if (typeof setFullscreen === "function") {
+        if (typeof setCaptionHeld === "function") setCaptionHeld(on);
+        setFullscreen(on);
+        if (!on) requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+      } else if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if (!on && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      fullWatchers.forEach((fn) => fn());
+    }
+
+    // Videos and songs play in their own window, and another file replaces
+    // what is playing instead of opening a second one. On Windows the app
+    // makes that window itself. window.open is a browser popup, and that
+    // popup draws the page address under the title, so it is never used
+    // here. Elsewhere it is the only separate window. The in-page viewer
+    // stays as the fallback if a window can't open.
+    function openPlayer(file) {
+      const folder = file.rel.split("/").slice(0, -1).join("/");
+      const hash = "#" + new URLSearchParams({ play: file.rel, dir: folder, t: String(Date.now()) }).toString();
+      if (typeof showPlayer === "function") {
+        showPlayer(hash, document.documentElement.dataset.theme === "dark");
+        return true;
+      }
+      if (/Windows/i.test(navigator.userAgent || "")) return false;
+      let win = null;
+      try { win = window.open("", "ftplayer", "popup,width=1180,height=720"); } catch (err) { win = null; }
+      if (!win) return false;
+      let blank = true;
+      try { blank = win.location.href === "about:blank"; } catch (err) { blank = true; }
+      if (blank) win.location.replace("/player" + hash);
+      else win.location.hash = hash;
+      win.focus();
+      return true;
+    }
+
+    // PDFs open in their own workspace, full screen like an open doc. Saving
+    // writes over the file or next to it, and the folder view catches up.
+    let pdfEditor = null;
+    async function openPdfFile(file) {
+      if (pdfEditor) {
+        await pdfEditor.close();
+        if (pdfEditor) return;
+      }
+      let mod;
+      try {
+        mod = await import("/pdfedit.mjs");
+      } catch (err) {
+        toast("The PDF tools didn't load");
+        return;
+      }
+      const host = document.getElementById("pdfhost");
+      host.hidden = false;
+      pdfEditor = mod.openPdf({
+        host,
+        name: file.name,
+        url: "/api/file?path=" + encodeURIComponent(file.rel),
+        modes: ["replace", "copy"],
+        save: async (bytes, mode) => {
+          const res = await fetch("/api/pdf/save?path=" + encodeURIComponent(file.rel) + "&mode=" + mode, {
+            method: "POST",
+            headers: { "Content-Type": "application/pdf" },
+            body: bytes,
+          });
+          let data = {};
+          try { data = await res.json(); } catch (err) {}
+          if (res.ok) { lastSig = ""; load(); }
+          return { ok: res.ok, name: data.name, error: data.error };
+        },
+        fullscreen: { get: () => docFull, set: setDocFull, onChange: (fn) => fullWatchers.push(fn) },
+        toast: (text) => toast(text),
+        confirm: (text) => askUser(text, "Close without saving"),
+        onClose: () => {
+          pdfEditor = null;
+          host.hidden = true;
+        },
+      });
+    }
+    document.addEventListener("fullscreenchange", () => {
+      if (!document.fullscreenElement && docFull && typeof setFullscreen !== "function") setDocFull(false);
+    });
+
+    // Docs live in their own module, shared with the device page.
+    const docsUI = window.FTDocs ? window.FTDocs.mount(document.getElementById("docsroot"), {
+      fullscreen: { get: () => docFull, set: setDocFull, onChange: (fn) => fullWatchers.push(fn) },
+      base: "/api/desk/docs",
+      desk: true,
+      toast: (title, body) => toast(title, body),
+      confirm: (text, yes) => askUser(text, yes),
+      onEditor: (on) => document.body.classList.toggle("docfull", on),
+    }) : null;
+
+    let socialPhase = "";
+    let socialWatch = 0;
+
+    function socialTarget() {
+      if (typeof conv !== "undefined" && conv && conv !== "all" && devs.has(conv)) return { all: false, device: conv };
+      return { all: true, device: "" };
+    }
+
+    function stopSocialWatch() {
+      if (socialWatch) clearInterval(socialWatch);
+      socialWatch = 0;
+    }
+
+    function startSocialWatch() {
+      if (socialWatch) return;
+      socialWatch = setInterval(loadSocial, 700);
+    }
+
+    function paintSocial(data) {
+      const note = document.getElementById("socialnote");
+      const line = document.getElementById("socialline");
+      const bar = document.getElementById("socialbar");
+      const fill = document.getElementById("socialfill");
+      const go = document.getElementById("socialgo");
+      const cancel = document.getElementById("socialcancel");
+      if (!note) return;
+      const was = socialPhase;
+      socialPhase = data.phase || "idle";
+      if (!data.yt || !data.ffmpeg) note.textContent = data.hint || "Setting up tools…";
+      else note.textContent = "Paste a public link. The file is kept under Social media, in a folder for that site.";
+      go.disabled = !data.yt || !!data.running;
+      cancel.hidden = !data.running;
+      const pct = Number(data.percent) || 0;
+      if (data.running && pct > 0) {
+        bar.hidden = false;
+        fill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+      } else if (data.phase === "done") {
+        bar.hidden = false;
+        fill.style.width = "100%";
+      } else {
+        bar.hidden = true;
+        fill.style.width = "0%";
+      }
+      line.textContent = data.running ? (data.line || "Starting") : (data.error || data.note || "");
+      if (was === "running" && data.phase === "done") {
+        lastSig = "";
+        load();
+      } else if (was === "running" && data.phase === "error") {
+        toast("Download stopped", data.error || "yt-dlp could not save that.");
+      }
+    }
+
+    async function loadSocial() {
+      try {
+        const res = await fetch("/api/social", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        paintSocial(data);
+        if (page === "social" || data.running) startSocialWatch();
+        else stopSocialWatch();
+      } catch (err) {}
+    }
+
+    async function startSocial(event) {
+      event.preventDefault();
+      const input = document.getElementById("socialurl");
+      const url = input.value.trim();
+      if (!url) return;
+      const target = socialTarget();
+      const res = await fetch("/api/social", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, all: target.all, device: target.device }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        document.getElementById("socialline").textContent = data.error || "That link could not be saved.";
+        return;
+      }
+      paintSocial(data);
+      startSocialWatch();
+    }
+
+    async function cancelSocial() {
+      const res = await fetch("/api/social/cancel", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      paintSocial(data);
+    }
+
+    let inboxItems = [];
+    let pendingOpen = "";
+    let pendingSelect = "";
+    const mediaExt = /\.(mp4|m4v|webm|mkv|mov|avi|mp3|m4a|aac|wav|flac|ogg|opus|wma)$/i;
+
+    function parentRel(rel) {
+      const cut = String(rel || "").lastIndexOf("/");
+      return cut < 0 ? "" : rel.slice(0, cut);
+    }
+
+    function paintInboxBadge(n) {
+      const badge = document.getElementById("inboxbadge");
+      if (!badge) return;
+      badge.hidden = !n;
+      badge.textContent = n > 99 ? "99+" : String(n);
+    }
+
+    function inboxWhen(ms) {
+      const at = Number(ms);
+      if (!at) return "";
+      return new Date(at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+
+    function renderInbox(items) {
+      inboxItems = items || [];
+      const list = document.getElementById("inboxrows");
+      const note = document.getElementById("inboxnote");
+      if (!list || !note) return;
+      list.replaceChildren();
+      if (!inboxItems.length) {
+        note.textContent = "Nothing has arrived yet.";
+        return;
+      }
+      note.textContent = "Files that arrive on this PC show up here, from any page.";
+      inboxItems.forEach((item) => {
+        const li = document.createElement("li");
+        const what = document.createElement("div");
+        what.className = "what";
+        const title = document.createElement("b");
+        title.textContent = item.name || "File";
+        const meta = document.createElement("small");
+        meta.textContent = [item.source, item.folder, inboxWhen(item.time)].filter(Boolean).join(" · ");
+        what.append(title, meta);
+        const open = document.createElement("button");
+        open.type = "button";
+        open.textContent = "Open";
+        open.disabled = !item.rel;
+        open.addEventListener("click", () => openInboxItem(item));
+        const show = document.createElement("button");
+        show.type = "button";
+        show.textContent = "Show";
+        show.disabled = !item.rel;
+        show.addEventListener("click", () => revealInboxItem(item));
+        const dismiss = document.createElement("button");
+        dismiss.type = "button";
+        dismiss.textContent = "Dismiss";
+        dismiss.addEventListener("click", () => dismissInbox(item.id));
+        li.append(what, open, show, dismiss);
+        list.appendChild(li);
+      });
+    }
+
+    async function loadInbox() {
+      try {
+        const data = await getJSON("/api/inbox");
+        renderInbox(data.items || []);
+        paintInboxBadge(page === "received" ? 0 : (data.unseen || 0));
+        if (page === "received" && data.unseen) markInboxSeen();
+      } catch (err) {}
+    }
+
+    async function markInboxSeen() {
+      try {
+        const res = await fetch("/api/inbox/seen", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        renderInbox(data.items || []);
+        paintInboxBadge(0);
+      } catch (err) {}
+    }
+
+    async function dismissInbox(id) {
+      const res = await fetch("/api/inbox/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      renderInbox(data.items || []);
+      paintInboxBadge(page === "received" ? 0 : (data.unseen || 0));
+    }
+
+    async function clearInbox() {
+      const res = await fetch("/api/inbox/clear", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      renderInbox(data.items || []);
+      paintInboxBadge(0);
+    }
+
+    async function openInboxId(id) {
+      let item = inboxItems.find((row) => row.id === id);
+      if (!item) {
+        try {
+          const data = await getJSON("/api/inbox");
+          renderInbox(data.items || []);
+          item = inboxItems.find((row) => row.id === id);
+        } catch (err) {}
+      }
+      if (item) openInboxItem(item);
+      else showPage("received");
+    }
+
+    function openInboxItem(item) {
+      if (!item || !item.rel) { showPage("received"); return; }
+      const name = item.name || item.rel.split("/").pop();
+      if (mediaExt.test(name) && openPlayer({ rel: item.rel, name })) return;
+      pendingOpen = item.rel;
+      showPage("files");
+      const folder = parentRel(item.rel);
+      if (current() === folder) load();
+      else go(folder, true);
+    }
+
+    function revealInboxItem(item) {
+      if (!item || !item.rel) return;
+      pendingSelect = item.rel;
+      showPage("files");
+      const folder = parentRel(item.rel);
+      if (current() === folder) load();
+      else go(folder, true);
+    }
+
     function showPage(name) {
-      if (name !== "files" && name !== "text" && name !== "connect" && name !== "schedule") name = "files";
+      if (!["files", "received", "text", "docs", "connect", "schedule", "social"].includes(name)) name = "files";
       hideMenu();
       document.getElementById("moremenu").hidden = true;
       if (name === page) return;
@@ -3979,11 +4652,23 @@
         else item.removeAttribute("aria-current");
       });
       document.getElementById("filesview").hidden = name !== "files";
+      document.getElementById("receivedview").hidden = name !== "received";
       document.getElementById("textview").hidden = name !== "text";
       document.getElementById("connectview").hidden = name !== "connect";
       document.getElementById("scheduleview").hidden = name !== "schedule";
+      document.getElementById("docsview").hidden = name !== "docs";
+      document.getElementById("socialview").hidden = name !== "social";
+      if (name === "received") markInboxSeen();
+      if (docsUI) {
+        if (name === "docs") docsUI.show();
+        else docsUI.hide();
+        document.body.classList.toggle("docfull", name === "docs" && docsUI.editing());
+        if (name !== "docs") setDocFull(false);
+      }
       if (name === "schedule") watchSchedules();
       else stopSchedules();
+      if (name === "social") loadSocial();
+      else if (socialPhase !== "running") stopSocialWatch();
       if (name === "files") list.focus();
       if (name === "connect") loadPhone();
       if (name === "text") {
@@ -3998,7 +4683,7 @@
       const box = document.getElementById("toasts");
       while (box.children.length >= 3) box.firstElementChild.remove();
       const el = document.createElement("div");
-      el.className = "toast";
+      el.className = "toast" + (action && action.whole ? " click" : "");
       el.setAttribute("role", "status");
       const text = document.createElement("div");
       text.className = "tbody";
@@ -4033,15 +4718,22 @@
         el.classList.add("out");
         setTimeout(() => el.remove(), 180);
       }
-      x.addEventListener("click", dismiss);
+      x.addEventListener("click", (event) => { event.stopPropagation(); dismiss(); });
+      if (action && action.whole) {
+        el.addEventListener("click", (event) => {
+          if (event.target.closest(".tx, .tact")) return;
+          action.run();
+          dismiss();
+        });
+      }
       let timer = setTimeout(dismiss, 6000);
       el.addEventListener("mouseenter", () => clearTimeout(timer));
       el.addEventListener("mouseleave", () => { timer = setTimeout(dismiss, 2500); });
       box.appendChild(el);
     }
 
-    // Live text. Every phone has its own pad with this PC, and Everyone is a
-    // compose box whose clips land on every phone. The window keeps one tab
+    // Live text. Every device has its own pad with this PC, and Everyone is a
+    // compose box whose clips land on every device. The window keeps one tab
     // token so it can skip the echo of its own typing.
     const livePad = document.getElementById("livepad");
     const liveState = document.getElementById("livestate");
@@ -4367,6 +5059,9 @@
       autoCopy = event.target.checked;
       try { localStorage.setItem("ft-autocopy", autoCopy ? "1" : "0"); } catch (err) {}
     });
+    document.getElementById("inboxclear").addEventListener("click", clearInbox);
+    document.getElementById("socialform").addEventListener("submit", startSocial);
+    document.getElementById("socialcancel").addEventListener("click", cancelSocial);
     document.querySelectorAll("#rail .navitem").forEach((item) => {
       item.addEventListener("click", () => {
         if (item.dataset.act === "folder") chooseSaveFolder();
@@ -4477,6 +5172,7 @@
       if (typeof setCaptionBounds !== "function") return;
       const controls = [];
       header.querySelectorAll("button, select, input").forEach((el) => controls.push(captionBox(el)));
+      if (!document.getElementById("ctlbanner").hidden) controls.push(captionBox(document.getElementById("ctlbanner")));
       setCaptionBounds(
         captionBox(document.getElementById("wmax")),
         captionBox(document.getElementById("wmin")),
@@ -4528,7 +5224,7 @@
     document.getElementById("flipv").addEventListener("click", () => { viewTF.fy *= -1; applyViewTF(); });
     document.getElementById("zreset").addEventListener("click", resetViewTF);
     document.getElementById("vimg").addEventListener("dblclick", (event) => {
-      if (viewKind !== "image" && viewKind !== "pdf") return;
+      if (viewKind !== "image") return;
       event.preventDefault();
       const img = event.currentTarget;
       const actual = img.offsetWidth > 0 ? img.naturalWidth / img.offsetWidth : 1;
@@ -4538,7 +5234,7 @@
     });
     const stage = document.getElementById("vstage");
     stage.addEventListener("wheel", (event) => {
-      if (view.hidden || (viewKind !== "image" && viewKind !== "pdf")) return;
+      if (view.hidden || viewKind !== "image") return;
       event.preventDefault();
       zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.12 : 1 / 1.12);
     }, { passive: false });
@@ -4551,12 +5247,12 @@
       return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
     }
     function gestureBlocked(target) {
-      return !!(target.closest && target.closest("#vplayer, #ibar, #strip, .edge, #vclose, #vdrag, #vtools, #vpre, #veditor, #vnote, #vzip"));
+      return !!(target.closest && target.closest("#vplayer, #ibar, #strip, .edge, #vclose, #vdrag, #vtools, #vpre, #vword, #veditor, #vnote, #vzip"));
     }
     stage.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || view.hidden) return;
       fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (fingers.size >= 2 && (viewKind === "image" || viewKind === "pdf")) {
+      if (fingers.size >= 2 && viewKind === "image") {
         gesture = { mode: "pinch", dist: pinchDist() };
         return;
       }
@@ -4567,7 +5263,7 @@
     stage.addEventListener("pointermove", (event) => {
       if (!fingers.has(event.pointerId)) return;
       fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (gesture && gesture.mode === "pinch" && fingers.size >= 2 && (viewKind === "image" || viewKind === "pdf")) {
+      if (gesture && gesture.mode === "pinch" && fingers.size >= 2 && viewKind === "image") {
         const dist = pinchDist();
         if (gesture.dist > 0 && dist > 0) {
           const pts = [...fingers.values()];
@@ -4581,9 +5277,9 @@
       const dy = event.clientY - gesture.y0;
       if (!gesture.mode) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        if ((viewKind === "image" || viewKind === "pdf") && viewTF.z > 1.01) gesture.mode = "pan";
+        if (viewKind === "image" && viewTF.z > 1.01) gesture.mode = "pan";
         else if (Math.abs(dx) > Math.abs(dy) * 1.15) gesture.mode = viewKind === "video" || viewKind === "audio" ? "none" : "swipe";
-        else if (dy > 0 && (viewKind === "image" || viewKind === "video" || viewKind === "pdf")) gesture.mode = "dismiss";
+        else if (dy > 0 && (viewKind === "image" || viewKind === "video")) gesture.mode = "dismiss";
         else gesture.mode = "none";
       }
       if (gesture.mode === "pan") {
@@ -4625,8 +5321,7 @@
           setTimeout(() => { if (!closingView) { view.style.transition = "none"; vback.style.transition = ""; } }, 240);
         }
       } else if (mode === "swipe" && Math.abs(dx) > 72 && Math.abs(dx) > Math.abs(dy)) {
-        if (viewKind === "pdf") turnPage(dx < 0 ? 1 : -1);
-        else step(dx < 0 ? 1 : -1);
+        step(dx < 0 ? 1 : -1);
       }
     }
     stage.addEventListener("pointerup", endGesture);
@@ -4641,9 +5336,10 @@
     document.getElementById("wclose").addEventListener("click", () => { if (typeof windowClose === "function") windowClose(); });
     view.addEventListener("mousedown", (event) => { if (event.target === view) maybeCloseView(); });
     document.getElementById("vclose").addEventListener("click", maybeCloseView);
-    document.getElementById("vprev").addEventListener("click", () => { if (viewKind === "pdf") turnPage(-1); else step(-1); });
-    document.getElementById("vnext").addEventListener("click", () => { if (viewKind === "pdf") turnPage(1); else step(1); });
+    document.getElementById("vprev").addEventListener("click", () => step(-1));
+    document.getElementById("vnext").addEventListener("click", () => step(1));
     document.getElementById("vedit").addEventListener("click", startEdit);
+    document.getElementById("vdocs").addEventListener("click", editInDocs);
     document.getElementById("vcancel").addEventListener("click", cancelEdit);
     document.getElementById("vsave").addEventListener("click", saveEdit);
     document.getElementById("iclose").addEventListener("click", closeInfo);
@@ -4658,7 +5354,8 @@
     ask.addEventListener("mousedown", (event) => { if (event.target === ask) finishAsk(false); });
 
     document.addEventListener("contextmenu", (event) => {
-      if (view.hidden && event.target.closest && event.target.closest("#livepad, #q, #iname")) { hideMenu(); return; }
+      if (!window.__ftDebug) event.preventDefault();
+      if (view.hidden && event.target.closest && event.target.closest("#livepad, #q, #iname, #docsview")) { hideMenu(); return; }
       event.preventDefault();
       if (!infoscrim.hidden || !ask.hidden || !document.getElementById("sendsrim").hidden || !document.getElementById("scanscrim").hidden) { hideMenu(); return; }
       if (!view.hidden) {
@@ -4675,12 +5372,37 @@
       const moremenu = document.getElementById("moremenu");
       if (!moremenu.hidden && !moremenu.contains(event.target) && event.target.id !== "more" && !event.target.closest("#more")) moremenu.hidden = true;
     });
+    // Browser shortcuts. DevTools and view-source are swallowed. F5 and
+    // Ctrl+R are stopped here so the page does not reload; the file list
+    // still refreshes from the handler below, and Ctrl+R in the picture
+    // viewer still rotates. Copy, paste, and select-all stay.
+    function eatBrowserChrome(event) {
+      if (window.__ftDebug) return false;
+      const key = event.key;
+      const ctrl = event.ctrlKey || event.metaKey;
+      const alt = event.altKey;
+      if (key === "F12" || (ctrl && event.shiftKey && !alt && /^[ijc]$/i.test(key)) || (ctrl && !event.shiftKey && !alt && /^u$/i.test(key))) {
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+      }
+      if (key === "F5" || (ctrl && /^r$/i.test(key) && !alt)) {
+        event.preventDefault();
+      }
+      return false;
+    }
     document.addEventListener("keydown", (event) => {
-      const typing = event.target.closest && event.target.closest("textarea, input, select");
+      if (eatBrowserChrome(event)) return;
+      const typing = event.target.closest && event.target.closest("textarea, input, select, [contenteditable=true]");
+      if (!ctlAskEl.hidden) {
+        if (event.key === "Escape") answerControl(false);
+        return;
+      }
       if (!ask.hidden) {
         if (event.key === "Escape") finishAsk(false);
         return;
       }
+      if (pdfEditor) return;
       if (event.key === "Escape") {
         const moremenu = document.getElementById("moremenu");
         if (!moremenu.hidden) { moremenu.hidden = true; return; }
@@ -4689,18 +5411,18 @@
         if (!menu.hidden) { hideMenu(); return; }
         if (!infoscrim.hidden) { closeInfo(); return; }
         if (!view.hidden) { maybeCloseView(); return; }
-        if (page !== "files" && !typing) { showPage("files"); return; }
+        if (page !== "files" && !typing && !(page === "docs" && docsUI && docsUI.editing())) { showPage("files"); return; }
         return;
       }
-      if (event.ctrlKey && !event.shiftKey && !event.altKey && /^[1234]$/.test(event.key) && view.hidden && infoscrim.hidden) {
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && /^[1-7]$/.test(event.key) && view.hidden && infoscrim.hidden) {
         event.preventDefault();
-        showPage(["files", "text", "connect", "schedule"][Number(event.key) - 1]);
+        showPage(["files", "received", "text", "docs", "connect", "schedule", "social"][Number(event.key) - 1]);
         return;
       }
       if (!menu.hidden || !infoscrim.hidden || !ask.hidden || !document.getElementById("sendsrim").hidden || !document.getElementById("scanscrim").hidden || !document.getElementById("moremenu").hidden) return;
       if (!view.hidden) {
         if (typing) return;
-        if ((viewKind === "image" || viewKind === "pdf") && !editing) {
+        if (viewKind === "image" && !editing) {
           const k = event.key;
           if (event.ctrlKey && (k === "+" || k === "=" || event.code === "NumpadAdd")) { event.preventDefault(); zoomBy(1.25); return; }
           if (event.ctrlKey && (k === "-" || k === "_" || event.code === "NumpadSubtract")) { event.preventDefault(); zoomBy(1 / 1.25); return; }
@@ -4714,15 +5436,13 @@
           if (media.paused) media.play(); else media.pause();
           return;
         }
-        if (viewKind === "pdf" && event.key === "ArrowLeft") { event.preventDefault(); turnPage(-1); return; }
-        if (viewKind === "pdf" && event.key === "ArrowRight") { event.preventDefault(); turnPage(1); return; }
         if (viewKind !== "video" && viewKind !== "audio" && event.key === "ArrowLeft") { event.preventDefault(); step(-1); }
         if (viewKind !== "video" && viewKind !== "audio" && event.key === "ArrowRight") { event.preventDefault(); step(1); }
         return;
       }
       if (page !== "files") return;
       if (event.ctrlKey && (event.key === "f" || event.key === "F")) { event.preventDefault(); qInput.focus(); qInput.select(); return; }
-      if (event.key === "F5") { event.preventDefault(); lastSig = ""; load(); return; }
+      if (event.key === "F5" || (event.ctrlKey && !event.shiftKey && !event.altKey && (event.key === "r" || event.key === "R"))) { event.preventDefault(); lastSig = ""; load(); return; }
       if (typing) return;
       if (event.ctrlKey && (event.key === "a" || event.key === "A")) {
         event.preventDefault();
@@ -4770,6 +5490,8 @@
     renderDevices();
     paintConvHead();
     listenFeed();
+    loadControl();
+    loadInbox();
     loadSchedules();
     watchConv();
 

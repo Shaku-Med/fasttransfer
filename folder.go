@@ -40,6 +40,9 @@ func initSaveRoot() error {
 		}
 	}
 	def := defaultSaveRoot()
+	if err := os.MkdirAll(def, 0o755); err != nil {
+		return err
+	}
 	if err := ensureSaveDirs(def); err != nil {
 		return err
 	}

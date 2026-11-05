@@ -1,4 +1,5 @@
 uploads/
+tools/
 tmp/
 webview/
 *.exe
@@ -10,9 +11,13 @@ save-folder.txt
 save-folder.txt.tmp
 devices.json
 devices.json.tmp
+received.json
+received.json.tmp
 schedules/
 
 receive-check.bin
 *-check.bin
 *-check.txt
 ft-probe.*
+docs/
+control.json

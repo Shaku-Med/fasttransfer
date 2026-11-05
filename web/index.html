@@ -11,6 +11,9 @@
   <meta name="theme-color" content="#f3f3f3" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#1c1c1c" media="(prefers-color-scheme: dark)" />
   <title>FastTransfer</title>
+  <link rel="stylesheet" href="/vendor/quill/quill.core.css" />
+  <link rel="stylesheet" href="/docs.css?v=2" />
+  <link rel="stylesheet" href="/remote.css?v=1" />
   <style>
     [hidden] { display: none !important; }
     :root {
@@ -334,6 +337,9 @@
     #livepad::placeholder { color: var(--muted); }
     .cardfoot { display: flex; align-items: center; gap: 4px; padding: 8px; border-top: 1px solid var(--line); }
     .cardfoot .grow { flex: 1; }
+    .socialcard { display: flex; gap: 8px; align-items: center; padding: 8px; }
+    #socialurl { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); font-size: 16px; }
+    #socialstatus { overflow-wrap: anywhere; }
     #clips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
     #clips .empty { color: var(--muted); font-size: 15px; padding: 4px 0; }
     .clip { padding: 12px 8px 8px 14px; animation: enter 200ms var(--ease); }
@@ -362,6 +368,17 @@
     .crumb { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
     .crumb p { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+    /* An open doc takes the whole browser: no page header, no tab bar, no
+       narrow column. The editor brings its own top bar. */
+    body.docediting .tabs, body.docediting .top, body.docediting #nokey { display: none !important; }
+    body.docediting main { max-width: none; padding: 0; }
+    body.pdfopen { overflow: hidden; }
+    body.pdfopen #toast { z-index: 100; }
+    body.docediting #p-docs { height: 100vh; height: 100dvh; display: flex; flex-direction: column; animation: none; }
+    body.docediting #docsroot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    body.docediting #p-docs .fd { height: 100%; }
+    body.docediting #p-docs .fd-edit { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #p-docs .fd { height: auto; }
     .tabs {
       position: fixed;
       left: 0;
@@ -391,7 +408,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 56px;
+      width: 48px;
       height: 30px;
       border-radius: 15px;
       transition: background 167ms var(--ease);
@@ -485,6 +502,16 @@
       </form>
     </section>
 
+    <section id="p-received" class="page" hidden>
+      <h1>Received</h1>
+      <p class="lede">Files sent to this device. Nothing downloads until you tap Save.</p>
+      <div id="inboxwrap">
+        <div class="subhead"><h2>For this device</h2><button class="btn quiet small" type="button" id="clearinbox">Clear list</button></div>
+        <ul class="rows card" id="incoming"></ul>
+        <p class="status" id="inboxempty">Nothing new yet.</p>
+      </div>
+    </section>
+
     <section id="p-text" class="page" hidden>
       <div class="headrow">
         <h1>Text</h1>
@@ -501,13 +528,24 @@
           <button class="btn primary small" id="padclip" type="button">Save as clip</button>
         </div>
       </div>
+      <h2>Social media</h2>
+      <p class="lede">Paste a link. This PC saves it under Social media.</p>
+      <form id="socialform" class="card socialcard">
+        <input id="socialurl" type="url" inputmode="url" maxlength="2000" placeholder="Paste a link" aria-label="Link" autocomplete="off" spellcheck="false" />
+        <button class="btn primary" id="socialgo" type="submit">Download</button>
+      </form>
+      <p class="status" id="socialstatus" role="status"></p>
       <h2>Clips</h2>
       <ul id="clips"></ul>
     </section>
 
+    <section id="p-docs" class="page" hidden>
+      <div id="docsroot"></div>
+    </section>
+
     <section id="p-pc" class="page" hidden>
       <h1>From the PC</h1>
-      <p class="lede">Files the PC sends show up here first. You can also open any folder on it.</p>
+      <p class="lede">Files sent to this device are in Received. You can also open any folder on the PC.</p>
       <div class="card me">
         <div class="namerow" id="namerow">
           <div class="what"><span>The PC sees this device as</span><b id="myname"></b></div>
@@ -519,10 +557,6 @@
           <button class="btn quiet small" type="button" id="namecancel">Cancel</button>
         </form>
       </div>
-      <div id="inboxwrap" hidden>
-        <div class="subhead"><h2>Sent to this device</h2><button class="btn quiet small" type="button" id="clearinbox">Clear list</button></div>
-        <ul class="rows card" id="incoming"></ul>
-      </div>
       <h2>Browse</h2>
       <div class="crumb">
         <button class="btn small" type="button" id="pcback" hidden>Back</button>
@@ -532,12 +566,19 @@
       <ul class="rows card" id="pclist"></ul>
       <p class="status" id="pcstatus" role="status"></p>
     </section>
+
+    <section id="p-remote" class="page" hidden>
+      <div id="remoteroot"></div>
+    </section>
   </main>
 
   <nav class="tabs" aria-label="Pages">
     <button type="button" data-page="send" class="on"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3.5M6 7.5l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 12v3.5c0 .6.4 1 1 1h11c.6 0 1-.4 1-1V12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Send</button>
+    <button type="button" data-page="received"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 11.2 5.2 5h9.6L17 11.2M3 11.2h4a3 3 0 0 0 6 0h4V16H3v-4.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>Received<span class="badge" id="recvbadge" hidden></span></button>
     <button type="button" data-page="text"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14v9.5h-7.2L6 17v-3H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.5 8h7M6.5 10.8h4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Text<span class="badge" id="textbadge" hidden></span></button>
+    <button type="button" data-page="docs"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5h6.5L15.5 6.5V17.5H5zM11.5 2.5v4h4M7.5 10.5h5M7.5 13.5h3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></span>Docs</button>
     <button type="button" data-page="pc"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 16.5h6M10 13.5v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>PC<span class="badge" id="pcbadge" hidden></span></button>
+    <button type="button" data-page="remote"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3.5 15 9.2l-4.3 1.1L8.4 14.6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m11 10.6 3.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Remote</button>
   </nav>
   <div id="viewer" hidden>
     <div id="viewcard" role="dialog" aria-modal="true" aria-labelledby="viewtitle">
@@ -553,6 +594,9 @@
   </div>
   <div id="toast" role="status" hidden></div>
 
+  <script src="/vendor/quill/quill.js" defer></script>
+  <script src="/docs.js?v=2" defer></script>
+  <script src="/remote.js?v=1" defer></script>
   <script>
     const KEY_STORE = "fasttransfer-key";
     const $ = (id) => document.getElementById(id);
@@ -630,8 +674,10 @@
     }
 
     let page = "send";
+    let docsUI = null;
+    let remoteUI = null;
     function showPage(name) {
-      if (name !== "send" && name !== "text" && name !== "pc") name = "send";
+      if (!["send", "received", "text", "docs", "pc", "remote"].includes(name)) name = "send";
       page = name;
       document.querySelectorAll(".tabs button").forEach((b) => {
         const on = b.dataset.page === name;
@@ -640,24 +686,38 @@
         else b.removeAttribute("aria-current");
       });
       $("p-send").hidden = name !== "send";
+      $("p-received").hidden = name !== "received";
       $("p-text").hidden = name !== "text";
       $("p-pc").hidden = name !== "pc";
+      $("p-docs").hidden = name !== "docs";
+      $("p-remote").hidden = name !== "remote";
+      if (docsUI) {
+        if (name === "docs") docsUI.show();
+        else docsUI.hide();
+      }
+      if (remoteUI) {
+        if (name === "remote") remoteUI.show();
+        else remoteUI.hide();
+      }
       try { localStorage.setItem("ft-page", name); } catch (err) {}
-      if (name === "text") { textUnread = 0; paintBadges(); }
-      if (name === "pc") { pcUnread = 0; paintBadges(); }
+      if (name === "text") { textUnread = 0; paintBadges(); pollSocial(); }
+      if (name === "received") { recvUnread = 0; paintBadges(); }
+      if (name === "pc") paintBadges();
       window.scrollTo(0, 0);
     }
     document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showPage(b.dataset.page)));
 
     let textUnread = 0;
-    let pcUnread = 0;
+    let recvUnread = 0;
     function paintBadges() {
       const t = $("textbadge");
       t.hidden = !textUnread;
       t.textContent = textUnread > 9 ? "9+" : String(textUnread);
+      const r = $("recvbadge");
+      r.hidden = !recvUnread;
+      r.textContent = recvUnread > 9 ? "9+" : String(recvUnread);
       const p = $("pcbadge");
-      p.hidden = !pcUnread;
-      p.textContent = pcUnread > 9 ? "9+" : String(pcUnread);
+      if (p) { p.hidden = true; p.textContent = ""; }
     }
 
     let picked = [];
@@ -1060,6 +1120,64 @@
       } else restLive();
     }
 
+    let socialWatch = 0;
+    let socialNoted = "";
+
+    function paintPhoneSocial(data) {
+      const el = $("socialstatus");
+      const go = $("socialgo");
+      if (!el || !go) return;
+      if (!data.yt) {
+        el.textContent = data.hint || "Setting up tools…";
+        go.disabled = true;
+        return;
+      }
+      go.disabled = !!data.running;
+      if (data.running) {
+        const pct = Number(data.percent) || 0;
+        const line = data.line || "Starting";
+        el.textContent = pct > 0 ? Math.round(pct) + "% " + line : line;
+        if (!socialWatch) socialWatch = setInterval(pollSocial, 700);
+        return;
+      }
+      if (socialWatch) { clearInterval(socialWatch); socialWatch = 0; }
+      const note = data.error || data.note || "";
+      el.textContent = note;
+      if (note && note !== socialNoted && /sent to/i.test(note)) {
+        socialNoted = note;
+        toast("Saved. It's in Received.");
+      } else if (!data.error) {
+        socialNoted = note;
+      }
+    }
+
+    async function pollSocial() {
+      if (!key || !session) return;
+      try {
+        const res = await fetch("/api/phone/social?session=" + encodeURIComponent(session), { headers: { "X-Transfer-Key": key }, cache: "no-store" });
+        if (!res.ok) return;
+        paintPhoneSocial(await res.json());
+      } catch (err) {}
+    }
+
+    async function sendSocial(event) {
+      event.preventDefault();
+      const url = $("socialurl").value.trim();
+      if (!url) return;
+      if (!session) { $("socialstatus").textContent = "This device is not connected."; return; }
+      try {
+        const res = await fetch("/api/phone/social", { method: "POST", headers: head(), body: JSON.stringify({ session, url }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          $("socialstatus").textContent = data.error || "That link could not be saved.";
+          return;
+        }
+        paintPhoneSocial(data);
+      } catch (err) {
+        $("socialstatus").textContent = "That link could not be saved.";
+      }
+    }
+
     async function saveClip() {
       const text = livePad.value.slice(0, 16384);
       if (!text.trim()) { toast("Type something first"); return; }
@@ -1080,6 +1198,7 @@
       }
     }
 
+    $("socialform").addEventListener("submit", sendSocial);
     livePad.addEventListener("input", () => { growPad(); pushLive(); });
     $("padclip").addEventListener("click", saveClip);
     $("padcopy").addEventListener("click", () => { if (livePad.value) copyAndSay(livePad.value); });
@@ -1175,6 +1294,7 @@
       paintName();
       setLink("on", "Connected");
       if (liveDirty) pushLive();
+      pollSocial();
     }
 
     function fileViewKind(name) {
@@ -1201,6 +1321,10 @@
     }
 
     async function openFileView(file) {
+      if (/\.pdf$/i.test(file.name || "")) {
+        openPdfView(file.name, "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id) + "&view=1", "");
+        return;
+      }
       const kind = fileViewKind(file.name);
       closeFileView();
       $("viewtitle").textContent = file.name || "File";
@@ -1237,7 +1361,8 @@
     }
 
     function renderInbox(files) {
-      $("inboxwrap").hidden = !files.length;
+      const empty = $("inboxempty");
+      if (empty) empty.hidden = files.length > 0;
       let fresh = 0;
       const keep = new Set(files.map((f) => f.id));
       incoming.querySelectorAll("li[data-id]").forEach((li) => { if (!keep.has(li.dataset.id)) li.remove(); });
@@ -1288,11 +1413,11 @@
       }
       const fresh = renderInbox(mail.files || []);
       if (fresh && !firstMail) {
-        toast(fresh === 1 ? "The PC sent you a file" : "The PC sent you " + fresh + " files");
+        toast(fresh === 1 ? "New file in Received" : fresh + " new files in Received");
         if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
-        if (page !== "pc") { pcUnread += fresh; paintBadges(); }
-      } else if (fresh && firstMail && page !== "pc") {
-        pcUnread += fresh;
+        if (page !== "received") { recvUnread += fresh; paintBadges(); }
+      } else if (fresh && firstMail && page !== "received") {
+        recvUnread += fresh;
         paintBadges();
       }
       firstMail = false;
@@ -1465,6 +1590,12 @@
           row.href = "/api/get?path=" + encodeURIComponent(entry.rel);
           row.download = entry.name;
           row.append(extBadge(entry.name), what);
+          if (/\.pdf$/i.test(entry.name)) {
+            row.addEventListener("click", (event) => {
+              event.preventDefault();
+              openPdfView(entry.name, "/api/get?path=" + encodeURIComponent(entry.rel), entry.rel);
+            });
+          }
         }
         row.className = "row";
         li.appendChild(row);
@@ -1486,6 +1617,113 @@
       if (last) showPage(last);
     } catch (err) {}
 
+    // Browser full screen for an open doc or PDF. iPhone Safari only allows it
+    // for video, so there the editor just fills the browser window.
+    const fullWatchers = [];
+    const webFullscreen = {
+      get: () => !!document.fullscreenElement,
+      set: (on) => {
+        const root = document.documentElement;
+        if (on && !document.fullscreenElement && root.requestFullscreen) root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+        else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      },
+      onChange: (fn) => fullWatchers.push(fn),
+      supported: !!document.documentElement.requestFullscreen,
+    };
+    document.addEventListener("fullscreenchange", () => fullWatchers.forEach((fn) => fn()));
+
+    // PDFs open in the same workspace as on the computer. A save from here
+    // lands next to the original as a copy, never over it.
+    let pdfEditor = null;
+    async function openPdfView(name, url, rel) {
+      if (pdfEditor) {
+        await pdfEditor.close();
+        if (pdfEditor) return;
+      }
+      let mod;
+      try {
+        mod = await import("/pdfedit.mjs");
+      } catch (err) {
+        toast("The PDF tools didn't load");
+        return;
+      }
+      document.body.classList.add("pdfopen");
+      pdfEditor = mod.openPdf({
+        name,
+        url,
+        headers: () => ({ "X-Transfer-Key": key }),
+        modes: rel ? ["copy"] : [],
+        copyLabel: "Save to computer",
+        save: rel ? async (bytes) => {
+          const res = await fetch("/api/phone/pdf/save?path=" + encodeURIComponent(rel), {
+            method: "POST",
+            headers: { "X-Transfer-Key": key, "Content-Type": "application/pdf" },
+            body: bytes,
+          });
+          let data = {};
+          try { data = await res.json(); } catch (err) {}
+          if (res.ok) loadPC(pcRel);
+          return { ok: res.ok, name: data.name, error: data.error };
+        } : null,
+        fullscreen: webFullscreen,
+        toast: (text) => toast(text),
+        confirm: (text) => Promise.resolve(window.confirm(text)),
+        onClose: () => {
+          pdfEditor = null;
+          document.body.classList.remove("pdfopen");
+        },
+      });
+    }
+
+    // The editor scripts arrive in the background so the rest of the page
+    // works before they land. Deferred scripts finish before DOMContentLoaded.
+    function mountDocs() {
+      if (docsUI || !window.FTDocs) return;
+      docsUI = window.FTDocs.mount($("docsroot"), {
+        base: "/api/phone/docs",
+        phone: true,
+        session: () => session,
+        headers: () => ({ "X-Transfer-Key": key }),
+        toast: (text) => toast(text),
+        confirm: (text) => Promise.resolve(window.confirm(text)),
+        beacon: (path, body) => {
+          const blob = new Blob([JSON.stringify(Object.assign({ session }, body))], { type: "text/plain" });
+          if (!navigator.sendBeacon || !navigator.sendBeacon("/api/phone/docs" + path, blob)) {
+            fetch("/api/phone/docs" + path, { method: "POST", headers: head(), body: JSON.stringify(Object.assign({ session }, body)), keepalive: true }).catch(() => {});
+          }
+        },
+        onEditor: (on) => {
+          document.body.classList.toggle("docediting", on);
+          window.scrollTo(0, 0);
+        },
+        fullscreen: webFullscreen,
+      });
+      if (page === "docs") docsUI.show();
+    }
+    if (window.FTDocs) mountDocs();
+    else document.addEventListener("DOMContentLoaded", mountDocs);
+
+    function mountRemote() {
+      if (remoteUI || !window.FTRemote) return;
+      remoteUI = window.FTRemote.mount($("remoteroot"), {
+        session: async () => {
+          if (!session) await hello();
+          return session;
+        },
+        renew: async () => {
+          session = "";
+          await hello();
+          return session;
+        },
+        headers: () => ({ "X-Transfer-Key": key }),
+        toast: (text) => toast(text),
+        onLive: (on) => document.body.classList.toggle("remoting", on),
+      });
+      if (page === "remote") remoteUI.show();
+    }
+    if (window.FTRemote) mountRemote();
+    else document.addEventListener("DOMContentLoaded", mountRemote);
+
     renderClips([]);
     restLive();
     growPad();
@@ -1499,8 +1737,13 @@
     }
     document.addEventListener("visibilitychange", () => {
       if (!key) return;
-      if (document.visibilityState === "visible") loadPC(pcRel);
-      else bye(false);
+      if (document.visibilityState === "visible") {
+        loadPC(pcRel);
+        if (remoteUI && page === "remote") remoteUI.show();
+      } else {
+        if (remoteUI) remoteUI.hide();
+        bye(false);
+      }
     });
     window.addEventListener("pagehide", (event) => bye(!event.persisted));
   </script>

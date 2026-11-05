@@ -31,6 +31,7 @@ func testServer(t *testing.T) *server {
 	setRootPath(dir)
 	scheduleRoot = filepath.Join(dir, "schedules")
 	useDeviceFile(filepath.Join(dir, "devices.json"))
+	useInboxFile(filepath.Join(dir, "received.json"))
 	return &server{key: testKey, misses: map[string][]time.Time{}, phones: map[string]time.Time{}}
 }
 

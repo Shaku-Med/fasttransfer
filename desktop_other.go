@@ -70,6 +70,8 @@ func runApp(pageURL string) {
 		<-stopCh
 		return
 	}
+	// An app-mode window still accepts the browser's own DevTools shortcuts.
+	// There is no real flag that turns them off; --disable-dev-tools is not one.
 	cmd := exec.Command(bin,
 		"--app="+pageURL,
 		"--user-data-dir="+browserProfile(),
@@ -78,6 +80,7 @@ func runApp(pageURL string) {
 		"--disable-extensions",
 		"--disable-sync",
 		"--disable-background-mode",
+		"--autoplay-policy=no-user-gesture-required",
 	)
 	if err := cmd.Start(); err != nil {
 		_ = openDefaultBrowser(pageURL)

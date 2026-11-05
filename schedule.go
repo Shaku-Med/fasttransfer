@@ -405,7 +405,15 @@ func offerJob(job scheduledSend) bool {
 	}
 	file := &sendFile{Name: name, Size: info.Size(), Abs: job.Path, Outside: true}
 	_, err = hub.deliver([]*sendFile{file}, []string{handle}, false)
-	return err == nil
+	if err != nil {
+		return false
+	}
+	who := strings.TrimSpace(job.Label)
+	if who == "" {
+		_, who, _ = scheduledPhone(job.Device)
+	}
+	receiveOffered(who, job.Path, name)
+	return true
 }
 
 // deliverPending offers every due file for this phone. A missing file stays

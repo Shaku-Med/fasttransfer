@@ -29,6 +29,8 @@ var (
 	webOSUA      = regexp.MustCompile(`(?i)webOS[/ .]?(\d+(?:\.\d+)*)`)
 	appleTVUA    = regexp.MustCompile(`(?i)Apple ?TV; CPU (?:iPhone )?OS (\d+(?:_\d+)*)`)
 	playStation  = regexp.MustCompile(`(?i)PlayStation(?: (\d+))?`)
+	fireTVUA     = regexp.MustCompile(`\bAFT[A-Z0-9]{1,8}\b`)
+	chromeOSUA   = regexp.MustCompile(`\bCrOS\b`)
 	inventedName = regexp.MustCompile(`^(?i)(iphone|ipad|android|phone) [0-9a-f]{2,8}$`)
 	macFind      = regexp.MustCompile(`(?i)[0-9a-f]{2}(?::[0-9a-f]{2}){5}`)
 )
@@ -503,6 +505,9 @@ func describePhone(ua, hintPlatform, hintVersion, hintModel, bodyPlatform, bodyV
 		if model == "" {
 			model = "Mac"
 		}
+	case strings.Contains(plat, "chrome os") || strings.Contains(plat, "chromeos") || kind == "chromeos":
+		kind = "chromeos"
+		model = "Chromebook"
 	case strings.Contains(plat, "linux") && kind == "":
 		kind = "linux"
 		model = "Linux PC"
@@ -521,7 +526,8 @@ func describePhone(ua, hintPlatform, hintVersion, hintModel, bodyPlatform, bodyV
 			osName = osLabel(kind, version)
 		}
 	} else {
-		if v := shortVersion(versionHint); v != "" && kind != "chromecast" {
+		// ChromeOS reports a build number here, not the version people know.
+		if v := shortVersion(versionHint); v != "" && kind != "chromecast" && kind != "chromeos" {
 			version = v
 		}
 		osName = osLabel(kind, version)
@@ -631,7 +637,9 @@ func uaKind(ua string) (kind, version, model string) {
 		}
 		return "webos", ver, "LG TV"
 	}
-	if strings.Contains(low, "aft") || strings.Contains(low, "silk/") {
+	// Fire TV sticks name their model as AFTxxx. Plain Silk is also on Fire
+	// tablets, so it is not enough on its own.
+	if fireTVUA.MatchString(ua) || strings.Contains(low, "fire tv") {
 		ver := ""
 		if m := androidUARe.FindStringSubmatch(ua); m != nil {
 			ver = m[1]
@@ -662,10 +670,19 @@ func uaKind(ua string) (kind, version, model string) {
 		return "windows", "", "Windows PC"
 	}
 	if m := macOSUA.FindStringSubmatch(ua); m != nil {
-		return "mac", strings.ReplaceAll(m[1], "_", "."), "Mac"
+		v := strings.ReplaceAll(m[1], "_", ".")
+		// Safari and Chrome froze this at 10.15.7 on every newer Mac, so it
+		// says nothing about the real version. Only a client hint does.
+		if strings.HasPrefix(v, "10.15") {
+			v = ""
+		}
+		return "mac", v, "Mac"
 	}
 	if strings.Contains(low, "macintosh") {
 		return "mac", "", "Mac"
+	}
+	if chromeOSUA.MatchString(ua) {
+		return "chromeos", "", "Chromebook"
 	}
 	if strings.Contains(low, "linux") {
 		return "linux", "", "Linux PC"
@@ -718,7 +735,7 @@ func leadingInt(v string) int {
 func genericDevice(model string) bool {
 	low := strings.ToLower(strings.TrimSpace(model))
 	switch low {
-	case "windows pc", "mac", "linux pc", "samsung tv", "lg tv", "android tv", "fire tv", "chromecast", "apple tv", "xbox", "playstation", "android tablet":
+	case "windows pc", "mac", "linux pc", "chromebook", "samsung tv", "lg tv", "android tv", "fire tv", "chromecast", "apple tv", "xbox", "playstation", "android tablet":
 		return true
 	default:
 		return strings.HasPrefix(low, "xbox ") || strings.HasPrefix(low, "playstation ")
@@ -794,6 +811,8 @@ func osLabel(kind, version string) string {
 			return "tvOS"
 		}
 		return "tvOS " + version
+	case "chromeos":
+		return "ChromeOS"
 	default:
 		return ""
 	}

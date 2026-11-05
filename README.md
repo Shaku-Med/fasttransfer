@@ -18,7 +18,7 @@ A window opens with the phone link, a QR code, and the files already on this PC.
 Build the Windows app again with:
 
 ```bash
-go build -ldflags="-H windowsgui -s -w" -o FastTransfer.exe .
+go build -tags bundletools -ldflags="-H windowsgui -s -w" -o FastTransfer.exe .
 ```
 
 Open the link shown in the window on your phone (same Wi‑Fi). Save folder in the window chooses where files land. Until you pick one, they go to `uploads` next to the app.
@@ -26,6 +26,10 @@ Open the link shown in the window on your phone (same Wi‑Fi). Save folder in t
 mp4, m4v, and webm play directly. Other videos (mkv, avi, mov, wmv, flv, mpeg, ts, 3gp, and mp4 files the browser cannot decode) play inside the window when ffmpeg is on PATH or ffmpeg.exe sits next to FastTransfer.exe. PDF pages are drawn in the window as images. mp3, m4a, wav, flac, and ogg play there too, with the title, artist, and cover stored in the file. Other audio uses ffmpeg the same way.
 
 Windows firewall may ask once — allow it on private networks.
+
+Social media saves a public link with yt-dlp, from the PC sidebar or from the device page. The file lands in the save folder under `Social media\<site>\`, for example `Social media\youtube.com\`. A connected device is offered that file with View and Save. If none is connected, the file stays on this PC and is not scheduled.
+
+Share this one exe. Edge or WebView2 is required. The first launch may extract helper tools next to the exe.
 
 ## Many phones at once
 

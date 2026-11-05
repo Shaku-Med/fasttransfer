@@ -64,8 +64,31 @@ func TestDesktopTVAndMacLabels(t *testing.T) {
 	if got := describePhone(mac, "macOS", "15.0.0", "", "", "", "", "").Label; got != "Mac · macOS 15" {
 		t.Fatalf("mac hint %q", got)
 	}
-	if got := describePhone(mac, "", "", "", "", "", "", "").Label; got != "Mac · macOS 10.15.7" {
-		t.Fatalf("mac ua %q", got)
+	if got := describePhone(mac, "", "", "", "", "", "", "").Label; got != "Mac · macOS" {
+		t.Fatalf("a frozen 10.15.7 should not be shown as the version, got %q", got)
+	}
+	safari := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+	if got := describePhone(safari, "", "", "", "", "", "", "Studio Mac").Label; got != "Studio Mac · macOS" {
+		t.Fatalf("named mac %q", got)
+	}
+}
+
+func TestMoreDeviceLabels(t *testing.T) {
+	cases := []struct{ ua, want string }{
+		{"Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7633) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.160 Mobile Safari/537.36", "Fire TV · Android 9"},
+		{"Mozilla/5.0 (Linux; Android 11; KFTRWI) AppleWebKit/537.36 (KHTML, like Gecko) Silk/120.4.1 like Chrome/120.0.6099.230 Safari/537.36", "KFTRWI · Android 11"},
+		{"Mozilla/5.0 (Linux; Android 12; BRAVIA 4K VH2 Build/STT1.211025.001.Z4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.6045.163 Safari/537.36", "Android TV · Android 12"},
+		{"Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 CrKey/1.56.500000 DeviceType/AndroidTV", "Chromecast"},
+		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; Xbox Series X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0", "Xbox Series X"},
+		{"AppleTV11,1/11.1 (Apple TV; CPU OS 17_2 like Mac OS X)", "Apple TV · tvOS 17.2"},
+		{"Mozilla/5.0 (X11; CrOS x86_64 15633.69.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.6045.212 Safari/537.36", "Chromebook · ChromeOS"},
+		{"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0", "Linux PC"},
+		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0", "Windows PC · Windows 10"},
+	}
+	for _, c := range cases {
+		if got := describePhone(c.ua, "", "", "", "", "", "", "").Label; got != c.want {
+			t.Errorf("%s\n got %q, want %q", c.ua, got, c.want)
+		}
 	}
 }
 

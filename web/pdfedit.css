@@ -1,0 +1,164 @@
+/* The PDF workspace. It sits on the Docs styles and the host page's tokens,
+   so it follows the light and dark themes like the rest of the app. */
+.fp { position: fixed; inset: 0; z-index: 90; background: var(--bar); outline: none; animation: fdIn 200ms cubic-bezier(0, 0, 0, 1); }
+.fp.in-host { position: absolute; }
+.fp .fp-top { padding: 8px 12px 4px 8px; }
+.fp-docic { display: inline-flex; color: var(--accent); }
+.fp-docic svg { width: 20px; height: 20px; }
+.fp-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.fp-name b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.fp-pagebox { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.fp-pagenum {
+  width: 46px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--menu);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+.fp-pagenum:focus { outline: none; border-color: var(--accent); }
+.fp .fp-tools { margin: 2px 12px 8px; }
+.fp .fd-tool:disabled { opacity: 0.4; cursor: default; background: none; }
+.fp-zoom { max-width: 120px; }
+
+.fp-body { position: relative; flex: 1; min-height: 0; display: flex; }
+.fp-side { flex: none; width: 160px; display: none; flex-direction: column; background: var(--bar); border-right: 1px solid var(--line); }
+.fp.side .fp-side { display: flex; }
+.fp-thumbs { flex: 1; min-height: 0; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.fp-thumb { position: relative; flex: none; padding: 8px 6px 4px; border-radius: 8px; transition: background 120ms ease; }
+.fp-thumb:hover { background: var(--hover); }
+.fp-thumb.on { background: var(--sel, var(--press)); }
+.fp-thumb.dragging { opacity: 0.4; }
+.fp-thumbpick { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.fp-thumbframe {
+  display: block;
+  width: 104px;
+  aspect-ratio: 1 / 1.294;
+  overflow: hidden;
+  background: var(--menu);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.fp-thumbframe canvas { display: block; width: 100%; height: 100%; }
+.fp-thumbnum { font-size: 12px; color: var(--muted); }
+.fp-thumbacts {
+  position: absolute;
+  top: 10px;
+  right: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px;
+  background: var(--menu);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: var(--shadow, 0 8px 24px rgba(0, 0, 0, 0.14));
+}
+.fp-thumb:hover .fp-thumbacts, .fp-thumb.on .fp-thumbacts, .fp-thumb:focus-within .fp-thumbacts { display: flex; }
+:where(.fp) .fp-mini { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; transition: background 120ms ease; }
+.fp-mini:hover:not(:disabled) { background: var(--hover); }
+.fp-mini:disabled { opacity: 0.35; cursor: default; }
+.fp-mini svg { width: 14px; height: 14px; }
+.fp-thumb.drop-before::before, .fp-thumb.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.fp-thumb.drop-before::before { top: -4px; }
+.fp-thumb.drop-after::after { bottom: -4px; }
+.fp-sidefoot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+
+.fp-main { position: relative; flex: 1; min-width: 0; }
+.fp-scroll { position: absolute; inset: 0; overflow: auto; touch-action: pan-x pan-y; }
+.fp-scroll .pdfViewer { padding: 8px 0 40px; }
+.fp-busy {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px;
+  transform: translateX(-50%);
+  background: var(--menu);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow, 0 8px 24px rgba(0, 0, 0, 0.14));
+  font-size: 13px;
+  white-space: nowrap;
+}
+.fp-busy::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fpSpin 800ms linear infinite;
+}
+.fp-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; color: var(--muted); text-align: center; }
+.fp-error p { margin: 0; max-width: 360px; }
+.fp .fp-find { top: 12px; right: 16px; }
+.fp .fp-find .fd-findrow { display: flex; align-items: center; gap: 4px; }
+.fp .fp-find input { flex: 1; min-width: 0; }
+.fp .fd-swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+
+.fp-scrim { position: fixed; z-index: 95; }
+.fp.in-host .fp-scrim { position: absolute; }
+.fp-sign { width: min(520px, calc(100% - 32px)); }
+.fp-hint { margin: -4px 0 14px; color: var(--muted); font-size: 13px; }
+.fp-pad {
+  display: block;
+  width: 100%;
+  height: 190px;
+  background: #ffffff;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  touch-action: none;
+  cursor: crosshair;
+}
+.fp-field {
+  display: block;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--menu);
+  color: var(--ink);
+  font: inherit;
+}
+.fp-field:focus { outline: none; border-color: var(--accent); }
+.fp-dlgrow { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.fp .fp-dlgrow .fd-btn { float: none; margin: 0; }
+.fp-grow { flex: 1; }
+
+.fp.phone .fp-top { gap: 4px; padding: 6px 6px 2px 4px; }
+.fp.phone .fp-docic, .fp.phone .fp-pagebox, .fp.phone .fp-wide { display: none; }
+.fp.phone .fp-tools { margin: 2px 8px 6px; }
+.fp.phone .fd-btn { height: 36px; border-radius: 10px; }
+.fp.phone .fp-side { position: absolute; top: 0; bottom: 0; left: 0; z-index: 26; width: 140px; box-shadow: var(--shadow, 0 8px 24px rgba(0, 0, 0, 0.14)); }
+.fp.phone .fp-find { left: 8px; right: 8px; width: auto; }
+.fp.phone .fp-thumbacts { flex-direction: row; top: auto; bottom: 26px; right: 50%; transform: translateX(50%); }
+
+.fp-print { display: none; }
+@media print {
+  body.fp-printing > *:not(.fp-print) { display: none !important; }
+  body.fp-printing .fp-print { display: block; }
+  .fp-print img { display: block; width: 100%; break-after: page; }
+  @page { margin: 0; }
+}
+@keyframes fpSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .fp, .fp-busy::before { animation: none; }
+}
