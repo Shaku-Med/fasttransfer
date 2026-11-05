@@ -84,6 +84,7 @@ var (
 	inject  = injectEvents
 	capture = captureScreen
 	caret   = caretBox
+	pointer = pointerAt
 	power   = powerAction
 )
 
@@ -626,6 +627,7 @@ func (s *server) phoneControlScreen(w http.ResponseWriter, r *http.Request) {
 			h.Set("Cache-Control", "no-store")
 			h.Set("X-Frame", tag)
 			h.Set("X-Caret", caretHeader())
+			h.Set("X-Pointer", pointerHeader())
 			h.Set("Content-Length", strconv.Itoa(buf.Len()))
 			_, _ = w.Write(buf.Bytes())
 			return
@@ -633,6 +635,7 @@ func (s *server) phoneControlScreen(w http.ResponseWriter, r *http.Request) {
 		if time.Now().After(deadline) {
 			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Set("X-Caret", caretHeader())
+			w.Header().Set("X-Pointer", pointerHeader())
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -907,6 +910,16 @@ func cleanTyped(s string) (string, bool) {
 		}
 	}
 	return b.String(), true
+}
+
+// pointerHeader lets the phone follow the mouse when it zooms in on the screen.
+func pointerHeader() string {
+	x, y, ok := pointer()
+	if !ok || x < 0 || x > 1 || y < 0 || y > 1 {
+		return ""
+	}
+	f := func(v float64) string { return strconv.FormatFloat(v, 'f', 4, 64) }
+	return f(x) + "," + f(y)
 }
 
 // caretHeader tells the phone where the text cursor is, as fractions of all

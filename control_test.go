@@ -45,7 +45,7 @@ func controlServer(t *testing.T) (*server, http.Handler, *sentInput) {
 		defer sent.mu.Unlock()
 		sent.power = append(sent.power, k)
 	}
-	t.Cleanup(func() { inject, capture, power, caret = injectEvents, captureScreen, powerAction, caretBox })
+	t.Cleanup(func() { inject, capture, power, caret, pointer = injectEvents, captureScreen, powerAction, caretBox, pointerAt })
 	return s, s.routes(), sent
 }
 
@@ -394,5 +394,23 @@ func TestControlScreenSaysWhereTheCaretIs(t *testing.T) {
 	r.Header.Set("X-Control-Token", token)
 	if got := serve(mux, r).Header().Get("X-Caret"); got != "0.2500,0.5000,0.0010,0.0200" {
 		t.Fatalf("caret header = %q", got)
+	}
+}
+
+func TestControlScreenSaysWhereThePointerIs(t *testing.T) {
+	_, mux, _ := controlServer(t)
+	capture = func(int) (*image.RGBA, error) { return image.NewRGBA(image.Rect(0, 0, 8, 8)), nil }
+	pointer = func() (float64, float64, bool) { return 0.75, 0.125, true }
+	session, token := grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	r := phoneReq("GET", "/api/phone/control/screen?session="+session+"&w=640", "")
+	r.Header.Set("X-Control-Token", token)
+	if got := serve(mux, r).Header().Get("X-Pointer"); got != "0.7500,0.1250" {
+		t.Fatalf("pointer header = %q", got)
+	}
+	pointer = func() (float64, float64, bool) { return 1.4, 0.5, true }
+	r = phoneReq("GET", "/api/phone/control/screen?session="+session+"&w=640", "")
+	r.Header.Set("X-Control-Token", token)
+	if got := serve(mux, r).Header().Get("X-Pointer"); got != "" {
+		t.Fatalf("pointer off the screen should send nothing, got %q", got)
 	}
 }

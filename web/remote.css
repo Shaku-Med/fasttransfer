@@ -124,18 +124,46 @@ body.remoting #remoteroot { flex: 1; min-height: 0; display: flex; flex-directio
 .rm-view {
   position: relative;
   flex: 1;
-  min-height: 160px;
+  min-height: 200px;
   border-radius: 12px;
   background: var(--hover);
   overflow: hidden;
   touch-action: none;
+  transition: box-shadow 167ms var(--ease);
 }
-.rm-shot { display: block; width: 100%; height: 100%; object-fit: contain; transform-origin: center; touch-action: none; -webkit-user-drag: none; }
+.rm-view.dragging { box-shadow: inset 0 0 0 2px var(--accent); }
+.rm-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  transition: transform 180ms var(--ease);
+  will-change: transform;
+}
+.rm-stage.snap { transition: none; }
+.rm-shot { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
 .rm-shotmsg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; color: var(--muted); font-size: 14px; pointer-events: none; }
-.rm-view .rm-strip { width: 28px; background: transparent; border-left-color: transparent; }
-.rm-view .rm-strip.on { background: var(--press); opacity: 0.6; }
-.rm-caret { position: absolute; width: 2px; background: var(--accent); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4); border-radius: 1px; pointer-events: none; animation: rm-blink 1.06s steps(2, start) infinite; }
+.rm-shotmsg[hidden], .rm-tip[hidden] { display: none; }
+.rm-caret { position: absolute; width: 2px; background: var(--accent); border-radius: 1px; pointer-events: none; animation: rm-blink 1.06s steps(2, start) infinite; }
 @keyframes rm-blink { 50% { opacity: 0.2; } }
+.rm-tip {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--menu);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  animation: rm-rise 250ms var(--ease);
+}
+@keyframes rm-rise { from { opacity: 0; transform: translateY(6px); } }
 
 .rm-skeys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .rm-skeys button {
@@ -155,15 +183,36 @@ body.remoting #remoteroot { flex: 1; min-height: 0; display: flex; flex-directio
 .rm-skeys button svg { width: 18px; height: 18px; }
 .rm-skeys button.on { background: var(--press); border-color: var(--press); font-weight: 600; }
 
-.rm-tools { display: flex; gap: 8px; }
-.rm-tools .btn { flex: none; width: 44px; padding: 0; }
-.rm-tools .rm-mode2 { flex: 1; min-width: 0; padding: 0 8px; gap: 6px; }
-.rm-tools .rm-sharp { width: auto; min-width: 48px; padding: 0 10px; font-weight: 600; }
-.rm-tools .btn.on { background: var(--press); font-weight: 600; }
-.rm-tools .btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rm-tip { margin: 0; color: var(--muted); font-size: 12px; text-align: center; }
+.rm-skeys[hidden] { display: none; }
+.rm-tools { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rm-tools .btn { min-width: 0; padding: 0; font-weight: 600; }
+.rm-tools .btn.on { background: var(--press); }
+.rm-tools .btn svg { width: 20px; height: 20px; }
+.rm-screen { gap: 8px; }
 .rm-screen:fullscreen { padding: 8px; background: var(--bar); }
-.rm-screen:fullscreen .rm-skeys { display: none; }
+.rm-screen:fullscreen .rm-view { border-radius: 8px; }
+
+/* Turned sideways while watching, the screen takes the whole phone and the
+   tools move into a narrow column beside it. Turn back for the other tabs. */
+@media (orientation: landscape) and (max-height: 560px) {
+  body.rm-watching .tabs { display: none !important; }
+  body.remoting.rm-watching #p-remote {
+    inset: 0;
+    padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+  body.rm-watching .rm-bar, body.rm-watching .rm-modes { display: none; }
+  body.rm-watching .rm-screen {
+    display: grid;
+    grid-template-columns: 1fr 48px;
+    grid-template-rows: 1fr auto;
+    gap: 6px;
+  }
+  body.rm-watching .rm-view { grid-column: 1; grid-row: 1; min-height: 0; border-radius: 8px; }
+  body.rm-watching .rm-skeys { grid-column: 1; grid-row: 2; grid-template-columns: repeat(12, 1fr); }
+  body.rm-watching .rm-skeys button { height: 34px; font-size: 12px; }
+  body.rm-watching .rm-tools { grid-column: 2; grid-row: 1 / span 2; grid-template-columns: 1fr; grid-auto-rows: 1fr; }
+  body.rm-watching .rm-tools .btn { height: auto; }
+}
 
 .rm-type {
   display: block;

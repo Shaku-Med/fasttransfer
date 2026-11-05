@@ -1,4 +1,4 @@
-// The phone side of remote control: a touchpad, the PC's screen to tap on, a
+// The phone side of remote control: a touchpad, the PC's screen to watch, a
 // keyboard and media keys. Input is queued and sent one request at a time,
 // with moves folded together, so a slow network adds lag but never a backlog.
 (function () {
@@ -24,7 +24,7 @@
     up: '<svg viewBox="0 0 20 20"><path d="m5 12 5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     down: '<svg viewBox="0 0 20 20"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     keyboard: '<svg viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 8.5h1M8 8.5h1M11 8.5h1M14 8.5h1M6.5 11.8h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
-    fit: '<svg viewBox="0 0 20 20"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    zoom: '<svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m12.3 12.3 4.2 4.2M6.5 8.5h4M8.5 6.5v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
     full: '<svg viewBox="0 0 20 20"><path d="M7.5 3.5h-4v4M12.5 3.5h4v4M7.5 16.5h-4v-4M12.5 16.5h4v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     lock: '<svg viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
     sleep: '<svg viewBox="0 0 20 20"><path d="M15.5 12.2A6 6 0 0 1 7.8 4.5a6 6 0 1 0 7.7 7.7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
@@ -78,7 +78,7 @@
         <p class="lede">Use this phone as a touchpad, keyboard and remote for the PC, and see its screen. Someone at the PC has to allow it first.</p>
         <div class="card rm-how">
           <div><b>Touchpad</b><span>Move with one finger, tap to click, two fingers to scroll or right click.</span></div>
-          <div><b>Screen</b><span>See the PC and tap right where you want to click.</span></div>
+          <div><b>Screen</b><span>Watch the PC up close and steer its pointer with a touchpad laid over it.</span></div>
           <div><b>Keyboard and media</b><span>Type, use shortcuts, change the volume, run slides.</span></div>
         </div>
         <button class="btn primary wide rm-askbtn" type="button">Ask the PC</button>
@@ -113,13 +113,15 @@
           <label class="rm-speed"><span>Speed</span><input type="range" min="0.6" max="3" step="0.1" aria-label="Pointer speed" /></label>
         </div>
         <div class="rm-panel rm-screen" data-mode="screen" hidden>
-          <div class="rm-view" data-touch="tap">
-            <img class="rm-shot" alt="The PC screen" draggable="false" />
-            <div class="rm-caret" hidden></div>
+          <div class="rm-view" aria-label="The PC screen, use it like a touchpad">
+            <div class="rm-stage">
+              <img class="rm-shot" alt="" draggable="false" />
+              <div class="rm-caret" hidden></div>
+            </div>
             <p class="rm-shotmsg">Loading the screen</p>
-            <div class="rm-strip" aria-label="Scroll"></div>
+            <p class="rm-tip" hidden>Drag anywhere to move the pointer. Tap to click, hold then move to drag. Two fingers scroll, tap with two to right click, pinch to zoom.</p>
           </div>
-          <div class="rm-skeys">
+          <div class="rm-skeys" hidden>
             <button type="button" data-k="esc">Esc</button>
             <button type="button" data-mod="ctrl">Ctrl</button>
             <button type="button" data-mod="alt">Alt</button>
@@ -134,13 +136,12 @@
             <button type="button" data-k="right" aria-label="Right">${icon.right}</button>
           </div>
           <div class="rm-tools">
-            <button class="btn small rm-mode2" type="button" aria-pressed="false" aria-label="Touch mode">${icon.pad}<span class="rm-modelab">Tap</span></button>
             <button class="btn small rm-kb" type="button" aria-pressed="false" aria-label="Keyboard">${icon.keyboard}</button>
-            <button class="btn small rm-fit" type="button" aria-label="Fit to screen">${icon.fit}</button>
+            <button class="btn small rm-keybar" type="button" aria-pressed="false"><span>Keys</span></button>
+            <button class="btn small rm-zoom" type="button" aria-pressed="false" aria-label="Zoom in">${icon.zoom}</button>
             <button class="btn small rm-sharp" type="button" aria-pressed="false"><span>HD</span></button>
             <button class="btn small rm-full" type="button" aria-label="Full screen">${icon.full}</button>
           </div>
-          <p class="rm-tip"></p>
         </div>
         <div class="rm-panel rm-keys" data-mode="keys" hidden>
           <textarea class="rm-type" rows="2" placeholder="Type here and it appears on the PC" aria-label="Type on the PC" autocapitalize="off"></textarea>
@@ -247,7 +248,10 @@
       });
       root.querySelectorAll(".rm-panel").forEach((p) => { p.hidden = p.dataset.mode !== m; });
       if (m !== "screen") { caretEl.hidden = true; if (document.activeElement === hiddenArea) hiddenArea.blur(); }
-      if (state === "live" && visible && m === "screen") startScreen();
+      const watching = state === "live" && visible && m === "screen";
+      // Turned sideways, the screen takes the whole phone; see remote.css.
+      document.body.classList.toggle("rm-watching", watching);
+      if (watching) { startScreen(); requestAnimationFrame(() => paintStage(true, true)); }
       else stopScreen();
       if (state === "live" && visible && soundOn) startSound();
       else stopSound();
@@ -405,88 +409,120 @@
       send({ t: "b", b, d: d || "click" });
     }
 
-    // Touchpad.
-    const touch = q(".rm-touch");
-    const strip = touch.querySelector(".rm-strip");
-    const points = new Map();
-    let gesture = null;
-    let carry = { x: 0, y: 0 };
-
+    // Touchpad. The same gestures run the Touchpad tab and the surface laid
+    // over the screen, so the pointer feels the same in both places.
     function gain(dx, dy, dt) {
       const v = Math.hypot(dx, dy) / Math.max(dt, 1);
       return speed * (0.7 + Math.min(v, 2.4) * 0.9);
     }
 
-    function centroid() {
-      let x = 0, y = 0;
-      points.forEach((p) => { x += p.x; y += p.y; });
-      return { x: x / points.size, y: y / points.size };
-    }
+    function touchpad(node, opt) {
+      const points = new Map();
+      let gesture = null;
+      let carry = { x: 0, y: 0 };
 
-    touch.addEventListener("pointerdown", (e) => {
-      if (e.target === strip) return;
-      e.preventDefault();
-      try { touch.setPointerCapture(e.pointerId); } catch (err) {}
-      points.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
-      if (points.size === 1) {
-        gesture = { fingers: 1, start: e.timeStamp, moved: 0, drag: false, hold: 0 };
-        gesture.hold = setTimeout(() => {
-          if (gesture && gesture.fingers === 1 && gesture.moved < 8) {
-            gesture.drag = true;
-            click("l", "down");
-            buzz();
-            touch.classList.add("dragging");
-          }
-        }, 380);
-      } else if (gesture) {
-        clearTimeout(gesture.hold);
-        gesture.fingers = Math.max(gesture.fingers, points.size);
-        gesture.mid = centroid();
+      function centroid() {
+        let x = 0, y = 0;
+        points.forEach((p) => { x += p.x; y += p.y; });
+        return { x: x / points.size, y: y / points.size };
       }
-    });
+      function spread() {
+        const [a, b] = Array.from(points.values());
+        return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      }
 
-    touch.addEventListener("pointermove", (e) => {
-      const p = points.get(e.pointerId);
-      if (!p || !gesture) return;
-      e.preventDefault();
-      const dx = e.clientX - p.x;
-      const dy = e.clientY - p.y;
-      const dt = e.timeStamp - p.t;
-      p.x = e.clientX;
-      p.y = e.clientY;
-      p.t = e.timeStamp;
-      gesture.moved += Math.hypot(dx, dy);
-      if (points.size === 1 && gesture.fingers === 1) {
-        const g = gain(dx, dy, dt);
-        carry.x += dx * g;
-        carry.y += dy * g;
-        const sx = Math.trunc(carry.x);
-        const sy = Math.trunc(carry.y);
-        carry.x -= sx;
-        carry.y -= sy;
-        if (sx || sy) send({ t: "m", x: sx, y: sy });
-      } else if (points.size >= 2) {
+      node.addEventListener("pointerdown", (e) => {
+        if (e.target.closest(".rm-strip")) return;
+        e.preventDefault();
+        try { node.setPointerCapture(e.pointerId); } catch (err) {}
+        points.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
+        if (opt.onTouch) opt.onTouch();
+        if (points.size === 1) {
+          gesture = { fingers: 1, start: e.timeStamp, moved: 0, drag: false, hold: 0, two: "" };
+          gesture.hold = setTimeout(() => {
+            if (gesture && gesture.fingers === 1 && gesture.moved < 8) {
+              gesture.drag = true;
+              click("l", "down");
+              buzz();
+              node.classList.add("dragging");
+            }
+          }, 380);
+        } else if (gesture) {
+          clearTimeout(gesture.hold);
+          gesture.fingers = Math.max(gesture.fingers, points.size);
+          gesture.mid = centroid();
+          if (points.size === 2) { gesture.from = gesture.mid; gesture.spread = spread(); }
+        }
+      });
+
+      node.addEventListener("pointermove", (e) => {
+        const p = points.get(e.pointerId);
+        if (!p || !gesture) return;
+        e.preventDefault();
+        const dx = e.clientX - p.x;
+        const dy = e.clientY - p.y;
+        const dt = e.timeStamp - p.t;
+        p.x = e.clientX;
+        p.y = e.clientY;
+        p.t = e.timeStamp;
+        gesture.moved += Math.hypot(dx, dy);
+        if (points.size === 1 && gesture.fingers === 1) {
+          const g = gain(dx, dy, dt);
+          carry.x += dx * g;
+          carry.y += dy * g;
+          const sx = Math.trunc(carry.x);
+          const sy = Math.trunc(carry.y);
+          carry.x -= sx;
+          carry.y -= sy;
+          if (sx || sy) send({ t: "m", x: sx, y: sy });
+          return;
+        }
+        if (points.size < 2 || !gesture.from) return;
         const mid = centroid();
-        if (gesture.mid) send({ t: "w", x: (gesture.mid.x - mid.x) * 3, y: (gesture.mid.y - mid.y) * 3 });
+        // Two fingers either pinch or scroll, settled by whichever they do
+        // first, so a slightly uneven scroll never jumps the zoom.
+        if (opt.pinch && points.size === 2 && gesture.two !== "scroll") {
+          const ratio = spread() / gesture.spread;
+          if (gesture.two === "pinch" || Math.abs(ratio - 1) > 0.12) {
+            opt.pinch(ratio, gesture.two !== "pinch");
+            gesture.two = "pinch";
+            gesture.mid = mid;
+            return;
+          }
+        }
+        if (gesture.two !== "scroll") {
+          if (Math.hypot(mid.x - gesture.from.x, mid.y - gesture.from.y) < 10) return;
+          gesture.two = "scroll";
+        }
+        send({ t: "w", x: (gesture.mid.x - mid.x) * 3, y: (gesture.mid.y - mid.y) * 3 });
         gesture.mid = mid;
-      }
-    });
+      });
 
-    function liftPad(e) {
-      if (!points.has(e.pointerId)) return;
-      points.delete(e.pointerId);
-      if (!gesture || points.size) return;
-      clearTimeout(gesture.hold);
-      const quick = e.timeStamp - gesture.start < 260 && gesture.moved < 10;
-      if (gesture.drag) { click("l", "up"); touch.classList.remove("dragging"); }
-      else if (quick && gesture.fingers === 1) click("l");
-      else if (quick && gesture.fingers === 2) { click("r"); buzz(); }
-      else if (quick && gesture.fingers >= 3) click("m");
-      gesture = null;
-      carry = { x: 0, y: 0 };
+      function lift(e) {
+        if (!points.has(e.pointerId)) return;
+        points.delete(e.pointerId);
+        if (!gesture || points.size) return;
+        clearTimeout(gesture.hold);
+        const quick = e.timeStamp - gesture.start < 260 && gesture.moved < 10;
+        if (gesture.two === "pinch" && opt.pinchEnd) opt.pinchEnd();
+        if (gesture.drag) { click("l", "up"); node.classList.remove("dragging"); }
+        else if (quick && gesture.fingers === 1) { click("l"); if (opt.onTap) opt.onTap(); }
+        else if (quick && gesture.fingers === 2) { click("r"); buzz(); }
+        else if (quick && gesture.fingers >= 3) click("m");
+        gesture = null;
+        carry = { x: 0, y: 0 };
+      }
+      node.addEventListener("pointerup", lift);
+      node.addEventListener("pointercancel", lift);
+
+      return function release() {
+        if (gesture) clearTimeout(gesture.hold);
+        if (node.classList.contains("dragging")) { click("l", "up"); node.classList.remove("dragging"); }
+        points.clear();
+        gesture = null;
+      };
     }
-    touch.addEventListener("pointerup", liftPad);
-    touch.addEventListener("pointercancel", liftPad);
+    const releasePad = touchpad(q(".rm-touch"), {});
 
     function scrollStrip(node) {
       let lastY = null;
@@ -646,67 +682,160 @@
 
     // Screen. Frames are pulled one after another; the PC holds a request
     // while nothing on screen changes, so a still desktop costs little.
+    // The picture is only there to watch: a touchpad surface lies over it and
+    // moves the PC's own pointer, which is drawn into every frame.
     const view = q(".rm-view");
+    const stage = q(".rm-stage");
     const shot = q(".rm-shot");
     const shotMsg = q(".rm-shotmsg");
+    const caretEl = q(".rm-caret");
+    const tipEl = q(".rm-screen .rm-tip");
+    const keyBar = q(".rm-skeys");
     let screenRun = 0;
     let screening = false;
     let frameTag = "";
     let frameURL = "";
     let sharp = store("local", "ft-remote-sharp") === "1";
-    let zoom = { s: 1, x: 0, y: 0 };
-    // "tap": a finger drag scrolls, so you never select by accident. "drag":
-    // a finger drag holds the left button to select text or move things.
-    let screenTouch = store("local", "ft-remote-touch") === "drag" ? "drag" : "tap";
-    let lastTapAt = 0;
-    let lastTapX = 0;
-    let lastTapY = 0;
-    let kbAfterTap = false;
+    let keysOn = store("local", "ft-remote-keybar") === "1";
+    let zoomOn = store("local", "ft-remote-zoom") !== "0";
+    let scale = 1;
+    let pinching = false;
+    let pinchFrom = 1;
+    let shift = { x: 0, y: 0 };
+    let pointerAt = null;
     let caretBox = null;
-    const caretEl = q(".rm-caret");
-    const tipEl = q(".rm-screen .rm-tip");
-
-    function paintTouch() {
-      const b = q(".rm-mode2");
-      const drag = screenTouch === "drag";
-      b.classList.toggle("on", drag);
-      b.setAttribute("aria-pressed", drag ? "true" : "false");
-      b.querySelector(".rm-modelab").textContent = drag ? "Drag" : "Tap";
-      view.dataset.touch = screenTouch;
-      tipEl.textContent = drag
-        ? "Drag selects or moves. Tap clicks, hold for right click."
-        : "Tap to click, hold for right click, drag to scroll. Pinch to zoom.";
-    }
+    let kbAfterTap = false;
 
     function paintSharp() {
       const b = q(".rm-sharp");
       b.classList.toggle("on", sharp);
       b.setAttribute("aria-pressed", sharp ? "true" : "false");
     }
+
+    // The key bar shows when asked for, and on its own while the phone
+    // keyboard is up, since that is when Ctrl, arrows and Enter are wanted.
+    function paintKeyBar() {
+      const b = q(".rm-keybar");
+      b.classList.toggle("on", keysOn);
+      b.setAttribute("aria-pressed", keysOn ? "true" : "false");
+      keyBar.hidden = !(keysOn || document.activeElement === hiddenArea);
+      requestAnimationFrame(() => paintStage(false, true));
+    }
+
+    function paintZoomBtn() {
+      const b = q(".rm-zoom");
+      b.classList.toggle("on", scale > 1);
+      b.setAttribute("aria-pressed", scale > 1 ? "true" : "false");
+    }
+
+    // Where the whole screen sits inside the view when it just fits.
+    function fitBox() {
+      const W = view.clientWidth, H = view.clientHeight;
+      if (!W || !H || !shot.naturalWidth) return null;
+      const ratio = shot.naturalWidth / shot.naturalHeight;
+      let w = W, h = W / ratio;
+      if (h > H) { h = H; w = H * ratio; }
+      return { W, H, w, h, left: (W - w) / 2, top: (H - h) / 2 };
+    }
+
+    // Zoomed in, the picture fills the view so nothing is lost to bars, and
+    // never sits below a size where small text can be read.
+    function fillScale(b) {
+      return Math.min(5, Math.max(1.6, b.W / b.w, b.H / b.h));
+    }
+
+    // paintStage keeps the pointer in sight while zoomed. The view only moves
+    // once the pointer nears an edge, so reading stays calm and the picture
+    // does not slide under every small move. center puts the pointer mid view.
+    function paintStage(center, snap) {
+      const b = fitBox();
+      if (!b) return;
+      if (zoomOn && scale === 1 && !pinching) scale = fillScale(b);
+      let tx = shift.x, ty = shift.y;
+      if (scale > 1 && pointerAt) {
+        const px = b.left + pointerAt[0] * b.w - b.W / 2;
+        const py = b.top + pointerAt[1] * b.h - b.H / 2;
+        if (center) {
+          tx = -px * scale;
+          ty = -py * scale;
+        } else {
+          const ox = b.W / 2 + px * scale + tx;
+          const oy = b.H / 2 + py * scale + ty;
+          const mx = b.W * 0.22, my = b.H * 0.22;
+          if (ox < mx) tx += mx - ox; else if (ox > b.W - mx) tx -= ox - (b.W - mx);
+          if (oy < my) ty += my - oy; else if (oy > b.H - my) ty -= oy - (b.H - my);
+        }
+      }
+      const limX = Math.max(0, (b.w * scale - b.W) / 2);
+      const limY = Math.max(0, (b.h * scale - b.H) / 2);
+      shift = { x: Math.max(-limX, Math.min(limX, tx)), y: Math.max(-limY, Math.min(limY, ty)) };
+      stage.classList.toggle("snap", !!snap);
+      stage.style.transform = "translate(" + shift.x + "px," + shift.y + "px) scale(" + scale + ")";
+      paintCaret(b);
+      paintZoomBtn();
+    }
+
+    function setZoom(on) {
+      zoomOn = on;
+      store("local", "ft-remote-zoom", on ? "1" : "0");
+      const b = fitBox();
+      scale = on && b ? fillScale(b) : 1;
+      paintStage(true);
+    }
+
     paintSharp();
-    paintTouch();
+    paintKeyBar();
     // The keyboard button over the screen shows whether the keyboard is up.
     const screenKb = q(".rm-screen .rm-kb");
-    hiddenArea.addEventListener("focus", () => screenKb.setAttribute("aria-pressed", "true"));
-    hiddenArea.addEventListener("blur", () => screenKb.setAttribute("aria-pressed", "false"));
+    hiddenArea.addEventListener("focus", () => { screenKb.setAttribute("aria-pressed", "true"); paintKeyBar(); });
+    hiddenArea.addEventListener("blur", () => { screenKb.setAttribute("aria-pressed", "false"); setTimeout(paintKeyBar, 0); });
     q(".rm-sharp").addEventListener("click", () => {
       sharp = !sharp;
       store("local", "ft-remote-sharp", sharp ? "1" : "");
       paintSharp();
       frameTag = "";
     });
-    q(".rm-mode2").addEventListener("click", () => {
-      screenTouch = screenTouch === "drag" ? "tap" : "drag";
-      store("local", "ft-remote-touch", screenTouch);
-      paintTouch();
+    q(".rm-keybar").addEventListener("click", () => {
+      keysOn = !keysOn;
+      store("local", "ft-remote-keybar", keysOn ? "1" : "");
+      paintKeyBar();
       buzz();
     });
-    q(".rm-fit").addEventListener("click", () => { zoom = { s: 1, x: 0, y: 0 }; paintZoom(); });
+    q(".rm-zoom").addEventListener("click", () => { setZoom(scale === 1); buzz(); });
     q(".rm-full").addEventListener("click", () => {
       const panel = q(".rm-screen");
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       else if (panel.requestFullscreen) panel.requestFullscreen().catch(() => opts.toast("Turn the phone sideways for a bigger view"));
       else opts.toast("Turn the phone sideways for a bigger view");
+    });
+    window.addEventListener("resize", () => { if (mode === "screen") paintStage(false, true); });
+    document.addEventListener("fullscreenchange", () => requestAnimationFrame(() => paintStage(true, true)));
+
+    if (!store("local", "ft-remote-screentip")) tipEl.hidden = false;
+    const releaseScreen = touchpad(view, {
+      onTouch() {
+        if (tipEl.hidden) return;
+        tipEl.hidden = true;
+        store("local", "ft-remote-screentip", "1");
+      },
+      // A tap on a text box makes the PC show a caret a moment later; that
+      // tap is the gesture mobile browsers need to raise the keyboard.
+      onTap() {
+        kbAfterTap = true;
+        setTimeout(() => { kbAfterTap = false; }, 1600);
+      },
+      pinch(ratio, first) {
+        if (first) { pinching = true; pinchFrom = scale; }
+        scale = Math.max(1, Math.min(5, pinchFrom * ratio));
+        paintStage(false, true);
+      },
+      pinchEnd() {
+        pinching = false;
+        if (scale < 1.15) scale = 1;
+        zoomOn = scale > 1;
+        store("local", "ft-remote-zoom", zoomOn ? "1" : "0");
+        paintStage(false);
+      },
     });
 
     function startScreen() {
@@ -726,9 +855,9 @@
       while (run === screenRun && state === "live" && visible && mode === "screen") {
         const box = view.getBoundingClientRect();
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
-        const want = Math.round(Math.max(box.width, box.height) * dpr * (sharp ? 1.2 : 0.8) * Math.min(zoom.s, 2));
-        const width = Math.max(sharp ? 960 : 640, Math.min(sharp ? 2560 : 1600, want));
-        const quality = sharp ? 78 : 55;
+        const want = Math.round(Math.max(box.width, box.height) * dpr * (sharp ? 1.2 : 0.8) * Math.min(scale, 2.5));
+        const width = Math.max(sharp ? 960 : 640, Math.min(sharp ? 2560 : 1920, want));
+        const quality = sharp ? 78 : 60;
         try {
           const session = await opts.session();
           const url = "/api/phone/control/screen?session=" + encodeURIComponent(session) + "&w=" + width + "&q=" + quality + (frameTag ? "&last=" + frameTag : "");
@@ -736,12 +865,14 @@
           if (run !== screenRun) return;
           if (res.status === 403) { const data = await res.json().catch(() => ({})); if (data.ended) { ended("Control ended on the PC"); return; } }
           if (res.status === 404) { await opts.renew(); continue; }
+          onPointer(res.headers.get("X-Pointer"));
           onCaret(res.headers.get("X-Caret"));
           if (res.status === 204) continue;
           if (!res.ok) throw new Error(String(res.status));
           const blob = await res.blob();
           frameTag = res.headers.get("X-Frame") || "";
           const next = URL.createObjectURL(blob);
+          const first = !shot.naturalWidth;
           await new Promise((resolve) => {
             shot.onload = resolve;
             shot.onerror = resolve;
@@ -751,6 +882,7 @@
           frameURL = next;
           shotMsg.hidden = true;
           misses = 0;
+          if (first) paintStage(true, true);
         } catch (err) {
           misses++;
           if (misses > 2) { shotMsg.hidden = false; shotMsg.textContent = "Cannot see the screen right now"; }
@@ -760,22 +892,26 @@
       if (run === screenRun) screening = false;
     }
 
-    function paintZoom() {
-      const box = view.getBoundingClientRect();
-      const maxX = (box.width * (zoom.s - 1)) / 2;
-      const maxY = (box.height * (zoom.s - 1)) / 2;
-      zoom.x = Math.max(-maxX, Math.min(maxX, zoom.x));
-      zoom.y = Math.max(-maxY, Math.min(maxY, zoom.y));
-      shot.style.transform = "translate(" + zoom.x + "px," + zoom.y + "px) scale(" + zoom.s + ")";
+    function fractions(header, n) {
+      const parts = (header || "").split(",");
+      if (!header || parts.length !== n) return null;
+      const out = parts.map(Number);
+      return out.every((v) => isFinite(v) && v >= 0 && v <= 1) ? out : null;
+    }
+
+    function onPointer(header) {
+      const at = fractions(header, 2);
+      if (!at) return;
+      const moved = !pointerAt || at[0] !== pointerAt[0] || at[1] !== pointerAt[1];
+      pointerAt = at;
+      if (moved && scale > 1) paintStage(false);
     }
 
     // onCaret handles where the PC says its text cursor is. A caret appearing
     // just after a tap means the user tapped a text box, so the keyboard comes
     // up on its own; the marker on the shot shows where typing will land.
     function onCaret(header) {
-      const parts = (header || "").split(",");
-      caretBox = parts.length === 4 && header ? parts.map(Number) : null;
-      if (caretBox && caretBox.some((n) => !isFinite(n))) caretBox = null;
+      caretBox = fractions(header, 4);
       paintCaret();
       if (caretBox && kbAfterTap && document.activeElement !== hiddenArea) {
         kbAfterTap = false;
@@ -783,135 +919,15 @@
       }
     }
 
-    function paintCaret() {
-      if (!caretBox || mode !== "screen") { caretEl.hidden = true; return; }
-      const r = shot.getBoundingClientRect();
-      const vr = view.getBoundingClientRect();
-      if (!r.width || !shot.naturalWidth) { caretEl.hidden = true; return; }
-      const ratio = shot.naturalWidth / shot.naturalHeight;
-      let w = r.width, h = r.height, left = r.left, top = r.top;
-      if (w / h > ratio) { const nw = h * ratio; left += (w - nw) / 2; w = nw; }
-      else { const nh = w / ratio; top += (h - nh) / 2; h = nh; }
-      caretEl.style.left = (left - vr.left + caretBox[0] * w) + "px";
-      caretEl.style.top = (top - vr.top + caretBox[1] * h) + "px";
-      caretEl.style.height = Math.max(10, caretBox[3] * h) + "px";
+    function paintCaret(box) {
+      const b = box || fitBox();
+      if (!caretBox || mode !== "screen" || !b) { caretEl.hidden = true; return; }
+      caretEl.style.left = (b.left + caretBox[0] * b.w) + "px";
+      caretEl.style.top = (b.top + caretBox[1] * b.h) + "px";
+      caretEl.style.width = Math.max(0.5, 2 / scale) + "px";
+      caretEl.style.height = Math.max(10 / scale, caretBox[3] * b.h) + "px";
       caretEl.hidden = false;
     }
-
-    function shotPoint(x, y) {
-      const r = shot.getBoundingClientRect();
-      if (!r.width || !shot.naturalWidth) return null;
-      const ratio = shot.naturalWidth / shot.naturalHeight;
-      let w = r.width, h = r.height, left = r.left, top = r.top;
-      if (w / h > ratio) { const nw = h * ratio; left += (w - nw) / 2; w = nw; }
-      else { const nh = w / ratio; top += (h - nh) / 2; h = nh; }
-      const px = (x - left) / w;
-      const py = (y - top) / h;
-      if (px < 0 || px > 1 || py < 0 || py > 1) return null;
-      return { t: "a", x: px, y: py };
-    }
-
-    // A finger has to travel this far before it counts as a gesture and not a
-    // tap, so small wobble while tapping no longer selects text.
-    const TAP_SLOP = 16;
-    const shotPts = new Map();
-    let sg = null;
-
-    function tapAt(x, y, button, kind) {
-      const at = shotPoint(x, y);
-      if (at) { send(at); click(button, kind); }
-    }
-
-    view.addEventListener("pointerdown", (e) => {
-      if (e.target.classList.contains("rm-strip")) return;
-      e.preventDefault();
-      try { view.setPointerCapture(e.pointerId); } catch (err) {}
-      shotPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (shotPts.size === 1) {
-        const near = Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 40;
-        const quick = e.timeStamp - lastTapAt < 320 && near;
-        sg = { fingers: 1, start: e.timeStamp, x0: e.clientX, y0: e.clientY, moved: 0, mode: "", done: false, dbl: quick };
-        sg.hold = setTimeout(() => {
-          if (!sg || sg.fingers !== 1 || sg.moved > TAP_SLOP || sg.mode) return;
-          sg.mode = "right";
-          sg.done = true;
-          tapAt(sg.x0, sg.y0, "r");
-          buzz();
-        }, 520);
-      } else if (sg) {
-        // A second finger cancels whatever one finger was doing and starts a
-        // pinch, so a pinch never leaves a button held or text selected.
-        clearTimeout(sg.hold);
-        if (sg.mode === "select") click("l", "up");
-        sg.fingers = 2;
-        sg.mode = "pinch";
-        sg.done = true;
-        const [a, b] = Array.from(shotPts.values());
-        sg.dist = Math.hypot(a.x - b.x, a.y - b.y);
-        sg.mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        sg.base = Object.assign({}, zoom);
-      }
-    });
-
-    view.addEventListener("pointermove", (e) => {
-      const p = shotPts.get(e.pointerId);
-      if (!p || !sg) return;
-      e.preventDefault();
-      const dx = e.clientX - p.x;
-      const dy = e.clientY - p.y;
-      p.x = e.clientX;
-      p.y = e.clientY;
-      if (sg.fingers === 1) {
-        sg.moved = Math.max(sg.moved, Math.hypot(e.clientX - sg.x0, e.clientY - sg.y0));
-        if (!sg.mode && sg.moved > TAP_SLOP) {
-          clearTimeout(sg.hold);
-          // A double tap that then moves drags, so you can select or move
-          // things on purpose. Otherwise Tap mode scrolls and Drag mode selects.
-          if (sg.dbl || screenTouch === "drag") {
-            sg.mode = "select";
-            tapAt(sg.x0, sg.y0, "l", "down");
-          } else {
-            sg.mode = "scroll";
-          }
-        }
-        if (sg.mode === "select") {
-          const at = shotPoint(e.clientX, e.clientY);
-          if (at) send(at);
-        } else if (sg.mode === "scroll") {
-          send({ t: "w", x: -dx * 3, y: -dy * 3 });
-        }
-      } else if (sg.mode === "pinch" && shotPts.size === 2) {
-        const [a, b] = Array.from(shotPts.values());
-        const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        zoom.s = Math.max(1, Math.min(5, sg.base.s * (dist / (sg.dist || dist))));
-        zoom.x = sg.base.x + (mid.x - sg.mid.x);
-        zoom.y = sg.base.y + (mid.y - sg.mid.y);
-        paintZoom();
-        paintCaret();
-      }
-    });
-
-    function liftShot(e) {
-      if (!shotPts.has(e.pointerId)) return;
-      shotPts.delete(e.pointerId);
-      if (!sg || shotPts.size) return;
-      clearTimeout(sg.hold);
-      if (sg.mode === "select") click("l", "up");
-      else if (sg.fingers === 1 && !sg.done && sg.moved <= TAP_SLOP) {
-        tapAt(sg.x0, sg.y0, "l");
-        lastTapAt = e.timeStamp;
-        lastTapX = sg.x0;
-        lastTapY = sg.y0;
-        // A tap on a text box makes the PC show a caret a moment later; that
-        // tap is the gesture mobile browsers need to raise the keyboard.
-        kbAfterTap = true;
-        setTimeout(() => { kbAfterTap = false; }, 1600);
-      }
-      sg = null;
-    }
-    view.addEventListener("pointerup", liftShot);
-    view.addEventListener("pointercancel", liftShot);
 
     // Sound. The PC sends plain 16 bit stereo; each piece is scheduled just
     // after the last so it plays without gaps. A small lead soaks up Wi-Fi
@@ -1024,8 +1040,8 @@
 
     // A finger that left the page mid drag must not leave the button held.
     function letGo() {
-      if (touch.classList.contains("dragging")) { click("l", "up"); touch.classList.remove("dragging"); }
-      if (sg && sg.drag) { click("l", "up"); sg = null; }
+      releasePad();
+      releaseScreen();
       root.querySelectorAll(".rm-mouse.held").forEach((b) => { b.classList.remove("held"); click(b.dataset.b, "up"); });
       stopRepeat();
     }
@@ -1066,6 +1082,7 @@
       },
       hide() {
         visible = false;
+        document.body.classList.remove("rm-watching");
         letGo();
         stopScreen();
         stopSound();

@@ -15,3 +15,5 @@ func powerAction(string) {}
 func raiseDesk() {}
 
 func caretBox() (x, y, w, h float64, ok bool) { return 0, 0, 0, 0, false }
+
+func pointerAt() (x, y float64, ok bool) { return 0, 0, false }

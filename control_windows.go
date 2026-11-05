@@ -400,6 +400,20 @@ type guiThreadInfo struct {
 	Bottom    int32
 }
 
+// pointerAt says where the mouse pointer is, as fractions of the whole desktop.
+func pointerAt() (x, y float64, ok bool) {
+	ci := cursorInfo{Size: uint32(unsafe.Sizeof(cursorInfo{}))}
+	if r, _, _ := procCursorInfo.Call(uintptr(unsafe.Pointer(&ci))); r == 0 {
+		return 0, 0, false
+	}
+	vx, vy := metric(76), metric(77)
+	vw, vh := metric(78), metric(79)
+	if vw <= 0 || vh <= 0 {
+		return 0, 0, false
+	}
+	return float64(ci.X-vx) / float64(vw), float64(ci.Y-vy) / float64(vh), true
+}
+
 // caretBox finds the blinking text cursor of the window in front, when it
 // has one, as fractions of the whole desktop.
 func caretBox() (x, y, w, h float64, ok bool) {
