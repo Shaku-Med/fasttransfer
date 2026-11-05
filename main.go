@@ -228,6 +228,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /docs.css", asset("web/docs.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /remote.js", asset("web/remote.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /remote.css", asset("web/remote.css", "text/css; charset=utf-8"))
+	mux.HandleFunc("GET /awake.mp4", awakeClip)
 	for _, side := range []struct {
 		prefix string
 		wrap   func(http.HandlerFunc) http.HandlerFunc

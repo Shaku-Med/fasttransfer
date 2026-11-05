@@ -281,6 +281,7 @@ body.remoting #remoteroot { flex: 1; min-height: 0; display: flex; flex-directio
 .rm-power .btn { height: 48px; }
 .rm-power svg { width: 18px; height: 18px; }
 
+.rm-awake { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; }
 .rm-hidden {
   position: fixed;
   left: 0;

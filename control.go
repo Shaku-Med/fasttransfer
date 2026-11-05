@@ -86,6 +86,7 @@ var (
 	caret   = caretBox
 	pointer = pointerAt
 	power   = powerAction
+	awake   = stayAwake
 )
 
 var modKeys = map[string]bool{"ctrl": true, "alt": true, "shift": true, "win": true}
@@ -310,9 +311,15 @@ func (c *controlHub) run(stop <-chan struct{}) {
 			}
 		}
 		changed := c.pruneLocked(now)
+		held := len(c.grants) > 0
 		c.mu.Unlock()
 		if changed {
 			hub.emit(feedEvent{Kind: "control"})
+		}
+		// Someone watching a video from the next room is not touching
+		// anything, so the PC is told it is in use while a phone is in control.
+		if held {
+			awake()
 		}
 	}
 }

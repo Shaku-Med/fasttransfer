@@ -255,6 +255,7 @@
       else stopScreen();
       if (state === "live" && visible && soundOn) startSound();
       else stopSound();
+      keepAwake();
       if (!quiet) buzz();
     }
 
@@ -933,8 +934,9 @@
     // after the last so it plays without gaps. A small lead soaks up Wi-Fi
     // hiccups, and pieces are skipped when the lead grows, so it never lags far.
     let actx = null;
-    let soundOn = false;
+    let soundOn = store("local", "ft-remote-sound") !== "off";
     let soundRun = 0;
+    let soundLive = false;
     let soundReader = null;
     const soundBtn = q(".rm-sound");
 
@@ -943,37 +945,66 @@
       soundBtn.setAttribute("aria-pressed", soundOn ? "true" : "false");
     }
 
-    soundBtn.addEventListener("click", () => {
-      soundOn = !soundOn;
-      if (soundOn) {
-        // Phones only let a page make sound from inside a tap.
-        try {
-          if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-          actx.resume().catch(() => {});
-        } catch (err) {
-          soundOn = false;
-          opts.toast("This browser cannot play the sound");
-        }
+    // Phones only let a page start sound from inside a tap, and an iPhone on
+    // silent mutes page sound unless it is marked as media. Sound is on unless
+    // turned off, and every tap on the remote retries, so it starts with the
+    // first touch, the Take control tap included.
+    function unlockAudio() {
+      if (!soundOn) return;
+      try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (err) {}
+      try {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (err) {
+        return;
       }
+      if (actx.state !== "running") {
+        actx.resume().catch(() => {});
+        // A silent blip inside the tap is what wakes older iPhones.
+        try {
+          const src = actx.createBufferSource();
+          src.buffer = actx.createBuffer(1, 1, 22050);
+          src.connect(actx.destination);
+          src.start(0);
+        } catch (err) {}
+      }
+      if (state === "live" && visible) startSound();
+    }
+    ["pointerup", "touchend", "click"].forEach((type) => root.addEventListener(type, () => { unlockAudio(); keepAwake(); }, true));
+
+    soundBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      soundOn = !soundOn;
+      store("local", "ft-remote-sound", soundOn ? "" : "off");
       paintSound();
-      if (soundOn && state === "live" && visible) startSound();
+      if (soundOn) unlockAudio();
       else stopSound();
       buzz();
     });
+    paintSound();
 
     function startSound() {
-      if (soundReader || !actx) return;
-      if (actx.state === "suspended") actx.resume().catch(() => {});
+      if (soundLive || !actx) return;
+      if (actx.state !== "running") actx.resume().catch(() => {});
+      soundLive = true;
       pullSound(++soundRun);
     }
 
     function stopSound() {
       soundRun++;
+      soundLive = false;
       if (soundReader) soundReader.cancel().catch(() => {});
       soundReader = null;
     }
 
     async function pullSound(run) {
+      try {
+        await pullSoundLoop(run);
+      } finally {
+        if (run === soundRun) soundLive = false;
+      }
+    }
+
+    async function pullSoundLoop(run) {
       let misses = 0;
       while (run === soundRun && soundOn && state === "live" && visible) {
         try {
@@ -1011,6 +1042,9 @@
             const frames = Math.floor(bytes.length / 4);
             carry = bytes.length % 4 ? bytes.slice(frames * 4) : null;
             if (!frames) continue;
+            // While the phone holds the sound back, pieces are dropped, so it
+            // picks up live instead of playing a backlog.
+            if (actx.state !== "running") { next = 0; continue; }
             const now = actx.currentTime;
             if (next < now + 0.02) next = now + 0.15;
             if (next > now + 0.6) continue;
@@ -1037,6 +1071,45 @@
         }
       }
     }
+
+    // The phone stays awake the whole time it is in control. The screen wake
+    // lock only exists on https pages, which a home Wi-Fi address is not, so
+    // a tiny black clip loops out of sight instead: phones do not dim or lock
+    // while a video plays.
+    let wakeLock = null;
+    const awakeClip = el("video", "rm-awake");
+    awakeClip.muted = true;
+    awakeClip.loop = true;
+    awakeClip.playsInline = true;
+    awakeClip.preload = "none";
+    ["muted", "playsinline", "aria-hidden"].forEach((a) => awakeClip.setAttribute(a, a === "aria-hidden" ? "true" : ""));
+    awakeClip.src = "/awake.mp4";
+    root.appendChild(awakeClip);
+
+    function keepAwake() {
+      const on = state === "live" && visible && !document.hidden;
+      if (!on) {
+        if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+        if (!awakeClip.paused) awakeClip.pause();
+        return;
+      }
+      if (navigator.wakeLock && window.isSecureContext) {
+        if (!wakeLock) {
+          navigator.wakeLock.request("screen").then((lock) => {
+            wakeLock = lock;
+            lock.addEventListener("release", () => { if (wakeLock === lock) wakeLock = null; });
+          }).catch(() => {});
+        }
+        return;
+      }
+      if (awakeClip.paused) awakeClip.play().catch(() => {});
+    }
+    // Coming back to the page drops the lock and pauses video, so take them
+    // up again, and let the sound pick up too.
+    document.addEventListener("visibilitychange", () => {
+      keepAwake();
+      if (!document.hidden && actx && actx.state !== "running") actx.resume().catch(() => {});
+    });
 
     // A finger that left the page mid drag must not leave the button held.
     function letGo() {

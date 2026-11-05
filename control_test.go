@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -45,7 +46,10 @@ func controlServer(t *testing.T) (*server, http.Handler, *sentInput) {
 		defer sent.mu.Unlock()
 		sent.power = append(sent.power, k)
 	}
-	t.Cleanup(func() { inject, capture, power, caret, pointer = injectEvents, captureScreen, powerAction, caretBox, pointerAt })
+	awake = func() {}
+	t.Cleanup(func() {
+		inject, capture, power, caret, pointer, awake = injectEvents, captureScreen, powerAction, caretBox, pointerAt, stayAwake
+	})
 	return s, s.routes(), sent
 }
 
@@ -440,5 +444,31 @@ func TestControlAlwaysAllowAgainReplacesTheOldPass(t *testing.T) {
 	serve(mux, deskReq("POST", "/api/desk/control", `{"stop":"all"}`))
 	if again := ask(t, mux, phone, fresh); again["state"] != "granted" {
 		t.Fatalf("the new pass does not work: %v", again)
+	}
+}
+
+func TestControlKeepsThePCAwakeOnlyWhileControlled(t *testing.T) {
+	_, mux, _ := controlServer(t)
+	var calls atomic.Int32
+	awake = func() { calls.Add(1) }
+	stop := make(chan struct{})
+	go control.run(stop)
+	defer close(stop)
+
+	time.Sleep(2500 * time.Millisecond)
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("kept the PC awake %d times with nobody in control", n)
+	}
+	grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	time.Sleep(2500 * time.Millisecond)
+	if calls.Load() == 0 {
+		t.Fatal("the PC was not kept awake while a phone had control")
+	}
+	serve(mux, deskReq("POST", "/api/desk/control", `{"stop":"all"}`))
+	time.Sleep(200 * time.Millisecond)
+	before := calls.Load()
+	time.Sleep(2500 * time.Millisecond)
+	if calls.Load() != before {
+		t.Fatal("still keeping the PC awake after control ended")
 	}
 }
