@@ -31,6 +31,31 @@ Social media saves a public link with yt-dlp, from the PC sidebar or from the de
 
 Share this one exe. Edge or WebView2 is required. The first launch may extract helper tools next to the exe.
 
+## Updates
+
+Get the latest `FastTransfer.exe` from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest). Put it in a folder you own, like Documents, since it keeps its files beside itself.
+
+The app checks this repo for a newer release every few hours and asks before installing it. Each release is signed, and the app refuses any download that does not match that signature, so only releases made with the author's key ever install. You can also check by hand under Connect.
+
+Windows may warn the first time because the exe is not code signed with a paid certificate. Choose More info, then Run anyway.
+
+### Making a release
+
+The tools in `tools/` (ffmpeg.exe and yt-dlp.exe) have to be there, since the release bundles them.
+
+```bash
+go run ./cmd/release -genkey
+```
+
+Run that once. It saves the signing key in your user folder, outside the repo, and prints the public key that belongs in `updatePubKey` in `updater.go`. Back the key file up. Without it, copies already out there cannot be updated.
+
+```bash
+go run ./cmd/release -version 1.2.0
+gh release create v1.2.0 release/FastTransfer.exe release/update.json release/update.json.sig --title "FastTransfer 1.2.0" --notes "What changed"
+```
+
+The first line builds and signs into `release/`. The second publishes it, and every copy offers the update within a few hours. The tag has to be `v` plus the same version.
+
 ## Many phones at once
 
 Every phone that opens the link shows up under Connect with its own name. The phone picks a name like "iPhone 4F2A" and you can rename it from either side. A phone keeps the same entry after a reload or a locked screen, so files and text sent while it was away are waiting when it comes back. Phones that have been away for a day are forgotten.
