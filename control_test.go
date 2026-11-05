@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"image"
 	"io"
 	"math"
@@ -18,6 +19,13 @@ type sentInput struct {
 	mu     sync.Mutex
 	events []ctlEvent
 	power  []string
+	screen []string
+}
+
+func (s *sentInput) log() (power, screen []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.power...), append([]string(nil), s.screen...)
 }
 
 func (s *sentInput) count() int {
@@ -29,7 +37,7 @@ func (s *sentInput) count() int {
 func controlServer(t *testing.T) (*server, http.Handler, *sentInput) {
 	t.Helper()
 	s := testServer(t)
-	control = &controlHub{asks: map[string]*controlAsk{}, grants: map[string]*controlGrant{}, held: map[string]bool{}}
+	control = &controlHub{asks: map[string]*controlAsk{}, grants: map[string]*controlGrant{}, held: map[string]bool{}, why: map[string]string{}}
 	useControlFile(filepath.Join(t.TempDir(), "control.json"))
 	askLimit = newLimiter(100, 100)
 	inputLimit = newLimiter(1000, 1000)
@@ -47,8 +55,24 @@ func controlServer(t *testing.T) (*server, http.Handler, *sentInput) {
 		sent.power = append(sent.power, k)
 	}
 	awake = func() {}
+	hideScreen = func() error {
+		sent.mu.Lock()
+		defer sent.mu.Unlock()
+		sent.screen = append(sent.screen, "hide")
+		return nil
+	}
+	showScreen = func(quiet bool) {
+		sent.mu.Lock()
+		defer sent.mu.Unlock()
+		if quiet {
+			sent.screen = append(sent.screen, "show quiet")
+		} else {
+			sent.screen = append(sent.screen, "show")
+		}
+	}
 	t.Cleanup(func() {
 		inject, capture, power, caret, pointer, awake = injectEvents, captureScreen, powerAction, caretBox, pointerAt, stayAwake
+		hideScreen, showScreen = curtainUp, curtainDown
 	})
 	return s, s.routes(), sent
 }
@@ -470,5 +494,107 @@ func TestControlKeepsThePCAwakeOnlyWhileControlled(t *testing.T) {
 	time.Sleep(2500 * time.Millisecond)
 	if calls.Load() != before {
 		t.Fatal("still keeping the PC awake after control ended")
+	}
+}
+
+func TestControlHidesAndShowsThePCScreen(t *testing.T) {
+	_, mux, sent := controlServer(t)
+	session, token := grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	if code := sendInput(mux, session, token, `[{"t":"p","k":"hide"}]`); code != http.StatusOK {
+		t.Fatalf("hide got %d", code)
+	}
+	if hiddenHeader() != "1" {
+		t.Fatal("the PC should say its screen is hidden")
+	}
+	if code := sendInput(mux, session, token, `[{"t":"p","k":"show"}]`); code != http.StatusOK {
+		t.Fatalf("show got %d", code)
+	}
+	if hiddenHeader() != "0" {
+		t.Fatal("the PC should say its screen is back")
+	}
+	if p, scr := sent.log(); strings.Join(scr, ",") != "hide,show" || len(p) != 0 {
+		t.Fatalf("got screen %v power %v", scr, p)
+	}
+	if code := sendInput(mux, session, token, `[{"t":"p","k":"reveal"}]`); code != http.StatusBadRequest {
+		t.Fatalf("an unknown screen action got %d", code)
+	}
+}
+
+func TestControlRefusesToHideWhenWindowsCannot(t *testing.T) {
+	_, mux, _ := controlServer(t)
+	hideScreen = func() error { return errCurtainTest }
+	session, token := grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	if code := sendInput(mux, session, token, `[{"t":"p","k":"hide"}]`); code != http.StatusServiceUnavailable {
+		t.Fatalf("hide got %d", code)
+	}
+	if hiddenHeader() != "0" {
+		t.Fatal("a curtain that never went up must not be reported as up")
+	}
+}
+
+func TestControlLocksThePCWhenControlEndsWhileHidden(t *testing.T) {
+	_, mux, sent := controlServer(t)
+	session, token := grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	sendInput(mux, session, token, `[{"t":"p","k":"hide"}]`)
+	serve(mux, deskReq("POST", "/api/desk/control", `{"stop":"all"}`))
+	time.Sleep(lockSettle + 300*time.Millisecond)
+	p, scr := sent.log()
+	if strings.Join(p, ",") != "lock" {
+		t.Fatalf("the PC should lock before its screen comes back, got %v", p)
+	}
+	if strings.Join(scr, ",") != "hide,show quiet" {
+		t.Fatalf("the curtain should lift with the speakers left muted, got %v", scr)
+	}
+}
+
+func TestControlTouchAtThePCLocksIt(t *testing.T) {
+	_, mux, sent := controlServer(t)
+	session, token := grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	sendInput(mux, session, token, `[{"t":"p","k":"hide"}]`)
+	onCurtainTouch()
+	w := inputReply(mux, session, token)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "Someone touched the PC") {
+		t.Fatalf("the phone should hear why it lost control, got %d %s", w.Code, w.Body.String())
+	}
+	w = inputReply(mux, session, token)
+	if strings.Contains(w.Body.String(), "touched") {
+		t.Fatal("the reason should be told once")
+	}
+	time.Sleep(lockSettle + 300*time.Millisecond)
+	if p, _ := sent.log(); strings.Join(p, ",") != "lock" {
+		t.Fatalf("touching the PC should lock it, got %v", p)
+	}
+}
+
+var errCurtainTest = errors.New("too old")
+
+func inputReply(mux http.Handler, session, token string) *httptest.ResponseRecorder {
+	r := phoneReq("POST", "/api/phone/control/input", `{"session":"`+session+`","events":[]}`)
+	r.Header.Set("X-Control-Token", token)
+	return serve(mux, r)
+}
+
+// Someone watching a long video on the phone is using the PC even without
+// touching anything, so the idle limit must not end control and lock it.
+func TestControlWatchingTheScreenKeepsControl(t *testing.T) {
+	_, mux, _ := controlServer(t)
+	capture = func(int) (*image.RGBA, error) { return image.NewRGBA(image.Rect(0, 0, 8, 8)), nil }
+	session, token := grantPhone(t, mux, "192.168.1.20", 1, "Pixel")
+	control.mu.Lock()
+	for _, g := range control.grants {
+		g.used = time.Now().Add(-grantIdle + time.Second)
+	}
+	control.mu.Unlock()
+	r := phoneReq("GET", "/api/phone/control/screen?session="+session+"&w=640", "")
+	r.Header.Set("X-Control-Token", token)
+	if w := serve(mux, r); w.Header().Get("X-Hidden") != "0" {
+		t.Fatalf("the screen should say whether the PC is hidden, got %q", w.Header().Get("X-Hidden"))
+	}
+	control.mu.Lock()
+	control.pruneLocked(time.Now().Add(2 * time.Second))
+	left := len(control.grants)
+	control.mu.Unlock()
+	if left != 1 {
+		t.Fatal("watching the screen should count as using the PC")
 	}
 }

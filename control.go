@@ -54,7 +54,11 @@ var (
 	screenLimit   = newLimiter(30, 30)
 	screenSlots   = make(chan struct{}, 3)
 	controlEnders = map[string]bool{"lock": true, "sleep": true}
+	screenHiders  = map[string]bool{"hide": true, "show": true}
 )
+
+// Long enough for Windows to show its lock screen before the curtain lifts.
+const lockSettle = 1500 * time.Millisecond
 
 // Virtual key codes by the names the phone may send. Only these get through.
 var keyCodes = func() map[string]uint16 {
@@ -81,12 +85,14 @@ var keyCodes = func() map[string]uint16 {
 
 // Kept as variables so tests can watch input without moving the real mouse.
 var (
-	inject  = injectEvents
-	capture = captureScreen
-	caret   = caretBox
-	pointer = pointerAt
-	power   = powerAction
-	awake   = stayAwake
+	inject     = injectEvents
+	capture    = captureScreen
+	caret      = caretBox
+	pointer    = pointerAt
+	power      = powerAction
+	awake      = stayAwake
+	hideScreen = curtainUp
+	showScreen = curtainDown
 )
 
 var modKeys = map[string]bool{"ctrl": true, "alt": true, "shift": true, "win": true}
@@ -149,9 +155,15 @@ type controlHub struct {
 	// take over once the driver has been still for a moment.
 	driver   string
 	driverAt time.Time
+	// hidden is the PC's own screen blacked out while phones still see it.
+	hidden bool
+	// why tells a phone that lost control what happened, once.
+	why map[string]string
 }
 
-var control = &controlHub{asks: map[string]*controlAsk{}, grants: map[string]*controlGrant{}, held: map[string]bool{}}
+var control = &controlHub{asks: map[string]*controlAsk{}, grants: map[string]*controlGrant{}, held: map[string]bool{}, why: map[string]string{}}
+
+func init() { onCurtainTouch = func() { control.touchedAtPC() } }
 
 func useControlFile(path string) {
 	control.mu.Lock()
@@ -235,8 +247,63 @@ func (c *controlHub) endLocked(handle string) bool {
 	}
 	if len(c.grants) == 0 {
 		c.releaseLocked()
+		c.unveilLocked()
 	}
 	return ended
+}
+
+// unveilLocked never lets the curtain fall on an empty room: with nobody left
+// in control the PC locks first, so whatever was open stays private.
+func (c *controlHub) unveilLocked() {
+	if !c.hidden {
+		return
+	}
+	c.hidden = false
+	go func() {
+		power("lock")
+		time.Sleep(lockSettle)
+		c.mu.Lock()
+		again := c.hidden
+		c.mu.Unlock()
+		if !again {
+			showScreen(true)
+		}
+	}()
+}
+
+// setHidden puts the curtain up or takes it down for a phone in control.
+func (c *controlHub) setHidden(on bool) error {
+	if on {
+		if err := hideScreen(); err != nil {
+			return err
+		}
+	} else {
+		showScreen(false)
+	}
+	c.mu.Lock()
+	c.hidden = on && len(c.grants) > 0
+	stale := on && !c.hidden
+	c.mu.Unlock()
+	if stale {
+		showScreen(false)
+	}
+	return nil
+}
+
+// touchedAtPC runs when someone at the PC presses a key or clicks while the
+// screen is hidden. Every phone loses control and the PC locks.
+func (c *controlHub) touchedAtPC() {
+	c.mu.Lock()
+	handles := make([]string, 0, len(c.grants))
+	for h := range c.grants {
+		handles = append(handles, h)
+		c.why[h] = "Someone touched the PC, so it locked"
+	}
+	c.endLocked("")
+	c.mu.Unlock()
+	for _, h := range handles {
+		hub.emit(feedEvent{Kind: "control", Handle: h, Text: "end"})
+	}
 }
 
 func (c *controlHub) releaseLocked() {
@@ -261,11 +328,20 @@ func (c *controlHub) pruneLocked(now time.Time) bool {
 	for h, g := range c.grants {
 		if now.Sub(g.used) > grantIdle || (!g.away.IsZero() && now.Sub(g.away) > grantAwayGrace) {
 			delete(c.grants, h)
+			if c.hidden {
+				c.why[h] = "The PC locked itself when this phone went quiet"
+			}
 			changed = true
 		}
 	}
 	if len(c.held) > 0 && (len(c.grants) == 0 || now.Sub(c.input) > heldButtonLife) {
 		c.releaseLocked()
+	}
+	if len(c.grants) == 0 {
+		c.unveilLocked()
+	}
+	if len(c.why) > maxGrants*4 {
+		clear(c.why)
 	}
 	return changed
 }
@@ -370,8 +446,17 @@ func grantFor(r *http.Request, session string) *controlGrant {
 	return g
 }
 
-func controlEnded(w http.ResponseWriter) {
-	writeJSON(w, http.StatusForbidden, map[string]any{"error": "control has ended", "ended": true})
+func controlEnded(w http.ResponseWriter, session string) {
+	out := map[string]any{"error": "control has ended", "ended": true}
+	if handle, _, ok := phoneBySession(session); ok {
+		control.mu.Lock()
+		if why := control.why[handle]; why != "" {
+			out["why"] = why
+			delete(control.why, handle)
+		}
+		control.mu.Unlock()
+	}
+	writeJSON(w, http.StatusForbidden, out)
 }
 
 func (s *server) phoneControlAsk(w http.ResponseWriter, r *http.Request) {
@@ -520,7 +605,7 @@ func (s *server) phoneControlInput(w http.ResponseWriter, r *http.Request) {
 	}
 	g := grantFor(r, req.Session)
 	if g == nil {
-		controlEnded(w)
+		controlEnded(w, req.Session)
 		return
 	}
 	if len(events) == 0 {
@@ -558,6 +643,14 @@ func (s *server) phoneControlInput(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		controlErr(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	for _, ev := range events {
+		if ev.T == "p" && screenHiders[ev.K] {
+			if err := control.setHidden(ev.K == "hide"); err != nil {
+				controlErr(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+		}
 	}
 	for _, ev := range events {
 		if ev.T == "p" && controlEnders[ev.K] {
@@ -603,10 +696,12 @@ func (s *server) phoneControlScreen(w http.ResponseWriter, r *http.Request) {
 		controlErr(w, http.StatusBadRequest, "bad request")
 		return
 	}
-	if grantFor(r, session) == nil {
-		controlEnded(w)
+	g := grantFor(r, session)
+	if g == nil {
+		controlEnded(w, session)
 		return
 	}
+	stillUsing(g)
 	select {
 	case screenSlots <- struct{}{}:
 		defer func() { <-screenSlots }()
@@ -635,6 +730,7 @@ func (s *server) phoneControlScreen(w http.ResponseWriter, r *http.Request) {
 			h.Set("X-Frame", tag)
 			h.Set("X-Caret", caretHeader())
 			h.Set("X-Pointer", pointerHeader())
+			h.Set("X-Hidden", hiddenHeader())
 			h.Set("Content-Length", strconv.Itoa(buf.Len()))
 			_, _ = w.Write(buf.Bytes())
 			return
@@ -643,6 +739,7 @@ func (s *server) phoneControlScreen(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
 			w.Header().Set("X-Caret", caretHeader())
 			w.Header().Set("X-Pointer", pointerHeader())
+			w.Header().Set("X-Hidden", hiddenHeader())
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -898,7 +995,7 @@ func cleanEvents(in []ctlEvent) ([]ctlEvent, error) {
 			}
 			ev.S = clean
 		case "p":
-			if !controlEnders[ev.K] {
+			if !controlEnders[ev.K] && !screenHiders[ev.K] {
 				return nil, bad
 			}
 		default:
@@ -927,6 +1024,15 @@ func cleanTyped(s string) (string, bool) {
 		}
 	}
 	return b.String(), true
+}
+
+func hiddenHeader() string {
+	control.mu.Lock()
+	defer control.mu.Unlock()
+	if control.hidden {
+		return "1"
+	}
+	return "0"
 }
 
 // pointerHeader lets the phone follow the mouse when it zooms in on the screen.

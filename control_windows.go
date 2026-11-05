@@ -330,8 +330,9 @@ func drawPointer(dc uintptr, vx, vy int32, scale float64) {
 	if ok, _, _ := procCursorInfo.Call(uintptr(unsafe.Pointer(&ci))); ok == 0 || ci.Flags&1 == 0 || ci.Cursor == 0 {
 		return
 	}
+	look := pointerLook(ci.Cursor)
 	var ii iconInfo
-	if ok, _, _ := procIconInfo.Call(ci.Cursor, uintptr(unsafe.Pointer(&ii))); ok != 0 {
+	if ok, _, _ := procIconInfo.Call(look, uintptr(unsafe.Pointer(&ii))); ok != 0 {
 		if ii.MaskBmp != 0 {
 			procDeleteObj.Call(ii.MaskBmp)
 		}
@@ -348,7 +349,7 @@ func drawPointer(dc uintptr, vx, vy int32, scale float64) {
 	k := size / float64(metric(13))
 	x := int32(float64(ci.X-vx)*scale - float64(ii.HotX)*k)
 	y := int32(float64(ci.Y-vy)*scale - float64(ii.HotY)*k)
-	procDrawIconEx.Call(dc, uintptr(x), uintptr(y), ci.Cursor, uintptr(int32(size)), uintptr(int32(size)), 0, 0, 3)
+	procDrawIconEx.Call(dc, uintptr(x), uintptr(y), look, uintptr(int32(size)), uintptr(int32(size)), 0, 0, 3)
 }
 
 type flashInfo struct {

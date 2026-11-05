@@ -36,6 +36,7 @@ body.remoting #remoteroot { flex: 1; min-height: 0; display: flex; flex-directio
 .rm-bar { display: flex; align-items: center; gap: 10px; min-height: 36px; }
 .rm-bar b { font-size: 15px; font-weight: 600; }
 .rm-bar .grow { flex: 1; }
+@media (max-width: 440px) { .rm-bar b { display: none; } }
 .rm-on { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px var(--hover); }
 
 .rm-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; border-radius: 12px; background: var(--hover); }
