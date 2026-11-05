@@ -316,3 +316,95 @@ func readDeviceBook(t *testing.T) deviceBook {
 	}
 	return loaded
 }
+
+func TestIOS26ShowsTheRealVersion(t *testing.T) {
+	safari26 := "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"
+	chrome26 := "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0.7390.41 Mobile/15E148 Safari/604.1"
+	safari187 := "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1"
+	chrome17 := "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0 Mobile/15E148 Safari/604.1"
+	ipad26 := "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
+	for ua, want := range map[string]string{
+		safari26:  "iPhone · iOS 26.1",
+		chrome26:  "iPhone · iOS",
+		safari187: "iPhone · iOS 18.7",
+		chrome17:  "iPhone · iOS 17.5",
+		ipad26:    "iPad · iPadOS 26",
+	} {
+		if got := describePhone(ua, "", "", "", "", "", "", "").Label; got != want {
+			t.Errorf("%s\n got %q, want %q", ua, got, want)
+		}
+	}
+}
+
+func postHelloFrom(t *testing.T, mux http.Handler, ip, key, ua string) helloReply {
+	t.Helper()
+	r := phoneReqFrom(ip, "POST", "/api/phone/hello", `{"device":"`+key+`","kind":"other"}`)
+	r.Header.Set("User-Agent", ua)
+	w := serve(mux, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("hello got %d: %s", w.Code, w.Body.String())
+	}
+	data := decode[map[string]string](t, w)
+	return helloReply{session: data["session"], name: data["name"], device: data["device"]}
+}
+
+func ageDevice(key string, by time.Duration) {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if d := hub.byKey[key]; d != nil {
+		d.seen = d.seen.Add(-by)
+	}
+}
+
+// A home screen shortcut, a private tab or a new PC address gives the same
+// phone a new id. Hours later it is still the same phone on the same address.
+func TestSamePhoneOnSameAddressIsOneRow(t *testing.T) {
+	mux := testServer(t).routes()
+	safari26 := "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1"
+	first := postHelloFrom(t, mux, "192.168.1.40", deviceKey(51), sampleIPhoneUA)
+	markAway(t, mux, first.session)
+	ageDevice(first.device, 12*time.Hour)
+
+	second := postHelloFrom(t, mux, "192.168.1.40", deviceKey(52), safari26)
+	list := devices(t, mux)
+	if len(list) != 1 || !list[0].Online || list[0].Name != "iPhone · iOS 26.1" {
+		t.Fatalf("same phone on the same address made %+v", list)
+	}
+	if second.device != first.device {
+		t.Fatalf("phone was not pointed back at its first id")
+	}
+	if book := readDeviceBook(t); len(book.WiFi) != 1 {
+		t.Fatalf("file kept %d phones", len(book.WiFi))
+	}
+}
+
+func TestSameModelOnAnotherAddressStaysSeparate(t *testing.T) {
+	mux := testServer(t).routes()
+	first := postHelloFrom(t, mux, "192.168.1.40", deviceKey(61), sampleIPhoneUA)
+	markAway(t, mux, first.session)
+	ageDevice(first.device, 2*time.Hour)
+	postHelloFrom(t, mux, "192.168.1.41", deviceKey(62), sampleIPhoneUA)
+	if n := len(devices(t, mux)); n != 2 {
+		t.Fatalf("two phones on two addresses became %d rows", n)
+	}
+
+	old := postHelloFrom(t, mux, "192.168.1.50", deviceKey(63), sampleIPhoneUA)
+	markAway(t, mux, old.session)
+	ageDevice(old.device, 8*24*time.Hour)
+	fresh := postHelloFrom(t, mux, "192.168.1.50", deviceKey(64), sampleIPhoneUA)
+	if fresh.device == old.device {
+		t.Fatalf("an address from more than a week ago should not merge")
+	}
+}
+
+func TestDesktopsOnOneAddressStaySeparate(t *testing.T) {
+	mux := testServer(t).routes()
+	winUA := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+	first := postHelloFrom(t, mux, "192.168.1.60", deviceKey(71), winUA)
+	markAway(t, mux, first.session)
+	ageDevice(first.device, time.Hour)
+	postHelloFrom(t, mux, "192.168.1.60", deviceKey(72), winUA)
+	if n := len(devices(t, mux)); n != 2 {
+		t.Fatalf("a generic PC name is not enough to merge, got %d rows", n)
+	}
+}

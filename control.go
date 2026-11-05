@@ -756,7 +756,17 @@ func (s *server) deskControlAnswer(w http.ResponseWriter, r *http.Request) {
 	if req.Always {
 		if trust, id := mustHex(32), mustHex(8); trust != "" && id != "" {
 			a.trust = trust
-			control.conf.Trusted = append(control.conf.Trusted, trustedPhone{ID: id, Hash: hashTrust(trust), Name: a.name, Added: time.Now()})
+			// A phone that lost its saved pass asks again and gets a new one.
+			// Its old entry can never be used again, so it is replaced rather
+			// than listed twice. At worst a second phone with the same name
+			// has to ask once more.
+			kept := control.conf.Trusted[:0]
+			for _, t := range control.conf.Trusted {
+				if t.Name != a.name {
+					kept = append(kept, t)
+				}
+			}
+			control.conf.Trusted = append(kept, trustedPhone{ID: id, Hash: hashTrust(trust), Name: a.name, Added: time.Now()})
 			if n := len(control.conf.Trusted); n > maxTrusted {
 				control.conf.Trusted = control.conf.Trusted[n-maxTrusted:]
 			}

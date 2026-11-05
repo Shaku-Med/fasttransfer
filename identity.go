@@ -33,6 +33,7 @@ var (
 	chromeOSUA   = regexp.MustCompile(`\bCrOS\b`)
 	inventedName = regexp.MustCompile(`^(?i)(iphone|ipad|android|phone) [0-9a-f]{2,8}$`)
 	macFind      = regexp.MustCompile(`(?i)[0-9a-f]{2}(?::[0-9a-f]{2}){5}`)
+	safariVer    = regexp.MustCompile(`\bVersion/(\d+(?:\.\d+)*)`)
 )
 
 type savedDevice struct {
@@ -47,6 +48,8 @@ type savedDevice struct {
 	Paired   bool      `json:"paired,omitempty"`
 	ID       string    `json:"id,omitempty"`
 	Seen     time.Time `json:"seen,omitempty"`
+	// IP stays in devices.json on this PC. It is never sent to a page.
+	IP string `json:"ip,omitempty"`
 }
 
 type deviceBook struct {
@@ -140,6 +143,7 @@ func retargetWiFi(keep *device, from []string) {
 		Kind:   keep.kind,
 		Label:  keep.name,
 		Seen:   keep.seen,
+		IP:     keep.ip,
 	}
 	bookMu.Lock()
 	defer bookMu.Unlock()
@@ -262,6 +266,7 @@ func rememberWiFi(key string, d *device) {
 		Kind:   d.kind,
 		Label:  d.name,
 		Seen:   d.seen,
+		IP:     d.ip,
 	}
 	bookMu.Lock()
 	defer bookMu.Unlock()
@@ -459,6 +464,7 @@ func (h *deviceHub) restoreSaved() {
 			os:     rec.OS,
 			kind:   kind,
 			seen:   seen,
+			ip:     rec.IP,
 			wake:   make(chan struct{}),
 		}
 		h.byKey[key] = d
@@ -584,10 +590,10 @@ func describePhone(ua, hintPlatform, hintVersion, hintModel, bodyPlatform, bodyV
 func uaKind(ua string) (kind, version, model string) {
 	low := strings.ToLower(ua)
 	if m := iphoneOS.FindStringSubmatch(ua); m != nil {
-		return "iphone", strings.ReplaceAll(m[1], "_", "."), "iPhone"
+		return "iphone", appleVersion(ua, m[1]), "iPhone"
 	}
 	if m := ipadOS.FindStringSubmatch(ua); m != nil {
-		return "ipad", strings.ReplaceAll(m[1], "_", "."), "iPad"
+		return "ipad", appleVersion(ua, m[1]), "iPad"
 	}
 	if strings.Contains(ua, "iPhone") {
 		return "iphone", "", "iPhone"
@@ -740,6 +746,30 @@ func genericDevice(model string) bool {
 	default:
 		return strings.HasPrefix(low, "xbox ") || strings.HasPrefix(low, "playstation ")
 	}
+}
+
+// appleVersion works around iOS 26 and later, where every browser reports the
+// system as 18. Safari's own version now carries the real iOS number, so it
+// wins. Other browsers on a frozen phone give no way to tell, so the number
+// is left off rather than shown wrong.
+func appleVersion(ua, reported string) string {
+	reported = strings.ReplaceAll(reported, "_", ".")
+	if m := safariVer.FindStringSubmatch(ua); m != nil {
+		if major, err := strconv.Atoi(strings.SplitN(m[1], ".", 2)[0]); err == nil && major >= 26 && major < 100 {
+			return m[1]
+		}
+		return reported
+	}
+	parts := strings.Split(reported, ".")
+	major, _ := strconv.Atoi(parts[0])
+	minor := 0
+	if len(parts) > 1 {
+		minor, _ = strconv.Atoi(parts[1])
+	}
+	if major == 18 && minor >= 6 {
+		return ""
+	}
+	return reported
 }
 
 func usefulModel(model string) string {

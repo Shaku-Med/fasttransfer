@@ -414,3 +414,31 @@ func TestControlScreenSaysWhereThePointerIs(t *testing.T) {
 		t.Fatalf("pointer off the screen should send nothing, got %q", got)
 	}
 }
+
+// A phone that lost its saved pass and is allowed for good again keeps one
+// entry on the PC, and the lost pass stops working.
+func TestControlAlwaysAllowAgainReplacesTheOldPass(t *testing.T) {
+	_, mux, _ := controlServer(t)
+	phone := hello(t, mux, "192.168.1.20", deviceKey(1), "Pixel")
+	got := ask(t, mux, phone, "")
+	answer(t, mux, got["ask"], true, true)
+	old := wait(t, mux, phone, got["ask"])["trust"]
+	serve(mux, deskReq("POST", "/api/desk/control", `{"stop":"all"}`))
+
+	got = ask(t, mux, phone, "")
+	answer(t, mux, got["ask"], true, true)
+	fresh := wait(t, mux, phone, got["ask"])["trust"]
+	serve(mux, deskReq("POST", "/api/desk/control", `{"stop":"all"}`))
+
+	view := decode[controlView](t, serve(mux, deskReq("GET", "/api/desk/control", "")))
+	if len(view.Trusted) != 1 {
+		t.Fatalf("the same phone is listed %d times", len(view.Trusted))
+	}
+	if again := ask(t, mux, phone, old); again["state"] != "waiting" {
+		t.Fatalf("the replaced pass still works: %v", again)
+	}
+	serve(mux, deskReq("POST", "/api/desk/control", `{"stop":"all"}`))
+	if again := ask(t, mux, phone, fresh); again["state"] != "granted" {
+		t.Fatalf("the new pass does not work: %v", again)
+	}
+}

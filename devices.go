@@ -93,6 +93,7 @@ type device struct {
 	kind   string
 	seen   time.Time
 	joined time.Time
+	ip     string
 	online bool
 	ver    int64
 	wake   chan struct{}
@@ -252,7 +253,7 @@ func (h *deviceHub) dropLocked(d *device) {
 // by the phone's device id. A new id that shows up within a minute of the same
 // handset going away reuses that row, so a reconnect does not add a second one.
 // A device keeps a few sessions so two open tabs do not knock each other off.
-func (h *deviceHub) hello(key string, facts phoneFacts, handleHint string) (*device, string, []string, error) {
+func (h *deviceHub) hello(key string, facts phoneFacts, handleHint, ip string) (*device, string, []string, error) {
 	session, err := randHex(32)
 	if err != nil {
 		return nil, "", nil, err
@@ -264,7 +265,7 @@ func (h *deviceHub) hello(key string, facts phoneFacts, handleHint string) (*dev
 		d = h.byKey[key]
 	}
 	if d == nil {
-		d = h.awayTwinLocked(facts)
+		d = h.awayTwinLocked(facts, ip)
 	}
 	if d == nil {
 		if len(h.byKey) >= maxDevices && !h.evictLocked() {
@@ -286,6 +287,9 @@ func (h *deviceHub) hello(key string, facts phoneFacts, handleHint string) (*dev
 		d = &device{key: key, handle: handle, wake: make(chan struct{})}
 		h.byKey[key] = d
 		h.byHandle[handle] = d
+	}
+	if ip != "" {
+		d.ip = ip
 	}
 	if facts.Given != "" {
 		d.given = facts.Given
@@ -324,16 +328,21 @@ func (h *deviceHub) hello(key string, facts phoneFacts, handleHint string) (*dev
 	return d, session, dropped, nil
 }
 
-// awayTwinLocked is a phone with the same model and system version that went
-// away in the last minute. A phone that is still connected is left alone.
-func (h *deviceHub) awayTwinLocked(facts phoneFacts) *device {
+// awayTwinLocked is a phone that is not connected and is almost surely this
+// one: the same model and system that went away in the last minute, or the
+// same model on the same Wi-Fi address this week. Phones keep their id per
+// web address and per browser, so a home screen shortcut, a private tab or a
+// new PC address would otherwise look like a new phone. A phone that is
+// still connected is left alone.
+func (h *deviceHub) awayTwinLocked(facts phoneFacts, ip string) *device {
 	if facts.Model == "" || facts.OS == "" {
 		return nil
 	}
 	now := time.Now()
+	probe := &device{given: facts.Given, model: facts.Model, os: facts.OS, ip: ip}
 	var best *device
 	for _, d := range h.byKey {
-		if d.online || now.Sub(d.seen) > time.Minute || !factsMatch(d, facts) {
+		if d.online || !likelySame(probe, d, now) {
 			continue
 		}
 		if best == nil || d.seen.After(best.seen) {
@@ -363,13 +372,46 @@ func sameHandset(a, b *device) bool {
 	return factsMatch(a, phoneFacts{Given: b.given, Model: b.model, OS: b.os})
 }
 
+// sameAddressWindow is how long a Wi-Fi address still points at one phone.
+// Routers hand the same address back to a phone for days, but not forever.
+const sameAddressWindow = 7 * 24 * time.Hour
+
+// likelySame says whether the away row other is the phone probe describes.
+// The address rule lets the system version differ, since phones update.
+func likelySame(probe, other *device, now time.Time) bool {
+	if probe == nil || other == nil || probe == other {
+		return false
+	}
+	if now.Sub(other.seen) <= time.Minute && sameHandset(probe, other) {
+		return true
+	}
+	if probe.ip == "" || probe.ip != other.ip || now.Sub(other.seen) > sameAddressWindow {
+		return false
+	}
+	if other.model == "" || genericDevice(other.model) || genericDevice(probe.model) || !strings.EqualFold(other.model, probe.model) {
+		return false
+	}
+	if osFamily(other.os) != osFamily(probe.os) {
+		return false
+	}
+	return other.given == "" || probe.given == "" || strings.EqualFold(other.given, probe.given)
+}
+
+func osFamily(name string) string {
+	name = strings.TrimSpace(name)
+	if i := strings.IndexByte(name, ' '); i > 0 {
+		name = name[:i]
+	}
+	return strings.ToLower(name)
+}
+
 // absorbRecentAwayLocked pulls other rows for this handset that just went away
 // into the one that just connected. Two connected phones are not merged.
 func (h *deviceHub) absorbRecentAwayLocked(keep *device) []string {
 	now := time.Now()
 	var twins []*device
 	for _, other := range h.byKey {
-		if other == keep || other.online || now.Sub(other.seen) > time.Minute || !sameHandset(keep, other) {
+		if other == keep || other.online || !likelySame(keep, other, now) {
 			continue
 		}
 		twins = append(twins, other)
@@ -647,7 +689,7 @@ func (s *server) phoneHello(w http.ResponseWriter, r *http.Request) {
 	if facts.Label == "" {
 		facts.Label = "This device"
 	}
-	d, session, dropped, err := hub.hello(req.Device, facts, hint)
+	d, session, dropped, err := hub.hello(req.Device, facts, hint, clientIP(r))
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "the PC has too many devices connected"})
 		return

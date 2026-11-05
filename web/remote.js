@@ -697,7 +697,7 @@
     let frameURL = "";
     let sharp = store("local", "ft-remote-sharp") === "1";
     let keysOn = store("local", "ft-remote-keybar") === "1";
-    let zoomOn = store("local", "ft-remote-zoom") !== "0";
+    let zoomOn = store("local", "ft-remote-zoomed") === "1";
     let scale = 1;
     let pinching = false;
     let pinchFrom = 1;
@@ -777,7 +777,7 @@
 
     function setZoom(on) {
       zoomOn = on;
-      store("local", "ft-remote-zoom", on ? "1" : "0");
+      store("local", "ft-remote-zoomed", on ? "1" : "");
       const b = fitBox();
       scale = on && b ? fillScale(b) : 1;
       paintStage(true);
@@ -833,7 +833,7 @@
         pinching = false;
         if (scale < 1.15) scale = 1;
         zoomOn = scale > 1;
-        store("local", "ft-remote-zoom", zoomOn ? "1" : "0");
+        store("local", "ft-remote-zoomed", zoomOn ? "1" : "");
         paintStage(false);
       },
     });
