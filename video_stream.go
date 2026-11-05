@@ -22,18 +22,27 @@ var (
 	durationRE    = regexp.MustCompile(`Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)`)
 )
 
-// findBin looks on PATH, then beside the executable. It never downloads anything.
+// findBin prefers a helper extracted from this app, then PATH, then a copy
+// beside the executable. It never downloads anything.
 func findBin(name string) string {
-	if p, err := exec.LookPath(name); err == nil {
+	if p := bundledTool(name); p != "" {
 		return p
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
 	}
 	file := name
 	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(file), ".exe") {
 		file += ".exe"
+	}
+	if p, err := exec.LookPath(file); err == nil {
+		return p
+	}
+	if file != name {
+		if p, err := exec.LookPath(name); err == nil {
+			return p
+		}
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
 	}
 	candidate := filepath.Join(filepath.Dir(exe), file)
 	st, err := os.Stat(candidate)

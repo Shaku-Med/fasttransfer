@@ -4,233 +4,827 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="FastTransfer" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#f3f3f3" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1c1c1c" media="(prefers-color-scheme: dark)" />
   <title>FastTransfer</title>
+  <link rel="stylesheet" href="/vendor/quill/quill.core.css" />
+  <link rel="stylesheet" href="/docs.css?v=2" />
+  <link rel="stylesheet" href="/remote.css?v=1" />
   <style>
+    [hidden] { display: none !important; }
     :root {
-      --bg: #fafafa;
+      --bar: #f3f3f3;
+      --list: #fafafa;
       --ink: #1a1a1a;
       --muted: #616161;
       --line: #e5e5e5;
-      --bar: #f3f3f3;
+      --hover: #ececec;
+      --press: #e2e2e2;
       --accent: #0d6efd;
+      --on-accent: #ffffff;
+      --menu: #ffffff;
       --ok: #0b6a0b;
       --bad: #c42b1c;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+      --ease: cubic-bezier(0, 0, 0, 1);
+      --tabs: 60px;
       color-scheme: light;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #1c1c1c;
+        --bar: #1c1c1c;
+        --list: #141414;
         --ink: #f3f3f3;
         --muted: #a6a6a6;
         --line: #3a3a3a;
-        --bar: #2b2b2b;
+        --hover: #2b2b2b;
+        --press: #333333;
         --accent: #6ea8fe;
+        --on-accent: #1c1c1c;
+        --menu: #232323;
         --ok: #6cc46c;
         --bad: #ff8a80;
+        --shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
         color-scheme: dark;
       }
     }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); }
-    body { font: 16px/1.4 "Segoe UI", system-ui, sans-serif; }
-    main {
-      max-width: 420px;
-      margin: 0 auto;
-      padding: max(28px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
-    }
-    h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
-    .sub { margin: 0 0 6px; }
-    .wifi { margin: 0 0 24px; color: var(--muted); }
-    .nokey { margin: 0 0 16px; color: var(--bad); }
-    .group { margin: 0 0 16px; }
-    .group p { margin: 0 0 8px; color: var(--muted); }
-    .choices { display: flex; flex-wrap: wrap; gap: 8px; }
-    .choices label {
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bar); color: var(--ink); }
+    body { font: 16px/1.45 "Segoe UI Variable Text", "Segoe UI", -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    button, input, textarea { font: inherit; color: inherit; }
+    button { background: none; border: 0; padding: 0; cursor: pointer; }
+    svg { display: block; }
+
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 5;
       display: flex;
       align-items: center;
-      gap: 8px;
-      min-height: 44px;
-      padding: 0 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
+      gap: 10px;
+      padding: max(12px, env(safe-area-inset-top)) 16px 12px;
       background: var(--bar);
     }
-    .choices input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+    .top .mark { width: 22px; height: 22px; flex: none; }
+    .top b { font-size: 17px; font-weight: 600; }
+    .top .grow { flex: 1; }
+    #link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 13px;
+      background: var(--hover);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    #link::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    #link.on::before { background: var(--ok); }
+    #link.off::before { background: var(--bad); }
+
+    main {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 4px 16px calc(var(--tabs) + 24px + env(safe-area-inset-bottom));
+    }
+    .page { animation: enter 250ms var(--ease); }
+    @keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    h1 { margin: 8px 0 4px; font-size: 26px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em; }
+    h2 { margin: 28px 0 10px; font-size: 15px; font-weight: 600; }
+    .lede { margin: 0 0 20px; color: var(--muted); font-size: 15px; }
+    .nokey {
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--bad);
+      border-radius: 10px;
+      color: var(--bad);
+      font-size: 15px;
+    }
+
+    .card { background: var(--menu); border: 1px solid var(--line); border-radius: 12px; }
+
+    .seg {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px;
+      padding: 3px;
+      margin: 0 0 12px;
+      border-radius: 10px;
+      background: var(--hover);
+    }
+    .seg label { position: relative; }
+    .seg input, .chips input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 38px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 15px;
+      transition: background 167ms var(--ease), color 167ms var(--ease);
+    }
+    .seg input:checked + span { background: var(--menu); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+    .seg input:focus-visible + span, .chips input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+    .chips span {
+      display: inline-flex;
+      align-items: center;
+      height: 36px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--menu);
+      font-size: 15px;
+      transition: background 167ms var(--ease);
+    }
+    .chips input:checked + span { background: var(--press); border-color: var(--press); font-weight: 600; }
+    .hint { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+
     .drop {
       position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      min-height: 88px;
-      padding: 16px;
-      border: 1px dashed var(--line);
-      border-radius: 8px;
-      background: var(--bar);
+      gap: 6px;
+      padding: 28px 16px;
+      border: 1.5px dashed var(--line);
+      border-radius: 12px;
+      background: var(--menu);
       text-align: center;
+      transition: border-color 167ms var(--ease), background 167ms var(--ease);
     }
+    .drop svg { width: 28px; height: 28px; color: var(--accent); margin-bottom: 4px; }
     .drop strong { font-weight: 600; }
-    .drop span { color: var(--muted); margin-top: 4px; }
-    .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-    .drop.drag { border-color: var(--accent); }
-    ul { list-style: none; margin: 12px 0 0; padding: 0; max-height: 220px; overflow: auto; }
-    li {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 2px 12px;
-      min-height: 44px;
+    .drop span { color: var(--muted); font-size: 14px; }
+    .drop input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+    .drop.drag, .drop:active { border-color: var(--accent); background: var(--hover); }
+
+    .rows { list-style: none; margin: 12px 0 0; padding: 0; }
+    .rows li {
+      display: flex;
       align-items: center;
-      border-top: 1px solid var(--line);
+      gap: 12px;
+      min-height: 56px;
+      padding: 8px 4px 8px 12px;
+      animation: enter 200ms var(--ease);
     }
-    li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    li em { color: var(--muted); font-style: normal; }
-    li.done em { color: var(--ok); }
-    li.failed em { color: var(--bad); }
-    li small { grid-column: 1 / -1; color: var(--bad); margin-top: -8px; }
-    button.send {
-      width: 100%;
-      height: 48px;
-      margin-top: 8px;
-      border: 0;
+    .rows.card li + li { border-top: 1px solid var(--line); }
+    .rows .thumb {
+      width: 40px;
+      height: 40px;
+      flex: none;
       border-radius: 8px;
-      background: var(--accent);
-      color: #fff;
-      font: inherit;
+      object-fit: cover;
+      background: var(--hover);
+    }
+    .rows .ext {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      flex: none;
+      border-radius: 8px;
+      background: var(--hover);
+      color: var(--muted);
+      font-size: 11px;
       font-weight: 600;
+      text-transform: uppercase;
+      overflow: hidden;
     }
-    button.send:disabled { opacity: 0.45; }
-    progress {
-      width: 100%;
-      height: 6px;
-      margin-top: 12px;
-      border: 0;
-      border-radius: 3px;
-      appearance: none;
-      background: var(--bar);
+    .rows .ext svg { width: 20px; height: 20px; }
+    .rows .what { flex: 1; min-width: 0; }
+    .rows .what b, .rows .what span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rows .what b { font-weight: 500; }
+    .rows .what span { color: var(--muted); font-size: 13px; }
+    .rows li.done .what span { color: var(--ok); }
+    .rows li.failed .what span { color: var(--bad); white-space: normal; }
+    .rows .x {
+      width: 40px;
+      height: 40px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      color: var(--muted);
     }
-    progress::-webkit-progress-bar { background: var(--bar); border-radius: 3px; }
-    progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; }
-    progress::-moz-progress-bar { background: var(--accent); }
-    .status { min-height: 1.3em; margin: 12px 0 0; }
+    .rows .x:active { background: var(--hover); }
+    .rows .x svg { width: 14px; height: 14px; }
+    .rows a.row, .rows button.row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+      color: inherit;
+      text-decoration: none;
+      text-align: left;
+    }
+    .rows .chev { width: 16px; height: 16px; color: var(--muted); flex: none; margin-right: 8px; }
+    .rows .empty { color: var(--muted); padding: 16px 12px; }
+    .rows .acts { display: flex; gap: 6px; flex: none; align-items: center; }
+    #viewer {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.72);
+    }
+    #viewer[hidden] { display: none; }
+    #viewcard {
+      width: min(960px, 100%);
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 12px;
+      background: var(--menu);
+      color: var(--ink);
+      overflow: auto;
+    }
+    #viewhead { display: flex; align-items: center; gap: 8px; }
+    #viewhead .what { flex: 1; min-width: 0; }
+    #viewhead b, #viewmeta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #viewmeta { color: var(--muted); font-size: 13px; font-weight: 400; }
+    #viewimg, #viewvideo { max-width: 100%; max-height: 70vh; margin: 0 auto; background: #000; }
+    #viewaudio { width: 100%; }
+    #viewtext {
+      margin: 0;
+      max-height: 70vh;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 14px/1.45 ui-monospace, Consolas, monospace;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--menu);
+      color: var(--ink);
+      font-size: 15px;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 120ms var(--ease);
+    }
+    .btn svg { width: 16px; height: 16px; flex: none; }
+    .btn:active:not(:disabled) { background: var(--press); }
+    .btn:disabled { opacity: 0.45; }
+    .btn.primary { border-color: transparent; background: var(--accent); color: var(--on-accent); font-weight: 600; }
+    .btn.primary:active:not(:disabled) { background: var(--accent); filter: brightness(0.92); }
+    .btn.quiet { border-color: transparent; background: transparent; }
+    .btn.quiet:active:not(:disabled) { background: var(--hover); }
+    .btn.small { height: 34px; padding: 0 12px; font-size: 14px; border-radius: 8px; }
+    .btn.wide { width: 100%; height: 50px; border-radius: 12px; font-size: 16px; }
+
+    .sendbar { margin-top: 16px; }
+    .meter { margin-top: 12px; }
+    .track { height: 6px; border-radius: 3px; background: var(--hover); overflow: hidden; }
+    .fill { height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width 200ms linear; }
+    .meter .line { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .status { min-height: 1.4em; margin: 12px 0 0; font-size: 15px; }
     .status.ok { color: var(--ok); }
     .status.bad { color: var(--bad); }
-    .where { margin: 16px 0 0; color: var(--muted); }
-    .hidden { display: none; }
+    .where { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+
+    .headrow { display: flex; align-items: center; gap: 12px; }
+    .headrow h1 { flex: 1; }
+    #livestate {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 13px;
+      background: var(--hover);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    #livestate::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    #livestate.live::before { background: var(--accent); }
+    #livestate.typing::before { background: var(--accent); animation: blink 1s ease-in-out infinite; }
+    @keyframes blink { 50% { opacity: 0.25; } }
+    #padcard { display: flex; flex-direction: column; overflow: hidden; }
+    #livepad {
+      width: 100%;
+      min-height: 38vh;
+      padding: 14px 16px;
+      border: 0;
+      background: transparent;
+      resize: none;
+      outline: none;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    #livepad::placeholder { color: var(--muted); }
+    .cardfoot { display: flex; align-items: center; gap: 4px; padding: 8px; border-top: 1px solid var(--line); }
+    .cardfoot .grow { flex: 1; }
+    .socialcard { display: flex; gap: 8px; align-items: center; padding: 8px; }
+    #socialurl { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); font-size: 16px; }
+    #socialstatus { overflow-wrap: anywhere; }
+    #clips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    #clips .empty { color: var(--muted); font-size: 15px; padding: 4px 0; }
+    .clip { padding: 12px 8px 8px 14px; animation: enter 200ms var(--ease); }
+    .clip .txt {
+      margin: 0 6px 8px 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 6;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .clip .meta { display: flex; align-items: center; gap: 2px; }
+    .clip .meta .who { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .me { margin: 0 0 4px; }
+    .namerow, .nameform { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; }
+    .namerow .what { flex: 1; min-width: 0; }
+    .namerow .what span { display: block; color: var(--muted); font-size: 13px; }
+    .namerow .what b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #namefield { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--list); font-size: 16px; }
+    .subhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 28px 0 10px; }
+    .subhead h2 { margin: 0; }
+    .crumb { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+    .crumb p { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* An open doc takes the whole browser: no page header, no tab bar, no
+       narrow column. The editor brings its own top bar. */
+    body.docediting .tabs, body.docediting .top, body.docediting #nokey { display: none !important; }
+    body.docediting main { max-width: none; padding: 0; }
+    body.pdfopen { overflow: hidden; }
+    body.pdfopen #toast { z-index: 100; }
+    body.docediting #p-docs { height: 100vh; height: 100dvh; display: flex; flex-direction: column; animation: none; }
+    body.docediting #docsroot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    body.docediting #p-docs .fd { height: 100%; }
+    body.docediting #p-docs .fd-edit { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #p-docs .fd { height: auto; }
+    .tabs {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 6;
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 12px max(6px, env(safe-area-inset-bottom));
+      background: var(--bar);
+      border-top: 1px solid var(--line);
+    }
+    .tabs button {
+      position: relative;
+      flex: 1;
+      max-width: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 4px 0 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .tabs .ic {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 30px;
+      border-radius: 15px;
+      transition: background 167ms var(--ease);
+    }
+    .tabs svg { width: 20px; height: 20px; }
+    .tabs button.on { color: var(--ink); font-weight: 600; }
+    .tabs button.on .ic { background: var(--press); }
+    .tabs .badge {
+      position: absolute;
+      top: 0;
+      left: calc(50% + 10px);
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 9px;
+      background: var(--accent);
+      color: var(--on-accent);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 18px;
+      text-align: center;
+    }
+
+    #toast {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: calc(var(--tabs) + 16px + env(safe-area-inset-bottom));
+      z-index: 8;
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: var(--ink);
+      color: var(--bar);
+      font-size: 15px;
+      box-shadow: var(--shadow);
+      animation: toastIn 250ms var(--ease);
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .page, .rows li, .clip, #toast { animation: none; }
+      .fill { transition: none; }
+    }
   </style>
 </head>
 <body>
+  <header class="top">
+    <svg class="mark" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect width="16" height="16" rx="3.5" fill="#1268d2"/><path d="M8 2.4v4.4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M5.2 5 8 7.8 10.8 5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.4 10.4v3h9.2v-3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <b>FastTransfer</b>
+    <span class="grow"></span>
+    <span id="link">Connecting</span>
+  </header>
+
   <main>
-    <h1>FastTransfer</h1>
-    <p class="sub">Pick photos or any file. They land on this PC.</p>
-    <p class="wifi">Same Wi-Fi as the computer.</p>
-    <p class="nokey hidden" id="nokey">Open the link from the computer.</p>
+    <p class="nokey" id="nokey" hidden>This page needs the link from the computer. Scan the code on the PC again.</p>
 
-    <form id="form">
-      <div class="group">
-        <div class="choices">
-          <label><input type="radio" name="kind" value="shots" checked /> Photos</label>
-          <label><input type="radio" name="kind" value="files" /> Any file</label>
+    <section id="p-send" class="page">
+      <h1>Send to PC</h1>
+      <p class="lede">Both on the same Wi-Fi, that's all it takes.</p>
+      <form id="form">
+        <div class="seg" role="radiogroup" aria-label="What to send">
+          <label><input type="radio" name="kind" value="shots" checked /><span>Photos</span></label>
+          <label><input type="radio" name="kind" value="files" /><span>Any file</span></label>
         </div>
-      </div>
-
-      <div class="group" id="deviceCard">
-        <p>Which folder on the computer?</p>
-        <div class="choices">
-          <label><input type="radio" name="device" value="iphone" checked /> iPhone</label>
-          <label><input type="radio" name="device" value="ipad" /> iPad</label>
-          <label><input type="radio" name="device" value="android" /> Android</label>
-          <label><input type="radio" name="device" value="other" /> Other</label>
+        <div id="deviceCard">
+          <p class="hint">Folder on the PC</p>
+          <div class="chips" role="radiogroup" aria-label="Folder on the PC">
+            <label><input type="radio" name="device" value="iphone" checked /><span>iPhone</span></label>
+            <label><input type="radio" name="device" value="ipad" /><span>iPad</span></label>
+            <label><input type="radio" name="device" value="android" /><span>Android</span></label>
+            <label><input type="radio" name="device" value="other" /><span>Other</span></label>
+          </div>
         </div>
-      </div>
-
-      <div class="group">
         <div class="drop" id="drop">
-          <strong id="pickTitle">Tap to pick photos</strong>
-          <span id="pickHint">PNG, JPG, or HEIC.</span>
-          <input id="files" type="file" accept="image/*,.heic,.heif" multiple />
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 14v4.5c0 .6.4 1 1 1h13c.6 0 1-.4 1-1V14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <strong id="pickTitle">Choose photos</strong>
+          <span id="pickHint">PNG, JPG or HEIC</span>
+          <input id="files" type="file" accept="image/*,.heic,.heif" multiple aria-label="Choose files" />
         </div>
-        <ul id="list"></ul>
-      </div>
+        <ul class="rows card" id="list" hidden></ul>
+        <div class="sendbar">
+          <button class="btn primary wide" id="send" type="submit" disabled>Send</button>
+          <div class="meter" id="meter" hidden>
+            <div class="track"><div class="fill" id="fill"></div></div>
+            <div class="line"><span id="speed"></span><span id="eta"></span></div>
+          </div>
+          <p class="status" id="status" role="status"></p>
+          <p class="where" id="where"></p>
+        </div>
+      </form>
+    </section>
 
-      <button class="send" id="send" type="submit" disabled>Send</button>
-      <progress id="bar" class="hidden" max="100" value="0"></progress>
-      <p class="status" id="status" role="status"></p>
-      <p class="where" id="where">Photos go in the iPhone, iPad, Android, or Other folder.</p>
-    </form>
+    <section id="p-received" class="page" hidden>
+      <h1>Received</h1>
+      <p class="lede">Files sent to this device. Nothing downloads until you tap Save.</p>
+      <div id="inboxwrap">
+        <div class="subhead"><h2>For this device</h2><button class="btn quiet small" type="button" id="clearinbox">Clear list</button></div>
+        <ul class="rows card" id="incoming"></ul>
+        <p class="status" id="inboxempty">Nothing new yet.</p>
+      </div>
+    </section>
+
+    <section id="p-text" class="page" hidden>
+      <div class="headrow">
+        <h1>Text</h1>
+        <span id="livestate">Connecting</span>
+      </div>
+      <p class="lede">This pad is just between this device and the PC. Both sides see it as they type.</p>
+      <div class="card" id="padcard">
+        <textarea id="livepad" maxlength="65536" placeholder="Type or paste here" autocapitalize="sentences"></textarea>
+        <div class="cardfoot">
+          <button class="btn quiet small" id="padcopy" type="button">Copy</button>
+          <button class="btn quiet small" id="padpaste" type="button" hidden>Paste</button>
+          <button class="btn quiet small" id="padclear" type="button">Clear</button>
+          <span class="grow"></span>
+          <button class="btn primary small" id="padclip" type="button">Save as clip</button>
+        </div>
+      </div>
+      <h2>Social media</h2>
+      <p class="lede">Paste a link. This PC saves it under Social media.</p>
+      <form id="socialform" class="card socialcard">
+        <input id="socialurl" type="url" inputmode="url" maxlength="2000" placeholder="Paste a link" aria-label="Link" autocomplete="off" spellcheck="false" />
+        <button class="btn primary" id="socialgo" type="submit">Download</button>
+      </form>
+      <p class="status" id="socialstatus" role="status"></p>
+      <h2>Clips</h2>
+      <ul id="clips"></ul>
+    </section>
+
+    <section id="p-docs" class="page" hidden>
+      <div id="docsroot"></div>
+    </section>
+
+    <section id="p-pc" class="page" hidden>
+      <h1>From the PC</h1>
+      <p class="lede">Files sent to this device are in Received. You can also open any folder on the PC.</p>
+      <div class="card me">
+        <div class="namerow" id="namerow">
+          <div class="what"><span>The PC sees this device as</span><b id="myname"></b></div>
+          <button class="btn small" type="button" id="renamebtn">Rename</button>
+        </div>
+        <form class="nameform" id="nameform" hidden>
+          <input id="namefield" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Name this device" aria-label="Name for this device" />
+          <button class="btn primary small" type="submit">Save</button>
+          <button class="btn quiet small" type="button" id="namecancel">Cancel</button>
+        </form>
+      </div>
+      <h2>Browse</h2>
+      <div class="crumb">
+        <button class="btn small" type="button" id="pcback" hidden>Back</button>
+        <p id="pccrumb"></p>
+        <a class="btn small" id="pcfolder" href="/api/pack">Save as zip</a>
+      </div>
+      <ul class="rows card" id="pclist"></ul>
+      <p class="status" id="pcstatus" role="status"></p>
+    </section>
+
+    <section id="p-remote" class="page" hidden>
+      <div id="remoteroot"></div>
+    </section>
   </main>
 
+  <nav class="tabs" aria-label="Pages">
+    <button type="button" data-page="send" class="on"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3.5M6 7.5l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 12v3.5c0 .6.4 1 1 1h11c.6 0 1-.4 1-1V12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Send</button>
+    <button type="button" data-page="received"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 11.2 5.2 5h9.6L17 11.2M3 11.2h4a3 3 0 0 0 6 0h4V16H3v-4.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>Received<span class="badge" id="recvbadge" hidden></span></button>
+    <button type="button" data-page="text"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14v9.5h-7.2L6 17v-3H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.5 8h7M6.5 10.8h4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Text<span class="badge" id="textbadge" hidden></span></button>
+    <button type="button" data-page="docs"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5h6.5L15.5 6.5V17.5H5zM11.5 2.5v4h4M7.5 10.5h5M7.5 13.5h3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg></span>Docs</button>
+    <button type="button" data-page="pc"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 16.5h6M10 13.5v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>PC<span class="badge" id="pcbadge" hidden></span></button>
+    <button type="button" data-page="remote"><span class="ic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3.5 15 9.2l-4.3 1.1L8.4 14.6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m11 10.6 3.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Remote</button>
+  </nav>
+  <div id="viewer" hidden>
+    <div id="viewcard" role="dialog" aria-modal="true" aria-labelledby="viewtitle">
+      <div id="viewhead">
+        <div class="what"><b id="viewtitle">File</b><span id="viewmeta"></span></div>
+        <button class="btn small" type="button" id="viewclose">Close</button>
+      </div>
+      <img id="viewimg" alt="" hidden />
+      <video id="viewvideo" controls playsinline hidden></video>
+      <audio id="viewaudio" controls hidden></audio>
+      <pre id="viewtext" hidden></pre>
+    </div>
+  </div>
+  <div id="toast" role="status" hidden></div>
+
+  <script src="/vendor/quill/quill.js" defer></script>
+  <script src="/docs.js?v=2" defer></script>
+  <script src="/remote.js?v=1" defer></script>
   <script>
     const KEY_STORE = "fasttransfer-key";
-    const form = document.getElementById("form");
-    const input = document.getElementById("files");
-    const list = document.getElementById("list");
-    const send = document.getElementById("send");
-    const status = document.getElementById("status");
-    const bar = document.getElementById("bar");
-    const drop = document.getElementById("drop");
+    const $ = (id) => document.getElementById(id);
+    const form = $("form");
+    const input = $("files");
+    const list = $("list");
+    const send = $("send");
+    const status = $("status");
+    const drop = $("drop");
     const folders = { iphone: "iPhone", ipad: "iPad", android: "Android", other: "Other", files: "Files" };
 
     const fromLink = new URLSearchParams(location.search).get("k");
-    let key = fromLink || "";
+    let key = fromLink && /^[\w-]{10,128}$/.test(fromLink) ? fromLink : "";
     try {
-      if (fromLink) localStorage.setItem(KEY_STORE, fromLink);
+      if (key) localStorage.setItem(KEY_STORE, key);
       else key = localStorage.getItem(KEY_STORE) || "";
-    } catch {}
+    } catch (err) {}
     if (fromLink) history.replaceState(null, "", location.pathname);
-    document.getElementById("nokey").classList.toggle("hidden", Boolean(key));
-
-    let picked = [];
-    let sending = false;
-    const anyFile = () => form.kind.value === "files";
+    $("nokey").hidden = Boolean(key);
 
     function fmt(n) {
       if (n < 1024) return n + " B";
-      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+      if (n < 1048576) return (n / 1024).toFixed(0) + " KB";
       if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB";
       return (n / 1073741824).toFixed(2) + " GB";
     }
 
+    function fmtLeft(s) {
+      if (!Number.isFinite(s) || s <= 0) return "";
+      if (s < 60) return "about " + Math.max(1, Math.round(s)) + " s left";
+      const m = Math.round(s / 60);
+      return "about " + m + " min left";
+    }
+
+    function phoneLabel() {
+      const ua = navigator.userAgent || "";
+      if (/iPhone/.test(ua)) return "iPhone";
+      if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "iPad";
+      if (/Android/.test(ua)) return "Android";
+      return "";
+    }
+
+    let toastTimer = 0;
+    function toast(text) {
+      const el = $("toast");
+      el.textContent = text;
+      el.hidden = false;
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+    }
+
+    // Plain http on the LAN is not a secure context, so navigator.clipboard is
+    // missing on most phones. A selected textarea and execCommand still works.
+    function copyOut(text) {
+      if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      area.style.fontSize = "16px";
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, text.length);
+      const ok = document.execCommand("copy");
+      area.remove();
+      return ok ? Promise.resolve() : Promise.reject(new Error("copy"));
+    }
+
+    function copyAndSay(text, said) {
+      copyOut(text).then(() => toast(said || "Copied"), () => toast("Could not copy. Long press the text instead."));
+    }
+
+    let page = "send";
+    let docsUI = null;
+    let remoteUI = null;
+    function showPage(name) {
+      if (!["send", "received", "text", "docs", "pc", "remote"].includes(name)) name = "send";
+      page = name;
+      document.querySelectorAll(".tabs button").forEach((b) => {
+        const on = b.dataset.page === name;
+        b.classList.toggle("on", on);
+        if (on) b.setAttribute("aria-current", "page");
+        else b.removeAttribute("aria-current");
+      });
+      $("p-send").hidden = name !== "send";
+      $("p-received").hidden = name !== "received";
+      $("p-text").hidden = name !== "text";
+      $("p-pc").hidden = name !== "pc";
+      $("p-docs").hidden = name !== "docs";
+      $("p-remote").hidden = name !== "remote";
+      if (docsUI) {
+        if (name === "docs") docsUI.show();
+        else docsUI.hide();
+      }
+      if (remoteUI) {
+        if (name === "remote") remoteUI.show();
+        else remoteUI.hide();
+      }
+      try { localStorage.setItem("ft-page", name); } catch (err) {}
+      if (name === "text") { textUnread = 0; paintBadges(); pollSocial(); }
+      if (name === "received") { recvUnread = 0; paintBadges(); }
+      if (name === "pc") paintBadges();
+      window.scrollTo(0, 0);
+    }
+    document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showPage(b.dataset.page)));
+
+    let textUnread = 0;
+    let recvUnread = 0;
+    function paintBadges() {
+      const t = $("textbadge");
+      t.hidden = !textUnread;
+      t.textContent = textUnread > 9 ? "9+" : String(textUnread);
+      const r = $("recvbadge");
+      r.hidden = !recvUnread;
+      r.textContent = recvUnread > 9 ? "9+" : String(recvUnread);
+      const p = $("pcbadge");
+      if (p) { p.hidden = true; p.textContent = ""; }
+    }
+
+    let picked = [];
+    let sending = false;
+    const anyFile = () => form.kind.value === "files";
+    const isImage = (f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name);
+
     function setKind() {
       const files = anyFile();
-      document.getElementById("deviceCard").classList.toggle("hidden", files);
-      document.getElementById("pickTitle").textContent = files ? "Tap to pick files" : "Tap to pick photos";
-      document.getElementById("pickHint").textContent = files
-        ? "Video, audio, PDF, or anything else. Up to 4 GB."
-        : "PNG, JPG, or HEIC.";
-      document.getElementById("where").textContent = files
-        ? "Other files go in the Files folder."
-        : "Photos go in the iPhone, iPad, Android, or Other folder.";
+      $("deviceCard").hidden = files;
+      $("pickTitle").textContent = files ? "Choose files" : "Choose photos";
+      $("pickHint").textContent = files ? "Video, audio, PDF or anything else, up to 4 GB each" : "PNG, JPG or HEIC";
+      $("where").textContent = files ? "Lands in the Files folder on the PC." : "Lands in the " + folders[form.device.value] + " folder on the PC.";
       if (files) input.removeAttribute("accept");
       else input.setAttribute("accept", "image/*,.heic,.heif");
-      picked = files ? picked : picked.filter(isImage);
+      if (!files) {
+        picked.filter((f) => !isImage(f)).forEach(forget);
+        picked = picked.filter(isImage);
+      }
       render();
     }
 
-    const isImage = (f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name);
+    function forget(f) {
+      if (f.thumbURL) URL.revokeObjectURL(f.thumbURL);
+      f.thumbURL = "";
+    }
+
+    function fileGlyph() {
+      return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5h6.5L15.5 6.5V17.5H5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M11.5 2.5v4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+    }
+
+    function folderGlyph() {
+      return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5h5l1.5 1.8h8.5v8.7h-15z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+    }
+
+    const xGlyph = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3 3 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    const chevGlyph = '<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    function extBadge(name) {
+      const span = document.createElement("span");
+      span.className = "ext";
+      const m = /\.([a-z0-9]{1,4})$/i.exec(name || "");
+      if (m) span.textContent = m[1];
+      else span.innerHTML = fileGlyph();
+      return span;
+    }
+
+    function thumbFor(f) {
+      if (!isImage(f)) return extBadge(f.name);
+      if (!f.thumbURL) f.thumbURL = URL.createObjectURL(f);
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.alt = "";
+      img.decoding = "async";
+      img.src = f.thumbURL;
+      img.addEventListener("error", () => img.replaceWith(extBadge(f.name)));
+      return img;
+    }
 
     function render() {
-      list.innerHTML = "";
+      list.replaceChildren();
+      list.hidden = !picked.length;
       picked.forEach((f) => {
         const li = document.createElement("li");
-        li.innerHTML = "<span></span><em></em>";
-        li.children[0].textContent = f.name;
-        li.children[1].textContent = fmt(f.size);
+        const what = document.createElement("div");
+        what.className = "what";
+        const name = document.createElement("b");
+        name.textContent = f.name;
+        const meta = document.createElement("span");
+        meta.textContent = fmt(f.size);
+        what.append(name, meta);
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "x";
+        x.setAttribute("aria-label", "Remove " + f.name);
+        x.innerHTML = xGlyph;
+        x.disabled = sending;
+        x.addEventListener("click", () => {
+          forget(f);
+          picked = picked.filter((p) => p !== f);
+          render();
+        });
+        li.append(thumbFor(f), what, x);
         f.row = li;
+        f.meta = meta;
         list.appendChild(li);
       });
+      const total = picked.reduce((sum, f) => sum + f.size, 0);
+      const noun = anyFile() ? (picked.length === 1 ? "file" : "files") : (picked.length === 1 ? "photo" : "photos");
+      send.textContent = picked.length ? "Send " + picked.length + " " + noun + "  ·  " + fmt(total) : "Send";
       send.disabled = sending || picked.length === 0 || !key;
     }
 
     function addFiles(fileList) {
       const next = Array.from(fileList || []).filter((f) => anyFile() || isImage(f));
+      const skipped = (fileList ? fileList.length : 0) - next.length;
       picked = picked.concat(next);
-      status.textContent = "";
-      status.className = "status";
+      status.textContent = skipped ? skipped + (skipped === 1 ? " file was not a photo. Switch to Any file for it." : " files were not photos. Switch to Any file for those.") : "";
+      status.className = skipped ? "status bad" : "status";
       render();
     }
 
     form.kind.forEach((radio) => radio.addEventListener("change", setKind));
+    form.device.forEach((radio) => radio.addEventListener("change", () => {
+      try { localStorage.setItem("ft-device", form.device.value); } catch (err) {}
+      setKind();
+    }));
     input.addEventListener("change", () => {
       addFiles(input.files);
       input.value = "";
@@ -242,7 +836,7 @@
     function plainError(error) {
       if (!error) return "Could not send.";
       if (error.startsWith("open the link")) return "Open the link from the computer.";
-      return error;
+      return error.charAt(0).toUpperCase() + error.slice(1);
     }
 
     function post(to, files, onProgress) {
@@ -250,12 +844,12 @@
         const body = new FormData();
         files.forEach((f) => body.append("files", f, f.name));
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload?to=" + encodeURIComponent(to));
+        xhr.open("POST", "/api/upload?to=" + encodeURIComponent(to) + (session ? "&session=" + encodeURIComponent(session) : ""));
         xhr.setRequestHeader("X-Transfer-Key", key);
         xhr.upload.onprogress = (ev) => ev.lengthComputable && onProgress(ev.loaded, ev.total);
         xhr.onload = () => {
           let data = {};
-          try { data = JSON.parse(xhr.responseText); } catch {}
+          try { data = JSON.parse(xhr.responseText); } catch (err) {}
           resolve(xhr.status >= 200 && xhr.status < 300 && data.ok ? { ok: true, data } : { ok: false, error: data.error || "Could not send." });
         };
         xhr.onerror = () => resolve({ ok: false, error: "Could not reach the computer. Same Wi-Fi as the computer?" });
@@ -264,41 +858,47 @@
     }
 
     function mark(file, ok, error) {
-      const row = file.row;
-      if (!row) return;
-      row.className = ok ? "done" : "failed";
-      row.children[1].textContent = ok ? "Saved" : "Failed";
-      if (!ok) {
-        const note = document.createElement("small");
-        note.textContent = plainError(error);
-        row.appendChild(note);
-      }
+      if (!file.row) return;
+      file.row.className = ok ? "done" : "failed";
+      file.meta.textContent = ok ? "Saved" : plainError(error);
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!picked.length || sending) return;
       sending = true;
-      send.disabled = true;
-      bar.classList.remove("hidden");
-      bar.value = 0;
+      render();
+      const meter = $("meter");
+      const fill = $("fill");
+      meter.hidden = false;
+      fill.style.width = "0%";
       status.className = "status";
-      status.textContent = "Sending.";
+      status.textContent = "";
 
       const files = anyFile();
       const to = files ? "files" : form.device.value;
       const queue = picked.slice();
       const total = queue.reduce((sum, f) => sum + f.size, 0) || 1;
+      const started = performance.now();
       let done = 0;
       let saved = 0;
       const failed = [];
 
+      const paintMeter = (sent) => {
+        fill.style.width = Math.round((sent / total) * 100) + "%";
+        const secs = (performance.now() - started) / 1000;
+        const rate = secs > 0.4 ? sent / secs : 0;
+        $("speed").textContent = rate ? fmt(rate) + "/s" : "Starting";
+        $("eta").textContent = rate ? fmtLeft((total - sent) / rate) : "";
+      };
+
       const batches = files ? queue.map((f) => [f]) : [queue];
       for (const batch of batches) {
         const size = batch.reduce((sum, f) => sum + f.size, 0);
-        const result = await post(to, batch, (loaded) => { bar.value = Math.round(((done + loaded) / total) * 100); });
+        batch.forEach((f) => { if (f.meta) f.meta.textContent = "Sending"; });
+        const result = await post(to, batch, (loaded) => paintMeter(done + Math.min(loaded, size)));
         done += size;
-        bar.value = Math.round((done / total) * 100);
+        paintMeter(done);
         batch.forEach((f) => mark(f, result.ok, result.error));
         if (result.ok) saved += result.data.count;
         else failed.push(...batch);
@@ -306,22 +906,846 @@
       }
 
       sending = false;
-      bar.classList.add("hidden");
-      picked = failed;
-      send.disabled = picked.length === 0 || !key;
+      meter.hidden = true;
+      queue.filter((f) => !failed.includes(f)).forEach(forget);
       const folder = folders[to] || "uploads";
       if (!failed.length) {
         status.className = "status ok";
         status.textContent = saved === 1 ? "Saved 1 file in " + folder + "." : "Saved " + saved + " files in " + folder + ".";
+        setTimeout(() => { if (!sending) { picked = []; render(); } }, 1800);
+        send.disabled = true;
+        send.textContent = "Sent";
+        if (navigator.vibrate) navigator.vibrate(30);
       } else {
+        picked = failed;
         status.className = "status bad";
-        status.textContent = failed.length === 1
-          ? "1 file did not send. Tap Send to try again."
-          : failed.length + " files did not send. Tap Send to try again.";
+        status.textContent = failed.length === 1 ? "1 file did not send. Tap Send to try again." : failed.length + " files did not send. Tap Send to try again.";
+        render();
+        failed.forEach((f) => mark(f, false, "Did not send"));
       }
     });
 
+    const head = () => ({ "X-Transfer-Key": key, "Content-Type": "application/json" });
+    const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+    const jitter = (ms) => ms + Math.random() * ms;
+    const hex = (bytes) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (n) => n.toString(16).padStart(2, "0")).join("");
+
+    // The device key stays in this browser so the PC knows it is the same phone
+    // after a reload or a locked screen, and keeps its files and text waiting.
+    // It is read before the first hello. A later reply must not be what creates it.
+    let deviceKey = "";
+    let myName = "";
+    let shownName = "";
+    function storedDeviceKey() {
+      let id = "";
+      try { id = localStorage.getItem("ft-device-key") || ""; } catch (err) {}
+      if (!/^[0-9a-f]{32}$/.test(id)) {
+        const match = document.cookie.match(/(?:^|; )ft-device-key=([0-9a-f]{32})/);
+        id = match ? match[1] : "";
+      }
+      return /^[0-9a-f]{32}$/.test(id) ? id : "";
+    }
+    function saveDeviceKey(id) {
+      if (!/^[0-9a-f]{32}$/.test(id)) return;
+      deviceKey = id;
+      try { localStorage.setItem("ft-device-key", id); } catch (err) {}
+      document.cookie = "ft-device-key=" + id + "; Path=/; Max-Age=31536000; SameSite=Lax";
+    }
+    try { myName = localStorage.getItem("ft-name") || ""; } catch (err) {}
+    deviceKey = storedDeviceKey();
+    if (!deviceKey) saveDeviceKey(hex(16));
+    if (/^(iPhone|iPad|Android|Phone) [0-9A-F]{2,8}$/.test(myName)) {
+      myName = "";
+      try { localStorage.removeItem("ft-name"); } catch (err) {}
+    }
+    shownName = myName;
+    const myKind = ({ iPhone: "iphone", iPad: "ipad", Android: "android" })[phoneLabel()] || "other";
+
+    // Live text, the same model as the PC window: one request in flight, the
+    // newest text wins, and a tab token so we never re-apply our own echo.
+    const livePad = $("livepad");
+    const liveState = $("livestate");
+    const liveTab = Array.from(crypto.getRandomValues(new Uint8Array(8)), (n) => (n % 36).toString(36)).join("");
+    let liveBusy = false;
+    let liveDirty = false;
+    let liveUp = false;
+    let typingTimer = 0;
+    let clipSig = "";
+    let clipsKnown = null;
+
+    function setLive(kind, text) {
+      liveState.className = kind;
+      liveState.textContent = text;
+    }
+
+    function restLive() {
+      if (liveUp) setLive("live", "Live with the PC");
+      else setLive("", key ? "Offline" : "No link");
+    }
+
+    async function pushLive() {
+      if (!key || !session) { liveDirty = true; return; }
+      if (liveBusy) { liveDirty = true; return; }
+      liveBusy = true;
+      liveDirty = false;
+      try {
+        const res = await fetch("/api/phone/live", {
+          method: "POST",
+          headers: head(),
+          body: JSON.stringify({ session, text: livePad.value, tab: liveTab }),
+        });
+        if (res.status === 429) liveDirty = true;
+      } catch (err) {
+        liveDirty = true;
+      }
+      liveBusy = false;
+      if (liveDirty) setTimeout(pushLive, 150);
+    }
+
+    function swapPadText(next) {
+      const old = livePad.value;
+      if (old === next) return;
+      const focused = document.activeElement === livePad;
+      let a = livePad.selectionStart;
+      let b = livePad.selectionEnd;
+      let at = 0;
+      while (at < old.length && at < next.length && old[at] === next[at]) at++;
+      const shift = next.length - old.length;
+      if (a > at) a = Math.max(at, a + shift);
+      if (b > at) b = Math.max(at, b + shift);
+      livePad.value = next;
+      if (focused) livePad.setSelectionRange(a, b);
+      growPad();
+    }
+
+    function growPad() {
+      livePad.style.height = "auto";
+      livePad.style.height = Math.min(Math.max(livePad.scrollHeight, window.innerHeight * 0.38), window.innerHeight * 0.7) + "px";
+    }
+
+    function ago(ms) {
+      const s = Math.round(ms / 1000);
+      if (s < 45) return "just now";
+      const m = Math.round(s / 60);
+      if (m < 60) return m + " min ago";
+      const h = Math.round(m / 60);
+      return h === 1 ? "1 hour ago" : h + " hours ago";
+    }
+
+    function soloLink(text) {
+      const t = text.trim();
+      if (!/^https?:\/\/[^\s]+$/i.test(t)) return "";
+      try {
+        const u = new URL(t);
+        return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+      } catch (err) {
+        return "";
+      }
+    }
+
+    function renderClips(clips) {
+      const ul = $("clips");
+      ul.replaceChildren();
+      if (!clips.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "Nothing saved yet. Clips stay until the PC app closes.";
+        ul.appendChild(li);
+        return;
+      }
+      clips.forEach((item) => {
+        const li = document.createElement("li");
+        li.className = "clip card";
+        const txt = document.createElement("p");
+        txt.className = "txt";
+        txt.textContent = item.text;
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const who = document.createElement("span");
+        who.className = "who";
+        const from = item.from === "all" ? "PC, to everyone" : item.from === "pc" ? "From PC" : "You";
+        who.textContent = from + " · " + ago(item.age);
+        meta.appendChild(who);
+        const href = soloLink(item.text);
+        if (href) {
+          const open = document.createElement("a");
+          open.className = "btn quiet small";
+          open.href = href;
+          open.target = "_blank";
+          open.rel = "noopener noreferrer";
+          open.textContent = "Open";
+          meta.appendChild(open);
+        }
+        const copy = document.createElement("button");
+        copy.type = "button";
+        copy.className = "btn quiet small";
+        copy.textContent = "Copy";
+        copy.addEventListener("click", () => copyAndSay(item.text, "Clip copied"));
+        meta.appendChild(copy);
+        if (item.from !== "all") {
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "btn quiet small";
+          del.textContent = "Remove";
+          del.addEventListener("click", () => removeClip(item.id));
+          meta.appendChild(del);
+        }
+        li.append(txt, meta);
+        ul.appendChild(li);
+      });
+    }
+
+    function applyText(mail) {
+      if (mail.tab !== liveTab && !liveBusy && !liveDirty) swapPadText(mail.text || "");
+      const clips = mail.clips || [];
+      const sig = clips.map((c) => c.id).join(",");
+      if (sig !== clipSig) {
+        clipSig = sig;
+        renderClips(clips);
+        const ids = new Set(clips.map((c) => c.id));
+        if (clipsKnown) {
+          const fresh = clips.filter((c) => !clipsKnown.has(c.id) && c.from !== "phone");
+          if (fresh.length) {
+            toast(fresh.length === 1 ? "New clip from the PC" : fresh.length + " new clips from the PC");
+            if (page !== "text") { textUnread += fresh.length; paintBadges(); }
+          }
+        }
+        clipsKnown = ids;
+      }
+      clearTimeout(typingTimer);
+      if (mail.tab !== liveTab && mail.by === "PC" && mail.age < 2500) {
+        setLive("typing", "PC is typing");
+        if (page !== "text" && !textUnread) { textUnread = 1; paintBadges(); }
+        typingTimer = setTimeout(restLive, 2500 - mail.age);
+      } else restLive();
+    }
+
+    let socialWatch = 0;
+    let socialNoted = "";
+
+    function paintPhoneSocial(data) {
+      const el = $("socialstatus");
+      const go = $("socialgo");
+      if (!el || !go) return;
+      if (!data.yt) {
+        el.textContent = data.hint || "Setting up tools…";
+        go.disabled = true;
+        return;
+      }
+      go.disabled = !!data.running;
+      if (data.running) {
+        const pct = Number(data.percent) || 0;
+        const line = data.line || "Starting";
+        el.textContent = pct > 0 ? Math.round(pct) + "% " + line : line;
+        if (!socialWatch) socialWatch = setInterval(pollSocial, 700);
+        return;
+      }
+      if (socialWatch) { clearInterval(socialWatch); socialWatch = 0; }
+      const note = data.error || data.note || "";
+      el.textContent = note;
+      if (note && note !== socialNoted && /sent to/i.test(note)) {
+        socialNoted = note;
+        toast("Saved. It's in Received.");
+      } else if (!data.error) {
+        socialNoted = note;
+      }
+    }
+
+    async function pollSocial() {
+      if (!key || !session) return;
+      try {
+        const res = await fetch("/api/phone/social?session=" + encodeURIComponent(session), { headers: { "X-Transfer-Key": key }, cache: "no-store" });
+        if (!res.ok) return;
+        paintPhoneSocial(await res.json());
+      } catch (err) {}
+    }
+
+    async function sendSocial(event) {
+      event.preventDefault();
+      const url = $("socialurl").value.trim();
+      if (!url) return;
+      if (!session) { $("socialstatus").textContent = "This device is not connected."; return; }
+      try {
+        const res = await fetch("/api/phone/social", { method: "POST", headers: head(), body: JSON.stringify({ session, url }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          $("socialstatus").textContent = data.error || "That link could not be saved.";
+          return;
+        }
+        paintPhoneSocial(data);
+      } catch (err) {
+        $("socialstatus").textContent = "That link could not be saved.";
+      }
+    }
+
+    async function saveClip() {
+      const text = livePad.value.slice(0, 16384);
+      if (!text.trim()) { toast("Type something first"); return; }
+      try {
+        const res = await fetch("/api/phone/clip", { method: "POST", headers: head(), body: JSON.stringify({ session, text }) });
+        if (!res.ok) throw new Error(String(res.status));
+        toast("Saved as a clip");
+      } catch (err) {
+        toast("Could not save the clip");
+      }
+    }
+
+    async function removeClip(id) {
+      try {
+        await fetch("/api/phone/clip/remove", { method: "POST", headers: head(), body: JSON.stringify({ session, id }) });
+      } catch (err) {
+        toast("Could not remove it");
+      }
+    }
+
+    $("socialform").addEventListener("submit", sendSocial);
+    livePad.addEventListener("input", () => { growPad(); pushLive(); });
+    $("padclip").addEventListener("click", saveClip);
+    $("padcopy").addEventListener("click", () => { if (livePad.value) copyAndSay(livePad.value); });
+    $("padclear").addEventListener("click", () => { swapPadText(""); pushLive(); });
+    if (navigator.clipboard && navigator.clipboard.readText && window.isSecureContext) {
+      $("padpaste").hidden = false;
+      $("padpaste").addEventListener("click", async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text) return;
+          livePad.focus();
+          livePad.setRangeText(text, livePad.selectionStart, livePad.selectionEnd, "end");
+          growPad();
+          pushLive();
+        } catch (err) {
+          toast("Could not read the clipboard");
+        }
+      });
+    }
+
+    const incoming = $("incoming");
+    const pclist = $("pclist");
+    const pcstatus = $("pcstatus");
+    const pccrumb = $("pccrumb");
+    const pcback = $("pcback");
+    const pcfolder = $("pcfolder");
+    const shown = new Set();
+    let session = "";
+    let pcRel = "";
+    let mailVer = -1;
+    let expired = false;
+
+    function setLink(kind, text) {
+      const el = $("link");
+      el.className = kind;
+      el.textContent = text;
+    }
+
+    function expire() {
+      expired = true;
+      liveUp = false;
+      restLive();
+      setLink("off", "Link expired");
+      $("nokey").hidden = false;
+    }
+
+    function paintName() {
+      $("myname").textContent = shownName || myName || "This device";
+    }
+
+    async function deviceFacts() {
+      const facts = { platform: "", platformVersion: "", model: "" };
+      const data = navigator.userAgentData;
+      if (!data) return facts;
+      if (data.platform) facts.platform = data.platform;
+      if (!data.getHighEntropyValues) return facts;
+      try {
+        const high = await data.getHighEntropyValues(["platform", "platformVersion", "model"]);
+        if (high.platform) facts.platform = high.platform;
+        if (high.platformVersion) facts.platformVersion = high.platformVersion;
+        if (high.model) facts.model = high.model;
+      } catch (err) {}
+      return facts;
+    }
+
+    async function hello() {
+      const known = storedDeviceKey();
+      if (known) deviceKey = known;
+      const facts = await deviceFacts();
+      const again = storedDeviceKey();
+      if (again) deviceKey = again;
+      if (!/^[0-9a-f]{32}$/.test(deviceKey)) saveDeviceKey(hex(16));
+      const res = await fetch("/api/phone/hello", {
+        method: "POST",
+        headers: head(),
+        body: JSON.stringify({
+          device: deviceKey,
+          name: myName,
+          kind: myKind,
+          platform: facts.platform,
+          platformVersion: facts.platformVersion,
+          model: facts.model,
+        }),
+      });
+      let data = {};
+      try { data = await res.json(); } catch (err) {}
+      if (res.status === 401) { expire(); throw new Error("key"); }
+      if (!res.ok || !data.session) throw new Error(String(res.status));
+      session = data.session;
+      mailVer = -1;
+      if (data.device) saveDeviceKey(data.device);
+      if (data.name) shownName = data.name;
+      paintName();
+      setLink("on", "Connected");
+      if (liveDirty) pushLive();
+      pollSocial();
+    }
+
+    function fileViewKind(name) {
+      const ext = ((name || "").split(".").pop() || "").toLowerCase();
+      if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
+      if (["mp4", "webm", "ogv", "mov", "m4v"].includes(ext)) return "video";
+      if (["mp3", "m4a", "aac", "wav", "ogg", "oga", "flac", "opus"].includes(ext)) return "audio";
+      if (["txt", "text", "md", "json", "csv", "log", "xml", "html", "htm", "css", "js", "svg"].includes(ext)) return "text";
+      return "plain";
+    }
+
+    function closeFileView() {
+      const video = $("viewvideo");
+      const audio = $("viewaudio");
+      [video, audio].forEach((media) => {
+        if (!media) return;
+        media.pause();
+        media.removeAttribute("src");
+        media.load();
+      });
+      $("viewimg").removeAttribute("src");
+      $("viewtext").textContent = "";
+      $("viewer").hidden = true;
+    }
+
+    async function openFileView(file) {
+      if (/\.pdf$/i.test(file.name || "")) {
+        openPdfView(file.name, "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id) + "&view=1", "");
+        return;
+      }
+      const kind = fileViewKind(file.name);
+      closeFileView();
+      $("viewtitle").textContent = file.name || "File";
+      $("viewmeta").textContent = fmt(file.size || 0);
+      const img = $("viewimg");
+      const video = $("viewvideo");
+      const audio = $("viewaudio");
+      const text = $("viewtext");
+      img.hidden = kind !== "image";
+      video.hidden = kind !== "video";
+      audio.hidden = kind !== "audio";
+      text.hidden = kind !== "text" && kind !== "plain";
+      const url = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id) + "&view=1";
+      if (kind === "image") {
+        img.alt = file.name || "File";
+        img.src = url;
+      } else if (kind === "video") {
+        video.src = url;
+      } else if (kind === "audio") {
+        audio.src = url;
+      } else if (kind === "text") {
+        text.textContent = "Loading";
+        try {
+          const res = await fetch(url, { headers: { "X-Transfer-Key": key } });
+          if (!res.ok) throw new Error(String(res.status));
+          text.textContent = (await res.text()).slice(0, 256 * 1024);
+        } catch (err) {
+          text.textContent = (file.name || "File") + "\n" + fmt(file.size || 0);
+        }
+      } else {
+        text.textContent = (file.name || "File") + "\n" + fmt(file.size || 0);
+      }
+      $("viewer").hidden = false;
+    }
+
+    function renderInbox(files) {
+      const empty = $("inboxempty");
+      if (empty) empty.hidden = files.length > 0;
+      let fresh = 0;
+      const keep = new Set(files.map((f) => f.id));
+      incoming.querySelectorAll("li[data-id]").forEach((li) => { if (!keep.has(li.dataset.id)) li.remove(); });
+      files.slice().reverse().forEach((file) => {
+        if (incoming.querySelector('li[data-id="' + file.id + '"]')) return;
+        if (!shown.has(file.id)) { shown.add(file.id); fresh++; }
+        const li = document.createElement("li");
+        li.dataset.id = file.id;
+        const what = document.createElement("div");
+        what.className = "what";
+        const name = document.createElement("b");
+        name.textContent = file.name || "File";
+        const meta = document.createElement("span");
+        meta.textContent = fmt(file.size || 0);
+        what.append(name, meta);
+        const acts = document.createElement("div");
+        acts.className = "acts";
+        const view = document.createElement("button");
+        view.type = "button";
+        view.className = "btn small";
+        view.textContent = "View";
+        view.addEventListener("click", (event) => {
+          event.preventDefault();
+          openFileView(file);
+        });
+        const save = document.createElement("a");
+        save.className = "btn primary small";
+        save.textContent = "Save";
+        save.href = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id);
+        save.download = file.name || "file";
+        save.addEventListener("click", () => {
+          save.href = "/api/phone/file?session=" + encodeURIComponent(session) + "&id=" + encodeURIComponent(file.id);
+          meta.textContent = "Saving to your downloads";
+        });
+        acts.append(view, save);
+        li.append(extBadge(file.name), what, acts);
+        incoming.prepend(li);
+      });
+      return fresh;
+    }
+
+    let firstMail = true;
+    function applyMail(mail) {
+      mailVer = mail.ver;
+      if (mail.name && mail.name !== shownName) {
+        shownName = mail.name;
+        paintName();
+      }
+      const fresh = renderInbox(mail.files || []);
+      if (fresh && !firstMail) {
+        toast(fresh === 1 ? "New file in Received" : fresh + " new files in Received");
+        if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+        if (page !== "received") { recvUnread += fresh; paintBadges(); }
+      } else if (fresh && firstMail && page !== "received") {
+        recvUnread += fresh;
+        paintBadges();
+      }
+      firstMail = false;
+      applyText(mail);
+    }
+
+    function whenVisible() {
+      return new Promise((done) => {
+        if (!document.hidden) { done(); return; }
+        const on = () => {
+          if (document.hidden) return;
+          document.removeEventListener("visibilitychange", on);
+          done();
+        };
+        document.addEventListener("visibilitychange", on);
+      });
+    }
+
+    // Tells the PC this tab is leaving, so it stops showing as connected right
+    // away. While the page closes only sendBeacon is sure to get out, and it
+    // can only carry the cookie, which the server accepts for this one route.
+    function bye(gone) {
+      if (!key || !session) return;
+      const body = JSON.stringify({ session, gone });
+      if (gone && navigator.sendBeacon && navigator.sendBeacon("/api/phone/bye", new Blob([body], { type: "text/plain" }))) return;
+      fetch("/api/phone/bye", { method: "POST", headers: head(), body, keepalive: true }).catch(() => {});
+    }
+
+    // One waiting request carries files, text and clips. A thousand phones
+    // reconnecting at once spread out because every retry waits a random bit.
+    // It pauses while the page is in the background, so a phone in a pocket
+    // shows as away instead of connected.
+    async function connect() {
+      let fails = 0;
+      for (;;) {
+        try {
+          if (document.hidden) {
+            setLink("off", "Paused");
+            await whenVisible();
+          }
+          if (!session) await hello();
+          const res = await fetch("/api/phone/events?session=" + encodeURIComponent(session) + "&since=" + mailVer, { headers: { "X-Transfer-Key": key }, cache: "no-store" });
+          if (res.status === 404) { session = ""; continue; }
+          if (res.status === 401) { expire(); return; }
+          if (!res.ok) throw new Error(String(res.status));
+          applyMail(await res.json());
+          liveUp = true;
+          fails = 0;
+          setLink("on", "Connected");
+        } catch (err) {
+          if (expired) return;
+          liveUp = false;
+          restLive();
+          setLink("off", "Reconnecting");
+          fails = Math.min(fails + 1, 5);
+          await sleep(jitter(800 * fails));
+        }
+      }
+    }
+
+    async function dismissAll() {
+      try {
+        await fetch("/api/phone/dismiss", { method: "POST", headers: head(), body: JSON.stringify({ session, id: "", all: true }) });
+      } catch (err) {
+        toast("Could not clear the list");
+      }
+    }
+
+    async function rename() {
+      const next = $("namefield").value.trim().slice(0, 24);
+      $("nameform").hidden = true;
+      $("namerow").hidden = false;
+      if (next === myName) return;
+      myName = next;
+      try {
+        if (myName) localStorage.setItem("ft-name", myName);
+        else localStorage.removeItem("ft-name");
+      } catch (err) {}
+      if (!session) {
+        shownName = myName || shownName;
+        paintName();
+        return;
+      }
+      try {
+        const res = await fetch("/api/phone/name", { method: "POST", headers: head(), body: JSON.stringify({ session, name: myName }) });
+        const data = await res.json();
+        if (data.name) shownName = data.name;
+        paintName();
+        toast("The PC now sees this device as " + (shownName || myName));
+      } catch (err) {
+        shownName = myName || shownName;
+        paintName();
+        toast("Saved here. The PC picks it up when you reconnect.");
+      }
+    }
+
+    $("clearinbox").addEventListener("click", dismissAll);
+    $("viewclose").addEventListener("click", closeFileView);
+    $("viewer").addEventListener("click", (event) => { if (event.target.id === "viewer") closeFileView(); });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !$("viewer").hidden) closeFileView();
+    });
+    $("renamebtn").addEventListener("click", () => {
+      $("namefield").value = myName;
+      $("namerow").hidden = true;
+      $("nameform").hidden = false;
+      $("namefield").focus();
+      $("namefield").select();
+    });
+    $("nameform").addEventListener("submit", (event) => { event.preventDefault(); rename(); });
+    $("namecancel").addEventListener("click", () => { $("nameform").hidden = true; $("namerow").hidden = false; });
+
+    async function loadPC(rel) {
+      pcstatus.className = "status";
+      pcstatus.textContent = "";
+      if (!key) {
+        pcstatus.className = "status bad";
+        pcstatus.textContent = "Open the link from the computer.";
+        return;
+      }
+      let data = {};
+      try {
+        const res = await fetch("/api/browse?path=" + encodeURIComponent(rel || ""), { headers: { "X-Transfer-Key": key } });
+        try { data = await res.json(); } catch (err) {}
+        if (!res.ok) {
+          pcstatus.className = "status bad";
+          pcstatus.textContent = res.status === 401 ? "Open the link from the computer." : "Could not open that folder.";
+          return;
+        }
+      } catch (err) {
+        pcstatus.className = "status bad";
+        pcstatus.textContent = "Could not reach the computer. Same Wi-Fi as the computer?";
+        return;
+      }
+      pcRel = data.rel || "";
+      pccrumb.textContent = (data.crumbs || []).map((c) => c.label).join(" / ");
+      pcback.hidden = !pcRel;
+      pcfolder.href = "/api/pack?path=" + encodeURIComponent(pcRel);
+      pcfolder.download = (data.name || "folder") + ".zip";
+      pclist.replaceChildren();
+      const entries = data.entries || [];
+      if (!entries.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "This folder is empty.";
+        pclist.appendChild(li);
+        return;
+      }
+      entries.forEach((entry) => {
+        const li = document.createElement("li");
+        const what = document.createElement("div");
+        what.className = "what";
+        const name = document.createElement("b");
+        name.textContent = entry.label || entry.name;
+        const meta = document.createElement("span");
+        meta.textContent = entry.dir ? "Folder" : fmt(entry.size || 0);
+        what.append(name, meta);
+        let row;
+        if (entry.dir) {
+          row = document.createElement("button");
+          row.type = "button";
+          row.addEventListener("click", () => { loadPC(entry.rel); window.scrollTo(0, 0); });
+          const icon = document.createElement("span");
+          icon.className = "ext";
+          icon.innerHTML = folderGlyph();
+          row.append(icon, what);
+          row.insertAdjacentHTML("beforeend", chevGlyph);
+        } else {
+          row = document.createElement("a");
+          row.href = "/api/get?path=" + encodeURIComponent(entry.rel);
+          row.download = entry.name;
+          row.append(extBadge(entry.name), what);
+          if (/\.pdf$/i.test(entry.name)) {
+            row.addEventListener("click", (event) => {
+              event.preventDefault();
+              openPdfView(entry.name, "/api/get?path=" + encodeURIComponent(entry.rel), entry.rel);
+            });
+          }
+        }
+        row.className = "row";
+        li.appendChild(row);
+        pclist.appendChild(li);
+      });
+    }
+
+    pcback.addEventListener("click", () => {
+      const parts = pcRel.split("/").filter(Boolean);
+      parts.pop();
+      loadPC(parts.join("/"));
+    });
+
+    try {
+      const dev = localStorage.getItem("ft-device");
+      const guess = dev || { iPhone: "iphone", iPad: "ipad", Android: "android" }[phoneLabel()];
+      if (guess && folders[guess] && guess !== "files") form.device.value = guess;
+      const last = localStorage.getItem("ft-page");
+      if (last) showPage(last);
+    } catch (err) {}
+
+    // Browser full screen for an open doc or PDF. iPhone Safari only allows it
+    // for video, so there the editor just fills the browser window.
+    const fullWatchers = [];
+    const webFullscreen = {
+      get: () => !!document.fullscreenElement,
+      set: (on) => {
+        const root = document.documentElement;
+        if (on && !document.fullscreenElement && root.requestFullscreen) root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+        else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      },
+      onChange: (fn) => fullWatchers.push(fn),
+      supported: !!document.documentElement.requestFullscreen,
+    };
+    document.addEventListener("fullscreenchange", () => fullWatchers.forEach((fn) => fn()));
+
+    // PDFs open in the same workspace as on the computer. A save from here
+    // lands next to the original as a copy, never over it.
+    let pdfEditor = null;
+    async function openPdfView(name, url, rel) {
+      if (pdfEditor) {
+        await pdfEditor.close();
+        if (pdfEditor) return;
+      }
+      let mod;
+      try {
+        mod = await import("/pdfedit.mjs");
+      } catch (err) {
+        toast("The PDF tools didn't load");
+        return;
+      }
+      document.body.classList.add("pdfopen");
+      pdfEditor = mod.openPdf({
+        name,
+        url,
+        headers: () => ({ "X-Transfer-Key": key }),
+        modes: rel ? ["copy"] : [],
+        copyLabel: "Save to computer",
+        save: rel ? async (bytes) => {
+          const res = await fetch("/api/phone/pdf/save?path=" + encodeURIComponent(rel), {
+            method: "POST",
+            headers: { "X-Transfer-Key": key, "Content-Type": "application/pdf" },
+            body: bytes,
+          });
+          let data = {};
+          try { data = await res.json(); } catch (err) {}
+          if (res.ok) loadPC(pcRel);
+          return { ok: res.ok, name: data.name, error: data.error };
+        } : null,
+        fullscreen: webFullscreen,
+        toast: (text) => toast(text),
+        confirm: (text) => Promise.resolve(window.confirm(text)),
+        onClose: () => {
+          pdfEditor = null;
+          document.body.classList.remove("pdfopen");
+        },
+      });
+    }
+
+    // The editor scripts arrive in the background so the rest of the page
+    // works before they land. Deferred scripts finish before DOMContentLoaded.
+    function mountDocs() {
+      if (docsUI || !window.FTDocs) return;
+      docsUI = window.FTDocs.mount($("docsroot"), {
+        base: "/api/phone/docs",
+        phone: true,
+        session: () => session,
+        headers: () => ({ "X-Transfer-Key": key }),
+        toast: (text) => toast(text),
+        confirm: (text) => Promise.resolve(window.confirm(text)),
+        beacon: (path, body) => {
+          const blob = new Blob([JSON.stringify(Object.assign({ session }, body))], { type: "text/plain" });
+          if (!navigator.sendBeacon || !navigator.sendBeacon("/api/phone/docs" + path, blob)) {
+            fetch("/api/phone/docs" + path, { method: "POST", headers: head(), body: JSON.stringify(Object.assign({ session }, body)), keepalive: true }).catch(() => {});
+          }
+        },
+        onEditor: (on) => {
+          document.body.classList.toggle("docediting", on);
+          window.scrollTo(0, 0);
+        },
+        fullscreen: webFullscreen,
+      });
+      if (page === "docs") docsUI.show();
+    }
+    if (window.FTDocs) mountDocs();
+    else document.addEventListener("DOMContentLoaded", mountDocs);
+
+    function mountRemote() {
+      if (remoteUI || !window.FTRemote) return;
+      remoteUI = window.FTRemote.mount($("remoteroot"), {
+        session: async () => {
+          if (!session) await hello();
+          return session;
+        },
+        renew: async () => {
+          session = "";
+          await hello();
+          return session;
+        },
+        headers: () => ({ "X-Transfer-Key": key }),
+        toast: (text) => toast(text),
+        onLive: (on) => document.body.classList.toggle("remoting", on),
+      });
+      if (page === "remote") remoteUI.show();
+    }
+    if (window.FTRemote) mountRemote();
+    else document.addEventListener("DOMContentLoaded", mountRemote);
+
+    renderClips([]);
+    restLive();
+    growPad();
     setKind();
+    paintName();
+    if (key) {
+      connect();
+      loadPC("");
+    } else {
+      setLink("off", "No link");
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (!key) return;
+      if (document.visibilityState === "visible") {
+        loadPC(pcRel);
+        if (remoteUI && page === "remote") remoteUI.show();
+      } else {
+        if (remoteUI) remoteUI.hide();
+        bye(false);
+      }
+    });
+    window.addEventListener("pagehide", (event) => bye(!event.persisted));
   </script>
 </body>
 </html>

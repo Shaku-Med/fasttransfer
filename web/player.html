@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Player · FastTransfer</title>
+  <script>
+    (function () {
+      var mode = "system";
+      try { mode = localStorage.getItem("ft-theme") || "system"; } catch (e) {}
+      if (mode !== "light" && mode !== "dark") mode = "system";
+      var dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    })();
+  </script>
+  <style>
+    [hidden] { display: none !important; }
+    :root {
+      --bar: #f3f3f3;
+      --list: #fafafa;
+      --ink: #1a1a1a;
+      --muted: #616161;
+      --line: #e5e5e5;
+      --hover: #ececec;
+      --press: #e2e2e2;
+      --sel: rgba(13, 110, 253, 0.14);
+      --accent: #0d6efd;
+      --menu: #ffffff;
+      --stage: #ececec;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+      --on-accent: #ffffff;
+      --ease: cubic-bezier(0, 0, 0, 1);
+      --film: #0b0b0b;
+      color-scheme: light;
+    }
+    html[data-theme="dark"] {
+      --bar: #2b2b2b;
+      --list: #1c1c1c;
+      --ink: #f3f3f3;
+      --muted: #a6a6a6;
+      --line: #3a3a3a;
+      --hover: #333333;
+      --press: #3a3a3a;
+      --sel: rgba(13, 110, 253, 0.28);
+      --accent: #6ea8fe;
+      --menu: #2b2b2b;
+      --stage: #141414;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      --on-accent: #1c1c1c;
+      color-scheme: dark;
+    }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background: var(--bar);
+      color: var(--ink);
+      font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { background: none; border: 0; padding: 0; cursor: pointer; }
+    svg { display: block; width: 16px; height: 16px; flex: none; }
+
+    #app { display: flex; height: 100%; min-height: 0; background: var(--bar); }
+    #stage {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bar);
+    }
+    /* The picture and the playlist share one row. The control bar is a
+       separate row under that, with a fixed height, so closing the playlist
+       gives the picture the space and never stretches the bar. */
+    #view {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    #frame {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--stage);
+    }
+    body.video #frame { background: var(--stage); }
+    #media {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      background: #000;
+      outline: none;
+      object-fit: contain;
+    }
+    body.fill #media { width: 100%; height: 100%; object-fit: cover; }
+    body.audio #media { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    body.idle #frame { cursor: none; }
+    #stage:fullscreen, #stage:-webkit-full-screen { width: 100%; height: 100%; background: #000; }
+    #stage:fullscreen #frame, #stage:-webkit-full-screen #frame { background: #000; }
+
+    #cover {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      padding: 32px 48px;
+    }
+    .art {
+      position: relative;
+      width: min(300px, 38vh);
+      aspect-ratio: 1;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 12px;
+      background: var(--menu);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      color: var(--muted);
+    }
+    .art img { width: 100%; height: 100%; object-fit: cover; }
+    .art svg { width: 30%; height: 30%; }
+    .meta { min-width: 0; max-width: 460px; }
+    .meta h1 { margin: 0 0 6px; font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+    .meta p { margin: 0 0 4px; color: var(--muted); font-size: 14px; }
+    #viz { position: absolute; left: 16px; right: 16px; bottom: 16px; width: calc(100% - 32px); height: 48px; opacity: 0.5; pointer-events: none; }
+
+    #note {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+    }
+    body.video #note { color: #c8c8c8; }
+    #note b { color: var(--ink); font-size: 16px; font-weight: 600; }
+    body.video #note b { color: #f3f3f3; }
+
+    #bigplay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 72px;
+      height: 72px;
+      margin: -36px 0 0 -36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--on-accent);
+      box-shadow: var(--shadow);
+      transition: transform 160ms var(--ease);
+    }
+    #bigplay:hover { transform: scale(1.05); }
+    #bigplay svg { width: 28px; height: 28px; }
+
+    #flash {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      min-width: 64px;
+      height: 64px;
+      padding: 0 14px;
+      box-sizing: border-box;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 32px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #flash svg { width: 26px; height: 26px; }
+    #flash.on { animation: flash 600ms var(--ease); }
+    @keyframes flash { 0% { opacity: 1; transform: translate(-50%, -50%) scale(0.92); } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+
+    #resume {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 36px;
+      padding: 0 6px 0 14px;
+      border-radius: 18px;
+      background: var(--menu);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      white-space: nowrap;
+      animation: rise 200ms var(--ease);
+    }
+    #resume button { height: 26px; padding: 0 10px; border-radius: 13px; background: var(--hover); }
+    #resume button:hover { background: var(--press); }
+
+    /* The bar has three parts: what is playing on the left, the transport in
+       the middle, and the extras on the right. Rows have fixed heights, so
+       opening the playlist never changes how tall the bar is. */
+    #controls {
+      position: relative;
+      flex: none;
+      height: 100px;
+      box-sizing: border-box;
+      padding: 6px 16px 10px;
+      background: var(--menu);
+      border-top: 1px solid var(--line);
+    }
+    #stage:fullscreen #controls, #stage:-webkit-full-screen #controls {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--menu);
+      transition: opacity 200ms var(--ease);
+    }
+    body.idle #stage:fullscreen #controls, body.idle #stage:-webkit-full-screen #controls { opacity: 0; pointer-events: none; }
+    #seekrow { display: flex; align-items: center; gap: 12px; height: 28px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+    #seekrow span { min-width: 44px; }
+    #seekrow span:last-child { text-align: right; }
+    #seek { position: relative; flex: 1; height: 24px; cursor: pointer; touch-action: none; }
+    #seek .track, #seek .buf, #seek .fill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; transition: height 120ms var(--ease), margin 120ms var(--ease); }
+    #seek .track { right: 0; background: var(--line); }
+    #seek .buf { width: calc(var(--b, 0) * 1%); background: var(--press); }
+    #seek .fill { width: calc(var(--p, 0) * 1%); background: var(--accent); }
+    #seek .knob {
+      position: absolute;
+      top: 50%;
+      left: calc(var(--p, 0) * 1%);
+      width: 14px;
+      height: 14px;
+      margin: -7px 0 0 -7px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--menu);
+      box-sizing: border-box;
+      transform: scale(0);
+      transition: transform 120ms var(--ease);
+    }
+    #seek:hover .knob, #seek.drag .knob { transform: scale(1); }
+    #seek:hover .track, #seek:hover .buf, #seek:hover .fill, #seek.drag .track, #seek.drag .fill { height: 6px; margin-top: -3px; }
+    #tip {
+      position: absolute;
+      bottom: 26px;
+      left: 0;
+      padding: 3px 7px;
+      border-radius: 4px;
+      background: var(--ink);
+      color: var(--bar);
+      font-size: 11px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #btnrow { display: grid; grid-template-columns: minmax(160px, 1fr) auto minmax(max-content, 1fr); align-items: center; gap: 24px; height: 56px; }
+    .zone { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .zone.right { justify-content: flex-end; }
+    #nowinfo { flex-direction: column; align-items: flex-start; gap: 2px; }
+    #nowinfo b, #nowinfo span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #nowinfo b { font-size: 14px; font-weight: 600; }
+    #nowinfo span { color: var(--muted); font-size: 12px; }
+    .ib {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+      border-radius: 8px;
+      color: var(--ink);
+      transition: background 120ms ease;
+    }
+    .ib:hover { background: var(--hover); }
+    .ib:active { background: var(--press); }
+    .ib.on { background: var(--sel); }
+    .ib:disabled { opacity: 0.4; cursor: default; background: none; }
+    .ib .badge { position: absolute; right: 5px; bottom: 5px; font-size: 9px; font-weight: 700; line-height: 1; }
+    .zone.mid { gap: 6px; }
+    .zone.mid .ib svg { width: 20px; height: 20px; }
+    .zone.right .ib svg { width: 18px; height: 18px; }
+    .zone.mid #shuffle svg, .zone.mid #repeat svg { width: 18px; height: 18px; }
+    #play { width: 48px; height: 48px; flex: 0 0 48px; margin: 0 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16); transition: transform 120ms var(--ease), filter 120ms ease; }
+    #play:hover { background: var(--accent); filter: brightness(1.08); }
+    #play:active { transform: scale(0.96); }
+    .zone.mid #play svg { width: 20px; height: 20px; }
+    .txt { width: auto; min-width: 40px; padding: 0 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .vol { display: flex; align-items: center; margin-right: 6px; }
+    #vol {
+      width: 88px;
+      height: 4px;
+      margin: 0 6px 0 2px;
+      flex: none;
+      appearance: none;
+      -webkit-appearance: none;
+      border-radius: 2px;
+      background: linear-gradient(to right, var(--accent) calc(var(--v, 1) * 100%), var(--line) 0);
+      cursor: pointer;
+    }
+    #vol::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--menu); }
+    #vol::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--menu); }
+    #morebtn { display: none; }
+
+    /* Narrower windows keep the transport and fold the extras into the More
+       menu, so nothing is squeezed or cut off. */
+    @media (max-width: 1000px) {
+      #btnrow .fold1 { display: none; }
+      #morebtn { display: inline-flex; }
+    }
+    @media (max-width: 860px) {
+      #btnrow .fold2, #vol { display: none; }
+      .vol { margin-right: 0; }
+    }
+    @media (max-width: 620px) {
+      #btnrow { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+      #nowinfo { display: none; }
+      #controls { padding: 6px 10px 10px; }
+    }
+
+    .pop {
+      position: absolute;
+      z-index: 20;
+      min-width: 132px;
+      padding: 4px;
+      background: var(--menu);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      animation: rise 120ms var(--ease);
+    }
+    .pop button { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border-radius: 4px; text-align: left; white-space: nowrap; }
+    .pop button:hover { background: var(--hover); }
+    .pop button.on { background: var(--sel); }
+    .pop button svg { width: 16px; height: 16px; color: var(--muted); }
+    .pop .val { margin-left: auto; padding-left: 16px; color: var(--muted); font-size: 12px; }
+    @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+
+    #drawer {
+      display: none;
+      flex: 0 0 0px;
+      width: 0;
+      min-width: 0;
+      max-width: 0;
+      overflow: hidden;
+      background: var(--list);
+      border: 0;
+    }
+    body[data-drawer="queue"] #drawer,
+    body[data-drawer="inbox"] #drawer {
+      display: flex;
+      flex: 0 0 320px;
+      flex-direction: column;
+      width: 320px;
+      max-width: min(320px, 42%);
+      min-width: 0;
+      overflow: hidden;
+      border-left: 1px solid var(--line);
+    }
+    #queue, #inbox { display: none; flex: 1; min-height: 0; flex-direction: column; background: transparent; }
+    body[data-drawer="queue"] #queue,
+    body[data-drawer="inbox"] #inbox { display: flex; }
+    #ibox { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 0 8px 12px; list-style: none; }
+    #ibox button { display: block; width: 100%; min-height: 48px; padding: 6px 8px; border-radius: 6px; text-align: left; }
+    #ibox button:hover { background: var(--hover); }
+    #ibox b, #ibox span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #ibox b { font-weight: 500; }
+    #ibox span { color: var(--muted); font-size: 12px; }
+    #ptoast {
+      position: absolute;
+      z-index: 8;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: min(440px, calc(100% - 32px));
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+    .qhead { display: flex; align-items: center; gap: 8px; padding: 14px 8px 8px 16px; }
+    .qhead b { flex: 1; }
+    .qhead b { font-size: 14px; font-weight: 600; }
+    .qhead span { color: var(--muted); font-size: 12px; }
+    #qfind {
+      margin: 0 12px 8px;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--menu);
+      outline: none;
+    }
+    #qfind:focus { border-color: var(--accent); }
+    #qlist { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 0 8px 12px; list-style: none; }
+    #qlist button {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 44px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      text-align: left;
+      transition: background 120ms ease;
+    }
+    #qlist button:hover { background: var(--hover); }
+    #qlist button.on { background: var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
+    .qn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      background: var(--hover);
+      color: var(--muted);
+    }
+    #qlist button.on .qn { background: transparent; }
+    #qlist button.on .qn { color: var(--accent); }
+    .qt { min-width: 0; }
+    .qt b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    #qlist button.on .qt b { font-weight: 600; }
+    .qt span { display: block; color: var(--muted); font-size: 12px; }
+    .bars { display: flex; align-items: flex-end; gap: 2px; height: 12px; }
+    .bars i { width: 3px; background: var(--accent); border-radius: 1px; animation: bar 900ms ease-in-out infinite; }
+    .bars i:nth-child(2) { animation-delay: -300ms; }
+    .bars i:nth-child(3) { animation-delay: -600ms; }
+    body.paused .bars i { animation-play-state: paused; }
+    @keyframes bar { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+    .qempty { padding: 24px 12px; color: var(--muted); text-align: center; }
+
+    @media (max-width: 860px) {
+      body[data-drawer="queue"] #drawer,
+      body[data-drawer="inbox"] #drawer {
+        position: absolute;
+        z-index: 7;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        width: auto;
+        max-width: none;
+        height: min(52%, 360px);
+        flex: none;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+      #cover { flex-direction: column; gap: 16px; text-align: center; padding: 24px 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body class="paused">
+  <div id="app">
+    <main id="stage">
+      <div id="view">
+      <div id="frame">
+      <video id="media" playsinline preload="metadata"></video>
+      <div id="cover" hidden>
+        <div class="art">
+          <img id="art" alt="" hidden />
+          <svg id="artglyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 12.5V3.5l7-1.5v9" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><circle cx="4.5" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="11.5" cy="11" r="1.6" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
+        </div>
+        <div class="meta">
+          <h1 id="ttl"></h1>
+          <p id="who" hidden></p>
+          <p id="extra" hidden></p>
+        </div>
+      </div>
+      <canvas id="viz" hidden></canvas>
+      <div id="note" hidden></div>
+      <button id="bigplay" type="button" aria-label="Play" hidden><svg viewBox="0 0 16 16"><path d="M5 3.2v9.6L12.8 8z" fill="currentColor"/></svg></button>
+      <div id="flash" aria-hidden="true"></div>
+      <button id="ptoast" type="button" hidden></button>
+      <div id="resume" hidden><span id="resumetext"></span><button id="restart" type="button">Start over</button></div>
+      </div>
+      <aside id="drawer">
+        <div id="inbox" aria-label="Received">
+          <div class="qhead"><b>Received</b><button class="ib" id="inboxclose" type="button" aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></div>
+          <ol id="ibox"></ol>
+        </div>
+        <div id="queue" aria-label="Playlist">
+          <div class="qhead"><b>Playlist</b><span id="qcount"></span><button class="ib" id="queueclose" type="button" aria-label="Close playlist"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button></div>
+          <input id="qfind" type="search" placeholder="Filter" aria-label="Filter the playlist" />
+          <ol id="qlist"></ol>
+        </div>
+      </aside>
+      </div>
+      <div id="controls">
+        <div id="seekrow">
+          <span id="now">0:00</span>
+          <div id="seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+            <div class="track"></div><div class="buf"></div><div class="fill"></div><div class="knob"></div>
+            <div id="tip" hidden></div>
+          </div>
+          <span id="dur">0:00</span>
+        </div>
+        <div id="btnrow">
+          <div class="zone" id="nowinfo"><b id="nowname"></b><span id="nowsub"></span></div>
+          <div class="zone mid">
+            <button class="ib fold2" id="shuffle" type="button" title="Shuffle  S" aria-label="Shuffle" aria-pressed="false"></button>
+            <button class="ib" id="prev" type="button" title="Previous  Shift+P" aria-label="Previous"></button>
+            <button class="ib fold2" id="back" type="button" title="Back 10 seconds  J" aria-label="Back 10 seconds"></button>
+            <button class="ib" id="play" type="button" title="Play  Space" aria-label="Play"></button>
+            <button class="ib fold2" id="fwd" type="button" title="Forward 10 seconds  L" aria-label="Forward 10 seconds"></button>
+            <button class="ib" id="next" type="button" title="Next  Shift+N" aria-label="Next"></button>
+            <button class="ib fold2" id="repeat" type="button" title="Repeat  R" aria-label="Repeat"></button>
+          </div>
+          <div class="zone right">
+            <div class="vol">
+              <button class="ib" id="mute" type="button" title="Mute  M" aria-label="Mute"></button>
+              <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+            </div>
+            <button class="ib txt fold1" id="speed" type="button" title="Speed" aria-label="Speed" aria-haspopup="true">1×</button>
+            <button class="ib fold1" id="fit" type="button" title="Fill the window" aria-label="Fill the window" aria-pressed="false"></button>
+            <button class="ib fold1" id="pip" type="button" title="Picture in picture" aria-label="Picture in picture"></button>
+            <button class="ib fold1" id="ibtn" type="button" title="Received" aria-label="Received" aria-pressed="false"></button>
+            <button class="ib" id="qbtn" type="button" title="Playlist  Q" aria-label="Playlist" aria-pressed="false"></button>
+            <button class="ib" id="morebtn" type="button" title="More" aria-label="More" aria-haspopup="true"></button>
+            <button class="ib" id="full" type="button" title="Full screen  F" aria-label="Full screen"></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    "use strict";
+    // The media window. The desk opens it by name, so there is only ever one,
+    // and points it at a file by changing the address hash. The playlist is
+    // every video and song in that file's folder.
+    const $ = (id) => document.getElementById(id);
+    const media = $("media");
+    const S = 'fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"';
+    const ICONS = {
+      play: '<path d="M5 3.2v9.6L12.8 8z" fill="currentColor"/>',
+      pause: '<rect x="4" y="3" width="2.8" height="10" rx="0.8" fill="currentColor"/><rect x="9.2" y="3" width="2.8" height="10" rx="0.8" fill="currentColor"/>',
+      prev: '<path d="M4 3.5v9" ' + S + '/><path d="M12.5 3.8v8.4L6 8z" fill="currentColor"/>',
+      next: '<path d="M12 3.5v9" ' + S + '/><path d="M3.5 3.8v8.4L10 8z" fill="currentColor"/>',
+      back: '<path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5v2.5h2.5" ' + S + '/><text x="8" y="10.4" text-anchor="middle" font-size="5.2" font-weight="700" fill="currentColor" font-family="Segoe UI, system-ui, sans-serif">10</text>',
+      fwd: '<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" ' + S + '/><text x="8" y="10.4" text-anchor="middle" font-size="5.2" font-weight="700" fill="currentColor" font-family="Segoe UI, system-ui, sans-serif">10</text>',
+      shuffle: '<path d="M2 4.5h2.5c3.5 0 3.5 7 7 7H14M2 11.5h2.5c1.4 0 2.2-1.1 2.8-2.4M9 6.6c.6-1.2 1.4-2.1 2.5-2.1H14M12.2 2.8 14 4.5l-1.8 1.7M12.2 9.8l1.8 1.7-1.8 1.7" ' + S + '/>',
+      repeat: '<path d="M3 7.5V6.5A2 2 0 0 1 5 4.5h8M11 2.5l2 2-2 2M13 8.5v1a2 2 0 0 1-2 2H3M5 13.5l-2-2 2-2" ' + S + '/>',
+      vol: '<path d="M2.5 6h2.2L8 3.2v9.6L4.7 10H2.5z" ' + S + '/><path d="M10.5 5.8a3 3 0 0 1 0 4.4M12.3 4a5.5 5.5 0 0 1 0 8" ' + S + '/>',
+      volLow: '<path d="M2.5 6h2.2L8 3.2v9.6L4.7 10H2.5z" ' + S + '/><path d="M10.5 5.8a3 3 0 0 1 0 4.4" ' + S + '/>',
+      muted: '<path d="M2.5 6h2.2L8 3.2v9.6L4.7 10H2.5z" ' + S + '/><path d="m10.5 6 3 4M13.5 6l-3 4" ' + S + '/>',
+      fit: '<rect x="2" y="3.5" width="12" height="9" rx="1.5" ' + S + '/><path d="M5 6.5V6h1.5M11 9.5v.5H9.5" ' + S + '/>',
+      pip: '<rect x="2" y="3" width="12" height="10" rx="1.5" ' + S + '/><rect x="8" y="8" width="4.5" height="3.5" rx="0.6" fill="currentColor"/>',
+      queue: '<path d="M2.5 4h8M2.5 8h8M2.5 12h5M12.5 9.5v4M10.5 11.5h4" ' + S + '/>',
+      full: '<path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" ' + S + '/>',
+      more: '<circle cx="4" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12" cy="8" r="1.15" fill="currentColor"/>',
+      unfull: '<path d="M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5" ' + S + '/>',
+      film: '<rect x="2" y="3" width="12" height="10" rx="1.5" ' + S + '/><path d="M6.5 6v4L10 8z" fill="currentColor"/>',
+      note: '<path d="M6 12.5V3.5l7-1.5v9" ' + S + '/><circle cx="4.5" cy="12.5" r="1.6" ' + S + '/><circle cx="11.5" cy="11" r="1.6" ' + S + '/>',
+      speed: '<path d="M2.6 11.5a5.6 5.6 0 1 1 10.8 0" ' + S + '/><path d="m8 9.6 2.7-3" ' + S + '/><circle cx="8" cy="9.8" r="0.9" fill="currentColor"/>',
+      inbox: '<path d="M2 9.2 3.6 4.4A1.4 1.4 0 0 1 5 3.5h6a1.4 1.4 0 0 1 1.4.9L14 9.2v2.9a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 12.1z" ' + S + '/><path d="M2 9.2h3.2a2.8 2.8 0 0 0 5.6 0H14" ' + S + '/>',
+    };
+    const svg = (name) => '<svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[name] + "</svg>";
+    ["prev", "next", "back", "fwd", "shuffle", "repeat", "pip", "full"].forEach((id) => { $(id).innerHTML = svg(id); });
+    $("fit").innerHTML = svg("fit");
+    $("qbtn").innerHTML = svg("queue");
+    $("morebtn").innerHTML = svg("more");
+    $("ibtn").innerHTML = svg("inbox");
+
+    let queue = [];
+    let order = [];
+    let at = -1;
+    let dir = null;
+    let current = null;
+    let gen = 0;
+    let mode = "direct";
+    let offset = 0;
+    let duration = 0;
+    let triedFFmpeg = false;
+    let repeat = "off";
+    let shuffle = false;
+    let dragging = false;
+    let idleTimer = 0;
+    let saveTimer = 0;
+    let clickTimer = 0;
+    let pop = null;
+    const store = {
+      get(key, fallback) {
+        try { const raw = localStorage.getItem(key); return raw == null ? fallback : JSON.parse(raw); } catch (err) { return fallback; }
+      },
+      set(key, value) {
+        try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) {}
+      },
+    };
+
+    function fmt(sec) {
+      if (!Number.isFinite(sec) || sec < 0) sec = 0;
+      sec = Math.floor(sec);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = String(sec % 60).padStart(2, "0");
+      return h ? h + ":" + String(m).padStart(2, "0") + ":" + s : m + ":" + s;
+    }
+
+    function size(n) {
+      if (!n) return "";
+      const units = ["B", "KB", "MB", "GB", "TB"];
+      let i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + " " + units[i];
+    }
+
+    async function getJSON(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }
+
+    function fileURL(ss) {
+      let url = "/api/file?path=" + encodeURIComponent(current.rel);
+      if (mode === "ffmpeg") url += "&transcode=1&ss=" + encodeURIComponent(String(Math.max(0, ss || 0)));
+      return url;
+    }
+
+    const nowTime = () => (mode === "ffmpeg" ? offset : 0) + (Number.isFinite(media.currentTime) ? media.currentTime : 0);
+    const fullTime = () => (mode === "ffmpeg" ? duration : Number.isFinite(media.duration) ? media.duration : duration);
+
+    // Reading the hash: play is the file, dir is its folder. The t value
+    // only makes a repeat click on the same file register.
+    function readHash() {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const rel = params.get("play");
+      if (!rel) return;
+      const folder = params.get("dir") || "";
+      openFile(rel, folder);
+    }
+
+    async function openFile(rel, folder) {
+      if (dir !== folder || !queue.some((item) => item.rel === rel)) {
+        dir = folder;
+        try {
+          const data = await getJSON("/api/dir?path=" + encodeURIComponent(folder));
+          queue = (data.entries || [])
+            .filter((entry) => !entry.dir && (entry.kind === "video" || entry.kind === "audio"))
+            .sort((a, b) => (a.label || a.name).localeCompare(b.label || b.name, undefined, { numeric: true, sensitivity: "base" }));
+        } catch (err) {
+          queue = [];
+        }
+        if (!queue.some((item) => item.rel === rel)) {
+          const name = rel.split("/").pop();
+          queue.unshift({ rel, name, label: name, kind: /\.(mp3|m4a|aac|wav|ogg|oga|flac|opus|wma)$/i.test(name) ? "audio" : "video" });
+        }
+        buildOrder(rel);
+        paintQueue();
+        if (store.get("ft-queue", null) == null) toggleQueue(queue.length > 1, false);
+      }
+      playAt(queue.findIndex((item) => item.rel === rel));
+      window.focus();
+    }
+
+    function buildOrder(firstRel) {
+      order = queue.map((_, i) => i);
+      if (!shuffle) return;
+      const first = queue.findIndex((item) => item.rel === firstRel);
+      const rest = order.filter((i) => i !== first);
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+      }
+      order = first >= 0 ? [first].concat(rest) : rest;
+    }
+
+    function stepBy(delta) {
+      if (!queue.length) return false;
+      const pos = order.indexOf(at);
+      let next = pos + delta;
+      if (next < 0 || next >= order.length) {
+        if (repeat !== "all") return false;
+        next = (next + order.length) % order.length;
+      }
+      playAt(order[next]);
+      return true;
+    }
+
+    function rememberSpot() {
+      if (!current || mode === "need") return;
+      const spots = store.get("ft-resume", {});
+      const t = nowTime();
+      const total = fullTime();
+      if (total > 120 && t > 5 && t < total - 15) spots[current.rel] = Math.floor(t);
+      else delete spots[current.rel];
+      const keys = Object.keys(spots);
+      if (keys.length > 200) keys.slice(0, keys.length - 200).forEach((key) => delete spots[key]);
+      store.set("ft-resume", spots);
+    }
+
+    async function playAt(i) {
+      if (i < 0 || i >= queue.length) return;
+      if (current) rememberSpot();
+      const myGen = ++gen;
+      at = i;
+      current = queue[i];
+      mode = "direct";
+      offset = 0;
+      duration = 0;
+      triedFFmpeg = false;
+      const audio = current.kind === "audio";
+      document.body.classList.toggle("audio", audio);
+      document.body.classList.toggle("video", !audio);
+      $("note").hidden = true;
+      $("bigplay").hidden = true;
+      $("resume").hidden = true;
+      $("cover").hidden = !audio;
+      $("pip").hidden = audio || !document.pictureInPictureEnabled;
+      $("fit").hidden = audio;
+      document.title = (current.label || current.name) + " · FastTransfer";
+      paintNow(null);
+      paintQueue();
+      media.pause();
+      media.removeAttribute("src");
+      media.load();
+      paintTime();
+
+      let info = null;
+      if (audio) {
+        try { info = await getJSON("/api/audio?path=" + encodeURIComponent(current.rel)); } catch (err) { info = null; }
+        if (myGen !== gen) return;
+        paintNow(info);
+        if (info && info.mode === "need-ffmpeg") return needFFmpeg();
+        if (info && info.mode === "ffmpeg") { mode = "ffmpeg"; duration = Number(info.duration) || 0; }
+      } else if (!/\.(mp4|m4v|webm)$/i.test(current.name)) {
+        try { info = await getJSON("/api/video?path=" + encodeURIComponent(current.rel)); } catch (err) { info = { mode: "need-ffmpeg" }; }
+        if (myGen !== gen) return;
+        if (info.mode === "need-ffmpeg") return needFFmpeg();
+        if (info.mode === "ffmpeg") { mode = "ffmpeg"; duration = Number(info.duration) || 0; }
+      }
+      const spot = store.get("ft-resume", {})[current.rel] || 0;
+      start(spot, myGen);
+      if (spot > 5) {
+        $("resumetext").textContent = "Picked up at " + fmt(spot);
+        $("resume").hidden = false;
+        setTimeout(() => { if (myGen === gen) $("resume").hidden = true; }, 6000);
+      }
+    }
+
+    function start(from, myGen) {
+      if (mode === "ffmpeg") {
+        offset = Math.max(0, from || 0);
+        media.src = fileURL(offset);
+      } else {
+        media.src = fileURL(0);
+        if (from > 0) media.addEventListener("loadedmetadata", () => { if (myGen === gen) media.currentTime = from; }, { once: true });
+      }
+      media.onerror = () => {
+        if (myGen !== gen || !media.error || media.error.code === 1) return;
+        fallBack(myGen);
+      };
+      tryPlay();
+    }
+
+    function tryPlay() {
+      const pending = media.play();
+      if (pending && pending.catch) pending.catch((err) => {
+        if (err && err.name === "NotAllowedError") $("bigplay").hidden = false;
+      });
+    }
+
+    async function fallBack(myGen) {
+      if (mode === "direct" && !triedFFmpeg) {
+        triedFFmpeg = true;
+        const ask = (current.kind === "audio" ? "/api/audio?path=" : "/api/video?path=") + encodeURIComponent(current.rel) + "&force=1";
+        let info = null;
+        try { info = await getJSON(ask); } catch (err) { info = null; }
+        if (myGen !== gen) return;
+        if (info && info.mode === "ffmpeg") {
+          mode = "ffmpeg";
+          duration = Number(info.duration) || 0;
+          start(0, myGen);
+          return;
+        }
+        return needFFmpeg();
+      }
+      showNote("This file could not be played", "It may be damaged, or in a format this player can't read.");
+    }
+
+    function needFFmpeg() {
+      mode = "need";
+      showNote(current.kind === "audio" ? "This song needs ffmpeg" : "This video needs ffmpeg", "Install ffmpeg and FastTransfer will convert it while it plays.");
+    }
+
+    function showNote(title, line) {
+      const box = $("note");
+      box.replaceChildren();
+      const b = document.createElement("b");
+      b.textContent = title;
+      const p = document.createElement("span");
+      p.textContent = line;
+      box.append(b, p);
+      box.hidden = false;
+      $("cover").hidden = true;
+      document.body.classList.add("paused");
+      paintPlay();
+    }
+
+    function paintNow(info) {
+      const name = current.label || current.name;
+      const title = info && info.title ? info.title : name;
+      const who = [info && (info.artist || info.albumArtist), info && info.album].filter(Boolean).join(" · ");
+      const extra = [info && info.year ? String(info.year) : "", info && info.genre].filter(Boolean).join(" · ");
+      $("ttl").textContent = title;
+      document.title = title + " · FastTransfer";
+      $("who").textContent = who;
+      $("who").hidden = !who;
+      $("extra").textContent = extra;
+      $("extra").hidden = !extra;
+      $("nowname").textContent = title;
+      $("nowsub").textContent = who || (current.kind === "audio" ? "Song" : "Video") + (current.size ? " · " + size(current.size) : "");
+      const art = $("art");
+      art.hidden = true;
+      art.removeAttribute("src");
+      $("artglyph").style.display = "";
+      if (info && info.hasArt) {
+        art.onload = () => { art.hidden = false; $("artglyph").style.display = "none"; };
+        art.onerror = () => { art.hidden = true; };
+        art.src = "/api/cover?path=" + encodeURIComponent(current.rel);
+      }
+      if ("mediaSession" in navigator) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title,
+            artist: (info && (info.artist || info.albumArtist)) || "",
+            album: (info && info.album) || "",
+            artwork: info && info.hasArt ? [{ src: "/api/cover?path=" + encodeURIComponent(current.rel) }] : [],
+          });
+        } catch (err) {}
+      }
+    }
+
+    function paintQueue() {
+      const list = $("qlist");
+      const filter = $("qfind").value.trim().toLowerCase();
+      list.replaceChildren();
+      $("qcount").textContent = queue.length ? queue.length + (queue.length === 1 ? " item" : " items") : "";
+      let shown = 0;
+      queue.forEach((item, i) => {
+        const name = item.label || item.name;
+        if (filter && !name.toLowerCase().includes(filter)) return;
+        shown++;
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = i === at ? "on" : "";
+        if (i === at) button.setAttribute("aria-current", "true");
+        const num = document.createElement("span");
+        num.className = "qn";
+        if (i === at) num.innerHTML = '<span class="bars"><i></i><i></i><i></i></span>';
+        else num.innerHTML = svg(item.kind === "audio" ? "note" : "film");
+        const text = document.createElement("span");
+        text.className = "qt";
+        const b = document.createElement("b");
+        b.textContent = name;
+        const sub = document.createElement("span");
+        sub.textContent = (item.kind === "audio" ? "Song" : "Video") + (item.size ? " · " + size(item.size) : "");
+        text.append(b, sub);
+        button.append(num, text);
+        button.addEventListener("click", () => playAt(i));
+        li.appendChild(button);
+        list.appendChild(li);
+      });
+      if (!shown) {
+        const li = document.createElement("li");
+        li.className = "qempty";
+        li.textContent = queue.length ? "Nothing matches" : "No media in this folder";
+        list.appendChild(li);
+      }
+      const on = list.querySelector("button.on");
+      if (on && document.body.dataset.drawer === "queue") on.scrollIntoView({ block: "nearest" });
+      $("prev").disabled = !queue.length;
+      $("next").disabled = !queue.length;
+    }
+
+    function paintPlay() {
+      const playing = !media.paused && !media.ended && mode !== "need";
+      $("play").innerHTML = svg(playing ? "pause" : "play");
+      $("play").setAttribute("aria-label", playing ? "Pause" : "Play");
+      $("play").title = playing ? "Pause  Space" : "Play  Space";
+      document.body.classList.toggle("paused", !playing);
+      if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+    }
+
+    function paintTime(preview) {
+      const total = fullTime();
+      const t = preview != null ? preview : nowTime();
+      const pct = total > 0 ? Math.max(0, Math.min(100, (100 * t) / total)) : 0;
+      $("seek").style.setProperty("--p", String(pct));
+      $("seek").setAttribute("aria-valuemax", String(Math.round(total)));
+      $("seek").setAttribute("aria-valuenow", String(Math.round(t)));
+      $("seek").setAttribute("aria-valuetext", fmt(t) + " of " + fmt(total));
+      $("now").textContent = fmt(t);
+      $("dur").textContent = fmt(total);
+      let buffered = 0;
+      if (mode === "direct" && total > 0 && media.buffered.length) buffered = media.buffered.end(media.buffered.length - 1);
+      $("seek").style.setProperty("--b", String(total > 0 ? Math.min(100, (100 * buffered) / total) : 0));
+    }
+
+    function paintVolume() {
+      const v = media.muted ? 0 : media.volume;
+      $("vol").value = String(v);
+      $("vol").style.setProperty("--v", String(v));
+      $("mute").innerHTML = svg(v === 0 ? "muted" : v < 0.5 ? "volLow" : "vol");
+      $("mute").setAttribute("aria-label", media.muted ? "Unmute" : "Mute");
+    }
+
+    function paintRepeat() {
+      const button = $("repeat");
+      button.classList.toggle("on", repeat !== "off");
+      button.innerHTML = svg("repeat") + (repeat === "one" ? '<span class="badge">1</span>' : "");
+      button.title = { off: "Repeat is off  R", all: "Repeating the playlist  R", one: "Repeating this one  R" }[repeat];
+      $("shuffle").classList.toggle("on", shuffle);
+      $("shuffle").setAttribute("aria-pressed", String(shuffle));
+    }
+
+    function flash(icon, text) {
+      const box = $("flash");
+      box.innerHTML = (icon ? svg(icon) : "");
+      if (text) box.appendChild(document.createTextNode(text));
+      box.classList.remove("on");
+      void box.offsetWidth;
+      box.classList.add("on");
+    }
+
+    function toggle() {
+      if (!current || mode === "need") return;
+      if (media.paused || media.ended) {
+        tryPlay();
+        flash("play");
+      } else {
+        media.pause();
+        flash("pause");
+      }
+    }
+
+    function seekTo(t) {
+      if (!current || mode === "need") return;
+      const total = fullTime();
+      t = Math.max(0, total ? Math.min(total - 0.25, t) : t);
+      $("resume").hidden = true;
+      if (mode === "ffmpeg") {
+        const playing = !media.paused;
+        offset = t;
+        media.src = fileURL(t);
+        if (playing) tryPlay();
+      } else {
+        media.currentTime = t;
+      }
+      paintTime(t);
+    }
+
+    function nudge(by) {
+      seekTo(nowTime() + by);
+      flash(by < 0 ? "back" : "fwd");
+    }
+
+    function setVolume(v) {
+      media.volume = Math.max(0, Math.min(1, v));
+      media.muted = media.volume === 0;
+      store.set("ft-volume", media.volume);
+    }
+
+    function setSpeed(rate) {
+      media.playbackRate = rate;
+      media.defaultPlaybackRate = rate;
+      $("speed").textContent = (Math.round(rate * 100) / 100) + "×";
+      $("speed").classList.toggle("on", rate !== 1);
+    }
+
+    function isFull() { return document.fullscreenElement === $("stage"); }
+    function toggleFull() {
+      const stage = $("stage");
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      else if (stage.requestFullscreen) stage.requestFullscreen().catch(() => {});
+    }
+
+    function fitMedia() {
+      if (document.body.classList.contains("audio")) {
+        media.style.width = "";
+        media.style.height = "";
+        return;
+      }
+      if (document.body.classList.contains("fill")) {
+        media.style.width = "100%";
+        media.style.height = "100%";
+        return;
+      }
+      const vw = media.videoWidth;
+      const vh = media.videoHeight;
+      const frame = $("frame");
+      if (!vw || !vh || !frame) return;
+      const rect = frame.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return;
+      const ratio = vw / vh;
+      let w = rect.width;
+      let h = w / ratio;
+      if (h > rect.height) {
+        h = rect.height;
+        w = h * ratio;
+      }
+      media.style.width = Math.floor(w) + "px";
+      media.style.height = Math.floor(h) + "px";
+    }
+
+    function setDrawer(name) {
+      if (name) document.body.dataset.drawer = name;
+      else delete document.body.dataset.drawer;
+      const queue = name === "queue";
+      const inbox = name === "inbox";
+      $("qbtn").classList.toggle("on", queue);
+      $("qbtn").setAttribute("aria-pressed", String(queue));
+      $("ibtn").classList.toggle("on", inbox);
+      $("ibtn").setAttribute("aria-pressed", String(inbox));
+      if (queue) paintQueue();
+      if (name === "inbox") loadPlayerInbox();
+      requestAnimationFrame(fitMedia);
+    }
+
+    function toggleQueue(show, remember) {
+      const open = show == null ? document.body.dataset.drawer !== "queue" : !!show;
+      setDrawer(open ? "queue" : "");
+      if (remember !== false) store.set("ft-queue", open);
+    }
+
+    // The More menu lists whichever buttons the window is too narrow to show,
+    // and runs the real button when picked, so both stay in step.
+    function moreMenu() {
+      if (closePop()) return;
+      const items = [
+        ["shuffle", "Shuffle", () => (shuffle ? "On" : "")],
+        ["back", "Back 10 seconds"],
+        ["fwd", "Forward 10 seconds"],
+        ["repeat", "Repeat", () => ({ all: "All", one: "One", off: "" })[repeat]],
+        ["speed", "Speed", () => $("speed").textContent],
+        ["fit", "Fill the window", () => (document.body.classList.contains("fill") ? "On" : "")],
+        ["pip", "Picture in picture"],
+        ["ibtn", "Received"],
+      ].filter(([id]) => !$(id).hidden && getComputedStyle($(id)).display === "none");
+      if (!items.length) return;
+      pop = document.createElement("div");
+      pop.className = "pop";
+      pop.setAttribute("role", "menu");
+      items.forEach(([id, label, value]) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.setAttribute("role", "menuitem");
+        const glyph = $(id).querySelector("svg");
+        if (glyph) item.appendChild(glyph.cloneNode(true));
+        else item.insertAdjacentHTML("beforeend", svg(id));
+        const text = document.createElement("span");
+        text.textContent = label;
+        item.appendChild(text);
+        const now = value ? value() : "";
+        if (now) {
+          const tag = document.createElement("span");
+          tag.className = "val";
+          tag.textContent = now;
+          item.appendChild(tag);
+        }
+        item.addEventListener("click", () => {
+          closePop();
+          if (id === "speed") speedMenu($("morebtn"));
+          else $(id).click();
+        });
+        pop.appendChild(item);
+      });
+      placePop($("morebtn"));
+    }
+
+    function placePop(anchor) {
+      $("stage").appendChild(pop);
+      const button = anchor.getBoundingClientRect();
+      const stage = $("stage").getBoundingClientRect();
+      const left = button.right - stage.left - pop.offsetWidth;
+      pop.style.left = Math.max(8, Math.min(left, stage.width - pop.offsetWidth - 8)) + "px";
+      pop.style.top = button.top - stage.top - pop.offsetHeight - 8 + "px";
+    }
+
+    function closePop() {
+      if (!pop) return false;
+      pop.remove();
+      pop = null;
+      return true;
+    }
+
+    function speedMenu(anchor) {
+      if (closePop()) return;
+      pop = document.createElement("div");
+      pop.className = "pop";
+      pop.setAttribute("role", "menu");
+      [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].forEach((rate) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.setAttribute("role", "menuitemradio");
+        item.setAttribute("aria-checked", String(media.playbackRate === rate));
+        item.className = media.playbackRate === rate ? "on" : "";
+        item.textContent = rate === 1 ? "Normal" : rate + "×";
+        item.addEventListener("click", () => { setSpeed(rate); closePop(); });
+        pop.appendChild(item);
+      });
+      placePop(anchor || $("speed"));
+    }
+
+    // Controls fade out while a video plays and the mouse rests.
+    function wake() {
+      document.body.classList.remove("idle");
+      clearTimeout(idleTimer);
+      if (!document.body.classList.contains("video") || media.paused || pop) return;
+      idleTimer = setTimeout(() => {
+        if (!$("controls").matches(":hover") && !dragging) document.body.classList.add("idle");
+      }, 2500);
+    }
+
+    // A quiet spectrum under the cover while a song plays.
+    let audioCtx = null;
+    let analyser = null;
+    let vizFrame = 0;
+    function startViz() {
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (!audioCtx) {
+        try {
+          audioCtx = new AudioContext();
+          const source = audioCtx.createMediaElementSource(media);
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 128;
+          analyser.smoothingTimeConstant = 0.82;
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+        } catch (err) {
+          audioCtx = null;
+          return;
+        }
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+      if (!document.body.classList.contains("audio")) { stopViz(); return; }
+      $("viz").hidden = false;
+      if (!vizFrame) drawViz();
+    }
+    function stopViz() {
+      cancelAnimationFrame(vizFrame);
+      vizFrame = 0;
+    }
+    function drawViz() {
+      const canvas = $("viz");
+      const ratio = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth * ratio);
+      const h = Math.round(canvas.clientHeight * ratio);
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const ctx = canvas.getContext("2d");
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#0d6efd";
+      const count = 48;
+      const gap = 3 * ratio;
+      const bar = (w - gap * (count - 1)) / count;
+      for (let i = 0; i < count; i++) {
+        const v = data[Math.floor((i / count) * data.length * 0.8)] / 255;
+        const bh = Math.max(2 * ratio, v * h);
+        ctx.fillRect(i * (bar + gap), h - bh, bar, bh);
+      }
+      vizFrame = media.paused ? 0 : requestAnimationFrame(drawViz);
+    }
+
+    media.addEventListener("play", () => { paintPlay(); wake(); startViz(); });
+    // Switching files pauses the old one after it is already gone, so only a
+    // pause with something loaded is worth remembering.
+    media.addEventListener("pause", () => {
+      paintPlay();
+      wake();
+      if (media.readyState > 0) rememberSpot();
+    });
+    media.addEventListener("playing", () => { $("bigplay").hidden = true; paintPlay(); });
+    media.addEventListener("timeupdate", () => {
+      if (!dragging) paintTime();
+      if ("mediaSession" in navigator && navigator.mediaSession.setPositionState && fullTime() > 0) {
+        try { navigator.mediaSession.setPositionState({ duration: fullTime(), position: Math.min(nowTime(), fullTime()), playbackRate: media.playbackRate }); } catch (err) {}
+      }
+      if (!saveTimer) saveTimer = setTimeout(() => { saveTimer = 0; rememberSpot(); }, 5000);
+    });
+    media.addEventListener("progress", () => { if (!dragging) paintTime(); });
+    media.addEventListener("durationchange", () => paintTime());
+    media.addEventListener("loadedmetadata", fitMedia);
+    window.addEventListener("resize", fitMedia);
+    media.addEventListener("volumechange", paintVolume);
+    media.addEventListener("ended", () => {
+      const spots = store.get("ft-resume", {});
+      delete spots[current.rel];
+      store.set("ft-resume", spots);
+      if (repeat === "one") { seekTo(0); tryPlay(); return; }
+      if (!stepBy(1)) paintPlay();
+    });
+
+    // Seeking with the bar. Direct files follow the pointer; converted ones
+    // jump once the pointer lets go, since each jump restarts ffmpeg.
+    const seek = $("seek");
+    const tip = $("tip");
+    const ratioAt = (event) => {
+      const box = seek.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (event.clientX - box.left) / box.width));
+    };
+    seek.addEventListener("pointermove", (event) => {
+      const total = fullTime();
+      if (!total) { tip.hidden = true; return; }
+      const r = ratioAt(event);
+      tip.hidden = false;
+      tip.textContent = fmt(r * total);
+      tip.style.left = r * 100 + "%";
+      if (dragging) {
+        paintTime(r * total);
+        if (mode === "direct") media.currentTime = r * total;
+      }
+    });
+    seek.addEventListener("pointerleave", () => { if (!dragging) tip.hidden = true; });
+    seek.addEventListener("pointerdown", (event) => {
+      if (!fullTime()) return;
+      dragging = true;
+      seek.classList.add("drag");
+      try { seek.setPointerCapture(event.pointerId); } catch (err) {}
+      paintTime(ratioAt(event) * fullTime());
+    });
+    const endDrag = (event) => {
+      if (!dragging) return;
+      dragging = false;
+      seek.classList.remove("drag");
+      tip.hidden = true;
+      seekTo(ratioAt(event) * fullTime());
+    };
+    seek.addEventListener("pointerup", endDrag);
+    seek.addEventListener("pointercancel", () => { dragging = false; seek.classList.remove("drag"); tip.hidden = true; paintTime(); });
+    seek.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        event.stopPropagation();
+        nudge(event.key === "ArrowLeft" ? -5 : 5);
+      }
+    });
+
+    $("play").addEventListener("click", toggle);
+    $("bigplay").addEventListener("click", () => { $("bigplay").hidden = true; tryPlay(); });
+    $("prev").addEventListener("click", () => {
+      if (nowTime() > 3) seekTo(0);
+      else if (!stepBy(-1)) seekTo(0);
+    });
+    $("next").addEventListener("click", () => stepBy(1));
+    $("back").addEventListener("click", () => nudge(-10));
+    $("fwd").addEventListener("click", () => nudge(10));
+    $("repeat").addEventListener("click", () => {
+      repeat = { off: "all", all: "one", one: "off" }[repeat];
+      store.set("ft-repeat", repeat);
+      paintRepeat();
+    });
+    $("shuffle").addEventListener("click", () => {
+      shuffle = !shuffle;
+      store.set("ft-shuffle", shuffle);
+      buildOrder(current ? current.rel : "");
+      paintRepeat();
+    });
+    $("mute").addEventListener("click", () => {
+      if (media.muted || media.volume === 0) {
+        media.muted = false;
+        if (media.volume === 0) media.volume = 0.5;
+      } else {
+        media.muted = true;
+      }
+    });
+    $("vol").addEventListener("input", () => setVolume(Number($("vol").value)));
+    $("speed").addEventListener("click", (event) => { event.stopPropagation(); speedMenu(); });
+    $("fit").addEventListener("click", () => {
+      const on = document.body.classList.toggle("fill");
+      $("fit").classList.toggle("on", on);
+      $("fit").setAttribute("aria-pressed", String(on));
+      fitMedia();
+    });
+    $("pip").addEventListener("click", () => {
+      if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+      else media.requestPictureInPicture().catch(() => {});
+    });
+    $("qbtn").addEventListener("click", () => toggleQueue());
+    $("morebtn").addEventListener("click", (event) => { event.stopPropagation(); moreMenu(); });
+    $("queueclose").addEventListener("click", () => toggleQueue(false));
+    $("full").addEventListener("click", toggleFull);
+    $("restart").addEventListener("click", () => { seekTo(0); $("resume").hidden = true; });
+    $("qfind").addEventListener("input", paintQueue);
+    document.addEventListener("fullscreenchange", () => {
+      $("full").innerHTML = svg(document.fullscreenElement ? "unfull" : "full");
+      $("full").setAttribute("aria-label", document.fullscreenElement ? "Leave full screen" : "Full screen");
+      requestAnimationFrame(fitMedia);
+    });
+
+    // A click on the picture plays or pauses, a double click goes full screen.
+    media.addEventListener("click", () => {
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(toggle, 220);
+    });
+    media.addEventListener("dblclick", () => {
+      clearTimeout(clickTimer);
+      toggleFull();
+    });
+    $("stage").addEventListener("pointermove", wake);
+    $("stage").addEventListener("pointerdown", wake);
+    document.addEventListener("pointerdown", (event) => {
+      if (pop && !pop.contains(event.target) && !event.target.closest("#speed, #morebtn")) closePop();
+    });
+
+    document.addEventListener("contextmenu", (event) => {
+      if (!window.__ftDebug) event.preventDefault();
+    });
+    // F12 and the inspect shortcuts do nothing. F5 and Ctrl+R must not
+    // reload the movie. Copy, paste, and select-all in the filter box stay.
+    function eatBrowserChrome(event) {
+      if (window.__ftDebug) return false;
+      const key = event.key;
+      const ctrl = event.ctrlKey || event.metaKey;
+      const block = key === "F12" || key === "F5" ||
+        (ctrl && event.shiftKey && !event.altKey && /^[ijc]$/i.test(key)) ||
+        (ctrl && !event.shiftKey && !event.altKey && /^[ur]$/i.test(key));
+      if (!block) return false;
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    document.addEventListener("keydown", (event) => {
+      if (eatBrowserChrome(event)) return;
+      if (event.target.closest && event.target.closest("input:not([type=range]), textarea")) {
+        if (event.key === "Escape") event.target.blur();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const k = event.key;
+      let handled = true;
+      if (k === " " || k === "k" || k === "K") {
+        if (event.target.closest && event.target.closest("button") && k === " ") return;
+        toggle();
+      }
+      else if (k === "ArrowLeft") nudge(-5);
+      else if (k === "ArrowRight") nudge(5);
+      else if (k === "j" || k === "J") nudge(-10);
+      else if (k === "l" || k === "L") nudge(10);
+      else if (k === "ArrowUp") { setVolume(media.volume + 0.05); flash(null, Math.round(media.volume * 100) + "%"); }
+      else if (k === "ArrowDown") { setVolume(media.volume - 0.05); flash(null, Math.round(media.volume * 100) + "%"); }
+      else if (k === "m" || k === "M") $("mute").click();
+      else if (k === "f" || k === "F") toggleFull();
+      else if (k === "N" && event.shiftKey) stepBy(1);
+      else if (k === "P" && event.shiftKey) $("prev").click();
+      else if (k === "q" || k === "Q") toggleQueue();
+      else if (k === "r" || k === "R") $("repeat").click();
+      else if (k === "s" || k === "S") $("shuffle").click();
+      else if (k === ">" || k === ".") { setSpeed(Math.min(2, media.playbackRate + 0.25)); flash(null, media.playbackRate + "×"); }
+      else if (k === "<" || k === ",") { setSpeed(Math.max(0.25, media.playbackRate - 0.25)); flash(null, media.playbackRate + "×"); }
+      else if (k === "Home") seekTo(0);
+      else if (k === "End") seekTo(fullTime());
+      else if (/^[0-9]$/.test(k)) seekTo((Number(k) / 10) * fullTime());
+      else if (k === "Escape") {
+        if (!closePop()) {
+          if (document.body.dataset.drawer === "queue") toggleQueue(false);
+          else if (document.body.dataset.drawer) setDrawer("");
+          else if (isFull()) document.exitFullscreen().catch(() => {});
+        }
+      }
+      else handled = false;
+      if (handled) {
+        event.preventDefault();
+        wake();
+      }
+    });
+
+    if ("mediaSession" in navigator) {
+      const on = (action, run) => { try { navigator.mediaSession.setActionHandler(action, run); } catch (err) {} };
+      on("play", () => tryPlay());
+      on("pause", () => media.pause());
+      on("previoustrack", () => $("prev").click());
+      on("nexttrack", () => stepBy(1));
+      on("seekbackward", () => nudge(-10));
+      on("seekforward", () => nudge(10));
+      on("seekto", (details) => { if (details && Number.isFinite(details.seekTime)) seekTo(details.seekTime); });
+    }
+
+    window.addEventListener("storage", (event) => {
+      if (event.key !== "ft-theme") return;
+      const choice = event.newValue === "light" || event.newValue === "dark" ? event.newValue : "system";
+      const dark = choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    });
+    // The desktop app hides this window instead of closing it, and asks it
+    // to go quiet first.
+    window.playerClosing = () => {
+      rememberSpot();
+      media.pause();
+      closePop();
+      if (isFull()) document.exitFullscreen().catch(() => {});
+    };
+    let inboxTop = "";
+    let inboxWatchReady = false;
+    let playerToastItem = null;
+    let playerToastTimer = 0;
+    const playable = /\.(mp4|m4v|webm|mkv|mov|avi|mp3|m4a|aac|wav|flac|ogg|opus|wma)$/i;
+
+    function paintPlayerInbox(items) {
+      const list = $("ibox");
+      list.replaceChildren();
+      if (!items.length) {
+        const empty = document.createElement("li");
+        empty.className = "qempty";
+        empty.textContent = "Nothing has arrived yet.";
+        list.appendChild(empty);
+        return;
+      }
+      items.slice(0, 20).forEach((item) => {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        const title = document.createElement("b");
+        title.textContent = item.name || "File";
+        const meta = document.createElement("span");
+        meta.textContent = [item.source, item.folder].filter(Boolean).join(" · ");
+        button.append(title, meta);
+        button.addEventListener("click", () => openPlayerItem(item));
+        li.appendChild(button);
+        list.appendChild(li);
+      });
+    }
+
+    function openPlayerItem(item) {
+      if (!item || !item.rel) return;
+      const name = item.name || item.rel.split("/").pop();
+      if (!playable.test(name)) return;
+      const cut = item.rel.lastIndexOf("/");
+      const folder = cut < 0 ? "" : item.rel.slice(0, cut);
+      location.hash = "#" + new URLSearchParams({ play: item.rel, dir: folder, t: String(Date.now()) }).toString();
+      setDrawer("");
+    }
+
+    function showPlayerToast(item) {
+      const toast = $("ptoast");
+      playerToastItem = item;
+      toast.textContent = item.toast || item.name || "Saved";
+      toast.hidden = false;
+      clearTimeout(playerToastTimer);
+      playerToastTimer = setTimeout(() => { toast.hidden = true; playerToastItem = null; }, 6000);
+    }
+
+    async function loadPlayerInbox() {
+      try {
+        const res = await fetch("/api/inbox", { cache: "no-store" });
+        const data = await res.json();
+        const items = data.items || [];
+        if (document.body.dataset.drawer === "inbox") paintPlayerInbox(items);
+        const top = items[0] && items[0].id || "";
+        if (inboxWatchReady && top && top !== inboxTop && items[0] && !items[0].seen && document.hasFocus()) showPlayerToast(items[0]);
+        inboxTop = top;
+        inboxWatchReady = true;
+      } catch (err) {}
+    }
+
+    $("ibtn").addEventListener("click", () => setDrawer(document.body.dataset.drawer === "inbox" ? "" : "inbox"));
+    $("inboxclose").addEventListener("click", () => setDrawer(""));
+    $("ptoast").addEventListener("click", () => {
+      const item = playerToastItem;
+      $("ptoast").hidden = true;
+      if (item) openPlayerItem(item);
+    });
+    setInterval(loadPlayerInbox, 4000);
+
+    window.addEventListener("resize", () => { if (pop) closePop(); });
+    window.addEventListener("hashchange", readHash);
+    window.addEventListener("pagehide", rememberSpot);
+
+    media.volume = Math.max(0, Math.min(1, Number(store.get("ft-volume", 1)) || 0));
+    repeat = ["off", "all", "one"].includes(store.get("ft-repeat", "off")) ? store.get("ft-repeat", "off") : "off";
+    shuffle = store.get("ft-shuffle", false) === true;
+    setSpeed(1);
+    paintVolume();
+    paintRepeat();
+    paintPlay();
+    const savedQueue = store.get("ft-queue", null);
+    if (savedQueue === true || savedQueue === false) toggleQueue(savedQueue, false);
+    else toggleQueue(false, false);
+    readHash();
+  </script>
+</body>
+</html>

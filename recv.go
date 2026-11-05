@@ -3,114 +3,119 @@ package main
 import (
 	"io"
 	"net/http"
+	"sort"
 	"sync"
+	"sync/atomic"
 )
 
-// recvSnap is what the desktop window polls while a phone is sending.
+// Uploads from many phones run side by side, so each one has its own entry.
+// Byte counts are atomics because the reader bumps them on every chunk.
+type upload struct {
+	id    int64
+	from  string
+	dest  string
+	total int64
+	got   atomic.Int64
+	mu    sync.Mutex
+	name  string
+	index int
+}
+
+type recvItem struct {
+	Name  string `json:"name"`
+	From  string `json:"from"`
+	Dest  string `json:"dest"`
+	Got   int64  `json:"got"`
+	Total int64  `json:"total"`
+	Index int    `json:"index"`
+}
+
 type recvSnap struct {
-	Active bool   `json:"active"`
-	Name   string `json:"name"`
-	Dest   string `json:"dest"`
-	Got    int64  `json:"got"`
-	Total  int64  `json:"total"`
-	Index  int    `json:"index"`
-	Count  int    `json:"count"`
-	Done   bool   `json:"done"`
-	Gen    int64  `json:"gen"`
+	Active int        `json:"active"`
+	Got    int64      `json:"got"`
+	Total  int64      `json:"total"`
+	Items  []recvItem `json:"items"`
 }
 
 type recvTracker struct {
-	mu sync.Mutex
-	recvSnap
+	mu     sync.Mutex
+	next   int64
+	active map[int64]*upload
 }
 
-var uploads recvTracker
+var uploads = &recvTracker{active: map[int64]*upload{}}
 
-func (t *recvTracker) begin(dest string, total int64) int64 {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.Gen++
-	t.Active = true
-	t.Done = false
-	t.Name = ""
-	t.Dest = dest
-	t.Got = 0
+func (t *recvTracker) begin(dest, from string, total int64) *upload {
 	if total < 0 {
 		total = 0
 	}
-	t.Total = total
-	t.Index = 0
-	t.Count = 0
-	return t.Gen
-}
-
-func (t *recvTracker) file(id int64, name string, index int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.Gen != id {
-		return
-	}
-	t.Name = name
-	t.Index = index
-	t.Count = index
+	t.next++
+	u := &upload{id: t.next, from: from, dest: dest, total: total}
+	t.active[u.id] = u
+	return u
 }
 
-func (t *recvTracker) progress(id, got int64) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.Gen != id || !t.Active {
-		return
-	}
-	t.Got = got
+func (u *upload) file(name string, index int) {
+	u.mu.Lock()
+	u.name = name
+	u.index = index
+	u.mu.Unlock()
 }
 
-func (t *recvTracker) finish(id int64, count int, dest string) {
+func (t *recvTracker) finish(u *upload, count int) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.Gen != id {
-		return
-	}
-	t.Active = false
-	t.Done = true
-	t.Count = count
-	t.Dest = dest
-	if t.Total > 0 {
-		t.Got = t.Total
-	}
+	delete(t.active, u.id)
+	t.mu.Unlock()
+	u.mu.Lock()
+	name := u.name
+	u.mu.Unlock()
+	hub.emit(feedEvent{Kind: "recv", Name: u.from, Text: name, Count: count, Dest: u.dest})
 }
 
-func (t *recvTracker) abort(id int64) {
+func (t *recvTracker) abort(u *upload) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.Gen != id {
-		return
-	}
-	t.Active = false
-	t.Done = false
+	delete(t.active, u.id)
+	t.mu.Unlock()
 }
 
 func (t *recvTracker) snapshot() recvSnap {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.recvSnap
+	list := make([]*upload, 0, len(t.active))
+	for _, u := range t.active {
+		list = append(list, u)
+	}
+	t.mu.Unlock()
+	sort.Slice(list, func(i, j int) bool { return list[i].id < list[j].id })
+	snap := recvSnap{Active: len(list), Items: []recvItem{}}
+	for _, u := range list {
+		got := u.got.Load()
+		snap.Got += got
+		snap.Total += u.total
+		if len(snap.Items) < 4 {
+			u.mu.Lock()
+			snap.Items = append(snap.Items, recvItem{Name: u.name, From: u.from, Dest: u.dest, Got: got, Total: u.total, Index: u.index})
+			u.mu.Unlock()
+		}
+	}
+	return snap
 }
 
-func recvStatus(w http.ResponseWriter, r *http.Request) {
+func recvStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, uploads.snapshot())
 }
 
 // progReader counts bytes as the multipart body is written to disk.
 type progReader struct {
-	r  io.Reader
-	id int64
-	n  int64
+	r io.Reader
+	u *upload
 }
 
 func (p *progReader) Read(b []byte) (int, error) {
 	n, err := p.r.Read(b)
 	if n > 0 {
-		p.n += int64(n)
-		uploads.progress(p.id, p.n)
+		p.u.got.Add(int64(n))
 	}
 	return n, err
 }
