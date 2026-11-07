@@ -36,6 +36,9 @@ body.remoting #remoteroot { flex: 1; min-height: 0; display: flex; flex-directio
 .rm-bar { display: flex; align-items: center; gap: 10px; min-height: 36px; }
 .rm-bar b { font-size: 15px; font-weight: 600; }
 .rm-bar .grow { flex: 1; }
+.rm-sound { position: relative; overflow: hidden; }
+.rm-level { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--ok); transform: scaleX(var(--lvl, 0)); transform-origin: left; transition: transform 120ms linear; }
+.rm-soundmsg { margin: 0; color: var(--muted); font-size: 13px; }
 @media (max-width: 440px) { .rm-bar b { display: none; } }
 .rm-on { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px var(--hover); }
 
@@ -201,7 +204,7 @@ body.remoting #remoteroot { flex: 1; min-height: 0; display: flex; flex-directio
     inset: 0;
     padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }
-  body.rm-watching .rm-bar, body.rm-watching .rm-modes { display: none; }
+  body.rm-watching .rm-bar, body.rm-watching .rm-modes, body.rm-watching .rm-soundmsg { display: none; }
   body.rm-watching .rm-screen {
     display: grid;
     grid-template-columns: 1fr 48px;

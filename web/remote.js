@@ -64,6 +64,7 @@
   function mount(root, opts) {
     let token = /^[0-9a-f]{64}$/.test(store("session", TOKEN)) ? store("session", TOKEN) : "";
     let state = "idle";
+    let playbackClip = null;
     let mode = MODES.includes(store("local", "ft-remote-mode")) ? store("local", "ft-remote-mode") : "pad";
     let visible = false;
     let askId = "";
@@ -97,10 +98,11 @@
           <span class="rm-on" aria-hidden="true"></span>
           <b>Controlling the PC</b>
           <span class="grow"></span>
-          <button class="btn small rm-sound" type="button" aria-pressed="false">${icon.sound}<span>Sound</span></button>
+          <button class="btn small rm-sound" type="button" aria-pressed="false">${icon.sound}<span>Sound</span><i class="rm-level" aria-hidden="true"></i></button>
           <button class="btn small rm-hide" type="button" aria-pressed="false">${icon.hide}<span>Hide PC</span></button>
           <button class="btn small rm-end" type="button">Stop</button>
         </div>
+        <p class="rm-soundmsg" role="status" hidden></p>
         <div class="rm-modes" role="tablist"></div>
         <div class="rm-panel rm-pad" data-mode="pad">
           <div class="rm-touch" aria-label="Touchpad">
@@ -235,6 +237,7 @@
       waitBox.hidden = state !== "waiting";
       live.hidden = state !== "live";
       forgetBtn.hidden = !store("local", TRUST);
+      if (state === "idle") releasePlayback();
       q(".rm-askbtn").textContent = store("local", TRUST) ? "Take control" : "Ask the PC";
       if (opts.onLive) opts.onLive(state === "live" && visible);
       setMode(mode, true);
@@ -256,7 +259,10 @@
       if (watching) { startScreen(); requestAnimationFrame(() => paintStage(true, true)); }
       else stopScreen();
       if (state === "live" && visible && soundOn) startSound();
-      else stopSound();
+      else {
+        stopSound();
+        if (!visible || !soundOn) releasePlayback();
+      }
       keepAwake();
       if (!quiet) buzz();
     }
@@ -984,6 +990,33 @@
     // silent mutes page sound unless it is marked as media. Sound is on unless
     // turned off, and every tap on the remote retries, so it starts with the
     // first touch, the Take control tap included.
+    // A silent looping audio element started inside the tap moves an iPhone to
+    // media playback, which lets page sound through the silent switch even
+    // where marking the page as media is not enough.
+    function holdPlayback() {
+      if (!playbackClip) {
+        const rate = 8000;
+        const wav = new Uint8Array(44 + rate).fill(128);
+        const head = new DataView(wav.buffer);
+        [[0, "RIFF"], [8, "WAVE"], [12, "fmt "], [36, "data"]].forEach(([at, tag]) => { for (let i = 0; i < 4; i++) wav[at + i] = tag.charCodeAt(i); });
+        head.setUint32(4, 36 + rate, true);
+        head.setUint32(16, 16, true);
+        head.setUint16(20, 1, true);
+        head.setUint16(22, 1, true);
+        head.setUint32(24, rate, true);
+        head.setUint32(28, rate, true);
+        head.setUint16(32, 1, true);
+        head.setUint16(34, 8, true);
+        head.setUint32(40, rate, true);
+        playbackClip = new Audio(URL.createObjectURL(new Blob([wav], { type: "audio/wav" })));
+        playbackClip.loop = true;
+      }
+      if (playbackClip.paused) playbackClip.play().catch(() => {});
+    }
+    function releasePlayback() {
+      if (playbackClip && !playbackClip.paused) playbackClip.pause();
+    }
+
     function unlockAudio() {
       if (!soundOn) return;
       try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (err) {}
@@ -992,6 +1025,7 @@
       } catch (err) {
         return;
       }
+      holdPlayback();
       if (actx.state !== "running") {
         actx.resume().catch(() => {});
         // A silent blip inside the tap is what wakes older iPhones.
@@ -1004,7 +1038,10 @@
       }
       if (state === "live" && visible) startSound();
     }
-    ["pointerup", "touchend", "click"].forEach((type) => root.addEventListener(type, () => { unlockAudio(); keepAwake(); }, true));
+    ["pointerup", "touchend", "click"].forEach((type) => root.addEventListener(type, (e) => {
+      if (state === "live" || e.target.closest(".rm-askbtn")) unlockAudio();
+      keepAwake();
+    }, true));
 
     soundBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1012,10 +1049,51 @@
       store("local", "ft-remote-sound", soundOn ? "" : "off");
       paintSound();
       if (soundOn) unlockAudio();
-      else stopSound();
+      else {
+        stopSound();
+        releasePlayback();
+      }
+      paintSoundState();
       buzz();
     });
     paintSound();
+
+    // The meter shows what reaches this phone, so silence can be told apart
+    // from sound that arrives and does not come out.
+    const soundMsg = q(".rm-soundmsg");
+    let soundLinked = false;
+    let soundProblem = "";
+    let heardAt = 0;
+    let loudAt = 0;
+    let resumedAt = 0;
+
+    function soundWords() {
+      if (!soundOn || state !== "live" || !visible) return "";
+      if (!actx || actx.state !== "running") return "Tap anywhere to hear the PC";
+      if (soundProblem) return soundProblem;
+      if (!soundLinked) return "Connecting to the PC's sound";
+      if (performance.now() - loudAt > 2500) return "Connected. Nothing is playing on the PC right now";
+      return "";
+    }
+    function paintSoundState() {
+      const words = soundWords();
+      if (soundMsg.textContent !== words) soundMsg.textContent = words;
+      soundMsg.hidden = !words;
+      if (performance.now() - heardAt > 400) soundBtn.style.setProperty("--lvl", "0");
+    }
+    setInterval(paintSoundState, 500);
+
+    function noteSoundLevel(pcm, frames) {
+      let peak = 0;
+      for (let i = 0; i < frames; i += 8) {
+        const v = Math.abs(pcm.getInt16(i * 4, true));
+        if (v > peak) peak = v;
+      }
+      const now = performance.now();
+      heardAt = now;
+      if (peak > 16) loudAt = now;
+      soundBtn.style.setProperty("--lvl", Math.min(1, Math.sqrt(peak / 32768) * 1.4).toFixed(2));
+    }
 
     function startSound() {
       if (soundLive || !actx) return;
@@ -1027,6 +1105,7 @@
     function stopSound() {
       soundRun++;
       soundLive = false;
+      soundLinked = false;
       if (soundReader) soundReader.cancel().catch(() => {});
       soundReader = null;
     }
@@ -1050,17 +1129,21 @@
           if (!res.ok || !res.body) {
             const data = await res.json().catch(() => ({}));
             if (res.status === 403 && data.ended) { ended(data.why || "Control ended on the PC"); return; }
-            if (res.status === 501 || res.status === 503) {
+            if (res.status === 501) {
               soundOn = false;
               paintSound();
               opts.toast(data.error || "Cannot hear the PC right now");
               return;
             }
+            if (res.status === 503) soundProblem = data.error || "Cannot hear the PC right now";
             throw new Error(String(res.status));
           }
           const rate = Number(res.headers.get("X-Audio-Rate")) || 48000;
           const reader = res.body.getReader();
           soundReader = reader;
+          soundLinked = true;
+          soundProblem = "";
+          loudAt = 0;
           let carry = null;
           let next = 0;
           misses = 0;
@@ -1077,13 +1160,21 @@
             const frames = Math.floor(bytes.length / 4);
             carry = bytes.length % 4 ? bytes.slice(frames * 4) : null;
             if (!frames) continue;
+            const pcm = new DataView(bytes.buffer, bytes.byteOffset, frames * 4);
+            noteSoundLevel(pcm, frames);
             // While the phone holds the sound back, pieces are dropped, so it
             // picks up live instead of playing a backlog.
-            if (actx.state !== "running") { next = 0; continue; }
+            if (actx.state !== "running") {
+              next = 0;
+              if (performance.now() - resumedAt > 2000) {
+                resumedAt = performance.now();
+                actx.resume().catch(() => {});
+              }
+              continue;
+            }
             const now = actx.currentTime;
             if (next < now + 0.02) next = now + 0.15;
             if (next > now + 0.6) continue;
-            const pcm = new DataView(bytes.buffer, bytes.byteOffset, frames * 4);
             const buf = actx.createBuffer(2, frames, rate);
             const left = buf.getChannelData(0);
             const right = buf.getChannelData(1);
@@ -1098,8 +1189,10 @@
             next += buf.duration;
           }
           if (soundReader === reader) soundReader = null;
+          soundLinked = false;
         } catch (err) {
           soundReader = null;
+          soundLinked = false;
           if (run !== soundRun) return;
           misses++;
           await new Promise((r) => setTimeout(r, Math.min(3000, 500 * misses)));
