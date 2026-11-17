@@ -218,6 +218,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/desk/relay", guardLocal(s.deskRelaySet))
 	mux.HandleFunc("POST /api/desk/relay/send", guardLocal(s.deskRelaySend))
 	mux.HandleFunc("GET /relay-qr.png", guardLocal(s.relayQR))
+	mux.HandleFunc("GET /api/desk/relay/setup", guardLocal(s.deskRelaySetup))
+	mux.HandleFunc("POST /api/desk/relay/setup", guardLocal(s.deskRelaySetupSet))
 	mux.HandleFunc("GET /api/desk/update", guardLocal(s.deskUpdate))
 	mux.HandleFunc("POST /api/desk/update", guardLocal(s.deskUpdateSet))
 	mux.HandleFunc("GET /api/desk/control", guardLocal(s.deskControl))

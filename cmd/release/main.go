@@ -29,8 +29,6 @@ import (
 	"strings"
 )
 
-var relayRe = regexp.MustCompile(`^https://[a-z0-9.-]{1,190}$`)
-
 var versionRe = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`)
 
 // target is one download on the release page. The Windows names never
@@ -62,7 +60,6 @@ func main() {
 	keyPath := flag.String("key", filepath.Join(home, ".fasttransfer", "release-key"), "signing key file")
 	genkey := flag.Bool("genkey", false, "make a new signing key")
 	version := flag.String("version", "", "version to build, like 1.2.0")
-	relayURL := flag.String("relay", "", "college mode relay built in, like https://fasttransfer-relay.you.workers.dev")
 	flag.Parse()
 
 	if *genkey {
@@ -70,9 +67,6 @@ func main() {
 			fail(err)
 		}
 		return
-	}
-	if *relayURL != "" && !relayRe.MatchString(*relayURL) {
-		fail(errors.New("give -relay as a bare https address"))
 	}
 	if !versionRe.MatchString(*version) {
 		fail(errors.New("give -version as three numbers, like 1.2.0"))
@@ -96,7 +90,7 @@ func main() {
 	}
 	var files []string
 	for _, t := range targets {
-		if err := buildTarget(t, out, *version, *relayURL, priv); err != nil {
+		if err := buildTarget(t, out, *version, priv); err != nil {
 			fail(fmt.Errorf("%s/%s: %w", t.goos, t.goarch, err))
 		}
 		files = append(files, filepath.Join(out, t.file), filepath.Join(out, t.manifest), filepath.Join(out, t.manifest+".sig"))
@@ -104,9 +98,9 @@ func main() {
 	fmt.Printf("Upload these to a GitHub release tagged v%s:\n  %s\n", *version, strings.Join(files, "\n  "))
 }
 
-func buildTarget(t target, out, version, relayURL string, priv ed25519.PrivateKey) error {
+func buildTarget(t target, out, version string, priv ed25519.PrivateKey) error {
 	exe := filepath.Join(out, t.file)
-	args := []string{"build", "-trimpath", "-ldflags", t.ldflags + "-s -w -X main.appVersion=" + version + " -X main.relayDefault=" + relayURL, "-o", exe}
+	args := []string{"build", "-trimpath", "-ldflags", t.ldflags + "-s -w -X main.appVersion=" + version, "-o", exe}
 	if t.tags != "" {
 		args = append(args, "-tags", t.tags)
 	}

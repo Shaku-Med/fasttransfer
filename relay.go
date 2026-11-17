@@ -33,9 +33,6 @@ import (
 // along: the key sits in the link's #fragment, which browsers never send, so
 // whoever runs the relay sees sizes and timing but no names or contents.
 
-// relayDefault is the relay a release points at. cmd/release stamps it in.
-var relayDefault = ""
-
 const (
 	relayChunk     = 1 << 20
 	relayMaxFrame  = relayChunk + 2048
@@ -257,9 +254,6 @@ func loadRelayURL() string {
 			}
 		}
 	}
-	if u, ok := cleanRelayURL(relayDefault); ok {
-		return u
-	}
 	return ""
 }
 
@@ -280,9 +274,6 @@ func (c *relayClient) setURL(raw string) error {
 	c.stop()
 	c.mu.Lock()
 	c.base = u
-	if u == "" {
-		c.base = loadRelayURL()
-	}
 	c.mu.Unlock()
 	c.changed()
 	return nil

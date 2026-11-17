@@ -77,22 +77,18 @@ Files from the phone land in the `files` folder and show up under Received. File
 
 ### Setting up the relay (once)
 
-The relay is `relay/`, a Cloudflare Worker. The free plan is enough and never bills: past the daily limit it just stops answering until the next day.
+Every person uses their own relay, on their own free Cloudflare account. The free plan is enough and never bills: past the daily limit it just stops answering until the next day. Nothing needs installing, not even Node.
 
-1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up).
-2. In `relay/`, sign in and publish it:
+1. Under Connect, College mode, press Set up.
+2. Press Open Cloudflare and sign in, or make a free account.
+3. Press Make token. Cloudflare opens with the two permissions FastTransfer needs already picked: Workers Scripts edit and Account Settings read. Press Continue to summary, then Create Token, and copy it.
+4. Paste the token and press Set up. FastTransfer uploads `relay/` to your account through Cloudflare's API and shows each step as it goes. A brand new workers.dev address can take a few minutes to come online.
 
-```bash
-npx wrangler login
-```
+The token is only held in memory for that one setup. It is never written to disk or shown again, and you can delete it on Cloudflare once the relay is up. Only the relay's address is saved, in `relay.json` next to FastTransfer's other settings. Change it any time from the same window. Running Set up again updates the same relay.
 
-```bash
-npx wrangler deploy
-```
+Already have a relay? Open "I already have a relay" and paste its address. To publish one by hand instead, run `npx wrangler deploy` inside `relay/`.
 
-3. Wrangler prints an address like `https://fasttransfer-relay.you.workers.dev`. Paste it under Connect, College mode, then press Start and scan the code.
-
-To put the address into a release so friends get it already filled in, add `-relay https://fasttransfer-relay.you.workers.dev` to `go run ./cmd/release`. Everyone sharing a relay shares its free daily allowance, and nobody sharing it can read anyone else's files.
+Releases never carry a relay address, so nobody else's copy ever uses yours.
 
 ## Many phones at once
 

@@ -1246,7 +1246,66 @@
     .sum { color: var(--muted); font-size: 12px; padding-right: 8px; white-space: nowrap; }
     #updsub { white-space: normal; }
     .relaylede { margin: 0; padding: 12px 16px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    #relayurlrow .what input { margin-top: 6px; }
+    #cfscrim {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgba(0, 0, 0, 0.48);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #cfbox {
+      position: relative;
+      width: min(520px, 100%);
+      max-height: 100%;
+      overflow: auto;
+      background: var(--menu);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px 16px 14px;
+      animation: pop 160ms var(--ease);
+    }
+    #cfbox h2 { margin: 0 32px 4px 0; font-size: 16px; font-weight: 600; }
+    #cfbox .lede { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+    #cfclose { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: inherit; }
+    #cfclose svg { width: 12px; height: 12px; }
+    #cfclose:hover { background: var(--hover); }
+    .cfsteps { list-style: none; margin: 0; padding: 0; }
+    .cfsteps > li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+    .cfsteps .n { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--hover); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .cfsteps .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .cfsteps .what span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    #cftokenrow { display: flex; gap: 8px; margin-top: 8px; }
+    #cftokenrow input { flex: 1; min-width: 0; }
+    #cflog { list-style: none; margin: 0 0 12px; padding: 0; }
+    #cflog li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); line-height: 1.5; }
+    #cflog li:first-child { border-top: 0; }
+    #cflog li.running { animation: fadeIn 160ms var(--ease); }
+    #cflog .mark { flex: none; width: 16px; height: 16px; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+    #cflog .mark svg { width: 12px; height: 12px; }
+    #cflog li.running .mark::before { content: ""; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 800ms linear infinite; }
+    #cflog li.done { color: var(--muted); }
+    #cflog li.failed .mark { border-radius: 50%; background: var(--hover); }
+    #cferr { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--hover); line-height: 1.5; overflow-wrap: anywhere; }
+    #cfready { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--sel); line-height: 1.5; overflow-wrap: anywhere; }
+    #cfready b { display: block; }
+    .cffoot { display: flex; justify-content: flex-end; gap: 8px; }
+    #cfown { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+    #cfown summary { list-style: none; cursor: default; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; margin: 0 -8px; border-radius: 6px; color: var(--muted); }
+    #cfown summary::-webkit-details-marker { display: none; }
+    #cfown summary::before { content: ""; width: 6px; height: 6px; border-right: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor; transform: rotate(-45deg); transition: transform 160ms var(--ease); }
+    #cfown[open] summary::before { transform: rotate(45deg); }
+    #cfown summary:hover { background: var(--hover); }
+    #cfurlrow { display: flex; gap: 8px; margin: 8px 0 4px; }
+    #cfurlrow input { flex: 1; min-width: 0; }
+    #cfown .hand { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    #cfown code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--hover); color: var(--ink); user-select: all; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { #cfbox, #cflog li.running { animation: none; } }
     .relaylink { display: flex; gap: 16px; align-items: center; padding: 14px 16px; }
     #relayqr { width: 160px; height: 160px; flex: none; padding: 6px; box-sizing: border-box; background: #fff; border-radius: 6px; }
     .relaysteps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -1497,10 +1556,10 @@
                 <div class="card" id="relaycard">
                   <div class="cardhead"><h2>College mode</h2><span id="relaysum" class="sum"></span></div>
                   <p class="relaylede">For when the phone cannot reach this PC, like a college lab or guest Wi-Fi. Both go through your relay on the internet instead, and everything is encrypted so the relay cannot read it. No admin rights needed.</p>
-                  <form id="relayurlrow" class="setting" hidden>
-                    <div class="what"><b>Relay address</b><input id="relayurl" class="find" type="url" placeholder="https://fasttransfer-relay.you.workers.dev" maxlength="200" autocomplete="off" spellcheck="false" aria-label="Relay address" /></div>
-                    <button id="relayurlsave" class="btn" type="submit">Save</button>
-                  </form>
+                  <div id="relaynone" class="setting" hidden>
+                    <div class="what"><b>No relay yet</b><span id="relaynoneline">Free on Cloudflare, set up for you</span></div>
+                    <button id="relaysetup" class="btn primary" type="button">Set up</button>
+                  </div>
                   <div id="relayoff" class="setting" hidden>
                     <div class="what"><b>Relay</b><span id="relayhost"></span></div>
                     <button id="relayedit" class="btn quiet" type="button">Change</button>
@@ -1667,6 +1726,55 @@
         <button id="sendpick" type="button">Add files</button>
         <button id="sendgo" type="button">Send</button>
       </div>
+    </div>
+  </div>
+  <div id="cfscrim" hidden>
+    <div id="cfbox" role="dialog" aria-modal="true" aria-labelledby="cftitle">
+      <button id="cfclose" type="button" aria-label="Close"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>
+      <h2 id="cftitle">Your relay</h2>
+      <p class="lede">College mode passes files through a small relay that runs on your own free Cloudflare account. FastTransfer sets it up for you, nothing to install.</p>
+      <div id="cfform">
+        <ol class="cfsteps">
+          <li>
+            <span class="n">1</span>
+            <div class="what"><b>Sign in to Cloudflare</b><span>Make a free account if you do not have one. No card needed.</span></div>
+            <button class="btn small" type="button" data-cfopen="signup">Open Cloudflare</button>
+          </li>
+          <li>
+            <span class="n">2</span>
+            <div class="what"><b>Make a token</b><span>The page opens with the right permissions picked. Press Continue to summary, then Create Token, then copy the token it shows.</span></div>
+            <button class="btn small" type="button" data-cfopen="token">Make token</button>
+          </li>
+          <li>
+            <span class="n">3</span>
+            <div class="what">
+              <b>Paste it here</b><span>Only used for this setup and never saved. You can delete it on Cloudflare afterwards.</span>
+              <form id="cftokenrow">
+                <input id="cftoken" class="find" type="password" maxlength="120" placeholder="Cloudflare API token" autocomplete="off" spellcheck="false" aria-label="Cloudflare API token" />
+                <button class="btn primary" type="submit">Set up</button>
+              </form>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div id="cfrun" hidden>
+        <ul id="cflog" aria-live="polite"></ul>
+        <p id="cferr" role="alert" hidden></p>
+        <p id="cfready" hidden><b>Your relay is ready</b><span id="cfreadyurl"></span></p>
+        <div class="cffoot">
+          <button id="cfstop" class="btn" type="button">Stop</button>
+          <button id="cfretry" class="btn" type="button">Try again</button>
+          <button id="cfdone" class="btn primary" type="button">Done</button>
+        </div>
+      </div>
+      <details id="cfown">
+        <summary>I already have a relay</summary>
+        <form id="cfurlrow">
+          <input id="cfurl" class="find" type="url" placeholder="https://fasttransfer-relay.you.workers.dev" maxlength="200" autocomplete="off" spellcheck="false" aria-label="Relay address" />
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <p class="hand">Saved on this PC only. To make one by hand with Node instead, run <code>npx wrangler deploy</code> inside the <code>relay</code> folder of the FastTransfer source and paste the workers.dev address it prints.</p>
+      </details>
     </div>
   </div>
   <div id="scanscrim" hidden>
@@ -4186,6 +4294,8 @@
         loadUpdate();
       } else if (ev.kind === "relay") {
         loadRelay(ev.text === "text");
+      } else if (ev.kind === "relaysetup") {
+        loadRelaySetup();
       } else if (ev.kind === "control-ask" || ev.kind === "control") {
         loadControl();
         if (ev.kind === "control" && ev.text === "start" && ev.name) {
@@ -4267,14 +4377,13 @@
     // College mode. The phone and this PC meet through the relay instead of
     // the local network, for places where they cannot see each other.
     const relayEls = {
-      sum: document.getElementById("relaysum"), urlRow: document.getElementById("relayurlrow"), url: document.getElementById("relayurl"),
+      sum: document.getElementById("relaysum"), none: document.getElementById("relaynone"), noneLine: document.getElementById("relaynoneline"),
       off: document.getElementById("relayoff"), host: document.getElementById("relayhost"), on: document.getElementById("relayon"),
       qr: document.getElementById("relayqr"), line: document.getElementById("relayline"), sendLine: document.getElementById("relaysendline"),
       pickBtn: document.getElementById("relaypickbtn"), pick: document.getElementById("relaypick"), bar: document.getElementById("relaybar"),
       text: document.getElementById("relaytext"), texts: document.getElementById("relaytexts"),
     };
     let relayState = null;
-    let relayEditing = false;
     let relayLink = "";
     let relayQueue = Promise.resolve();
     let relayQueued = 0;
@@ -4283,8 +4392,8 @@
       if (!v) return;
       relayState = v;
       const hasURL = !!v.url;
-      relayEls.urlRow.hidden = v.on || !(relayEditing || !hasURL);
-      relayEls.off.hidden = !hasURL || v.on || relayEditing;
+      relayEls.none.hidden = hasURL || v.on;
+      relayEls.off.hidden = !hasURL || v.on;
       relayEls.on.hidden = !v.on;
       relayEls.host.textContent = hasURL ? v.url.replace(/^https?:\/\//, "") : "";
       relayEls.sum.textContent = !v.on ? "Off" : v.peer ? "Connected" : "Waiting";
@@ -4379,18 +4488,119 @@
       });
     }
 
-    relayEls.urlRow.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (await relayAction({ action: "url", url: relayEls.url.value })) {
-        relayEditing = false;
-        paintRelay(relayState);
+    document.getElementById("relaysetup").addEventListener("click", openRelaySetup);
+    document.getElementById("relayedit").addEventListener("click", openRelaySetup);
+
+    // Relay setup. The token goes to FastTransfer once, which publishes the
+    // relay to the person's own Cloudflare account and keeps only the address.
+    const cf = {
+      scrim: document.getElementById("cfscrim"), form: document.getElementById("cfform"), run: document.getElementById("cfrun"),
+      token: document.getElementById("cftoken"), log: document.getElementById("cflog"), err: document.getElementById("cferr"),
+      ready: document.getElementById("cfready"), readyURL: document.getElementById("cfreadyurl"), own: document.getElementById("cfown"),
+      url: document.getElementById("cfurl"), stop: document.getElementById("cfstop"), retry: document.getElementById("cfretry"), done: document.getElementById("cfdone"),
+    };
+    let cfWatching = false;
+    let cfSetupRunning = false;
+    const cfMarks = {
+      done: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.2 2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      failed: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    };
+
+    function paintRelaySetup(v) {
+      if (!v) return;
+      cfSetupRunning = v.running;
+      relayEls.noneLine.textContent = v.running ? "Setting up your relay" : "Free on Cloudflare, set up for you";
+      if (v.running) cfWatching = true;
+      cf.form.hidden = cfWatching;
+      cf.run.hidden = !cfWatching;
+      cf.own.hidden = v.running;
+      if (!cfWatching) return;
+      cf.log.replaceChildren(...(v.steps || []).map((step) => {
+        const li = document.createElement("li");
+        li.className = step.state;
+        const mark = document.createElement("span");
+        mark.className = "mark";
+        mark.innerHTML = cfMarks[step.state] || "";
+        const text = document.createElement("span");
+        text.textContent = step.text;
+        li.append(mark, text);
+        return li;
+      }));
+      const failed = !v.running && !!v.error;
+      const ready = !v.running && !v.error && !!v.url;
+      cf.err.hidden = !failed;
+      cf.err.textContent = failed ? sentence(v.error) : "";
+      cf.ready.hidden = !ready;
+      cf.readyURL.textContent = ready ? v.url.replace(/^https:\/\//, "") : "";
+      cf.stop.hidden = !v.running;
+      cf.retry.hidden = v.running || ready;
+      cf.done.hidden = v.running || !ready;
+    }
+
+    async function loadRelaySetup() {
+      try {
+        const res = await fetch("/api/desk/relay/setup", { cache: "no-store" });
+        if (res.ok) paintRelaySetup(await res.json());
+      } catch (err) {}
+    }
+
+    async function relaySetupAction(body) {
+      try {
+        const res = await fetch("/api/desk/relay/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast("Relay setup", sentence(data.error || "Try again in a moment"));
+          paintRelaySetup(data.setup);
+          return false;
+        }
+        paintRelaySetup(data);
+        return true;
+      } catch (err) {
+        toast("Relay setup", "Could not reach FastTransfer");
+        return false;
       }
+    }
+
+    function openRelaySetup() {
+      cfWatching = cfSetupRunning;
+      cf.token.value = "";
+      cf.url.value = relayState && relayState.url ? relayState.url : "";
+      cf.own.open = !!(relayState && relayState.url);
+      cf.scrim.hidden = false;
+      paintRelaySetup({ running: cfSetupRunning, steps: [] });
+      loadRelaySetup();
+      if (!cfWatching) (cf.own.open ? cf.url : cf.token).focus();
+    }
+
+    function closeRelaySetup() {
+      cf.scrim.hidden = true;
+      cf.token.value = "";
+    }
+
+    cf.scrim.addEventListener("click", (event) => { if (event.target === cf.scrim) closeRelaySetup(); });
+    document.getElementById("cfclose").addEventListener("click", closeRelaySetup);
+    cf.scrim.querySelectorAll("[data-cfopen]").forEach((btn) => {
+      btn.addEventListener("click", () => relaySetupAction({ action: "open", open: btn.dataset.cfopen }));
     });
-    document.getElementById("relayedit").addEventListener("click", () => {
-      relayEditing = true;
-      relayEls.url.value = relayState ? relayState.url : "";
-      paintRelay(relayState);
-      relayEls.url.focus();
+    document.getElementById("cftokenrow").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const token = cf.token.value.trim();
+      if (!token) { cf.token.focus(); return; }
+      cfWatching = true;
+      const ok = await relaySetupAction({ action: "start", token });
+      cf.token.value = "";
+      if (!ok) { cfWatching = false; loadRelaySetup(); cf.token.focus(); }
+    });
+    cf.stop.addEventListener("click", () => relaySetupAction({ action: "stop" }));
+    cf.retry.addEventListener("click", () => {
+      cfWatching = false;
+      loadRelaySetup();
+      cf.token.focus();
+    });
+    cf.done.addEventListener("click", closeRelaySetup);
+    document.getElementById("cfurlrow").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (await relayAction({ action: "url", url: cf.url.value })) closeRelaySetup();
     });
     document.getElementById("relaystart").addEventListener("click", () => relayAction({ action: "start" }));
     document.getElementById("relaystop").addEventListener("click", () => relayAction({ action: "stop" }));
@@ -5746,6 +5956,7 @@
       if (event.key === "Escape") {
         const moremenu = document.getElementById("moremenu");
         if (!moremenu.hidden) { moremenu.hidden = true; return; }
+        if (!cf.scrim.hidden) { closeRelaySetup(); return; }
         if (!document.getElementById("scanscrim").hidden) { closeScanModal(); return; }
         if (!document.getElementById("sendsrim").hidden) { closeSendModal(); return; }
         if (!menu.hidden) { hideMenu(); return; }

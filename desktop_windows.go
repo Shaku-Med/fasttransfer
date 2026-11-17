@@ -121,7 +121,7 @@ func runApp(pageURL string) {
 		},
 	})
 	if w == nil {
-		openDefaultBrowser(pageURL)
+		_ = openDefaultBrowser(pageURL)
 		go func() {
 			report("FastTransfer opened in your browser. Click OK to quit.")
 			requestStop()
@@ -173,8 +173,8 @@ func runApp(pageURL string) {
 	w.Run()
 }
 
-func openDefaultBrowser(pageURL string) {
-	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", pageURL).Start()
+func openDefaultBrowser(pageURL string) error {
+	return exec.Command("rundll32", "url.dll,FileProtocolHandler", pageURL).Start()
 }
 
 // Caption hit-testing is what makes Windows 11 draw the snap-layout flyout.
