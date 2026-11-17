@@ -59,7 +59,11 @@
       -webkit-font-smoothing: antialiased;
     }
     button, select, input, textarea { font: inherit; color: inherit; }
-    button { background: none; border: 0; padding: 0; cursor: pointer; }
+    button { background: none; border: 0; padding: 0; cursor: default; }
+    body { user-select: none; }
+    input, textarea, [contenteditable], [contenteditable] * { user-select: text; }
+    img, a { -webkit-user-drag: none; }
+    ::selection { background: var(--sel); }
     svg { display: block; }
     #app { height: 100%; display: flex; flex-direction: column; min-height: 0; }
     #header {
@@ -206,7 +210,7 @@
     #schedrows .what small, #inboxrows .what small { margin-top: 1px; color: var(--muted); font-size: 12px; }
     #schedrows button, #inboxrows button { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
     #inboxrows button:disabled { opacity: 0.45; }
-    .toast.click { cursor: pointer; }
+    .toast.click { cursor: default; }
     #btfoot { display: flex; justify-content: flex-end; gap: 8px; }
     #btscan { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
     #btscan:disabled { opacity: 0.6; }
@@ -722,7 +726,7 @@
       flex: 1;
       min-width: 0;
       height: 20px;
-      cursor: pointer;
+      cursor: default;
       touch-action: none;
     }
     #seek .track, #seek .fill {
@@ -756,7 +760,7 @@
       height: 16px;
       margin: 0;
       background: transparent;
-      cursor: pointer;
+      cursor: default;
     }
     #vol::-webkit-slider-runnable-track {
       height: 2px;
@@ -1103,7 +1107,7 @@
     .clip .meta .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .clip .meta button { height: 26px; padding: 0 8px; border-radius: 4px; color: var(--ink); }
     .clip .meta button:hover { background: var(--press); }
-    .switch { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); cursor: pointer; }
+    .switch { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); cursor: default; }
     .switch input { position: absolute; opacity: 0; pointer-events: none; }
     .switch .track {
       position: relative;
@@ -1164,7 +1168,7 @@
     #ctlbox .glyph svg { width: 20px; height: 20px; }
     #ctltitle { margin: 0 0 6px; font: 600 15px/1.35 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; overflow-wrap: anywhere; }
     #ctlbox p { margin: 0; color: var(--muted); }
-    #ctlbox .always { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer; }
+    #ctlbox .always { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: default; }
     #ctlbox .always input { margin: 0; accent-color: var(--accent); }
     #ctlbox .rowbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
     #ctlbox .rowbtns button { height: 32px; min-width: 84px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--menu); }
@@ -1261,7 +1265,7 @@
     #sendfind { padding: 0; border: 0; margin: 0 0 8px; }
     .btn.small { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 4px; }
     .picklist { max-height: 260px; overflow: auto; margin: 0 0 8px; padding: 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--list); }
-    .pick { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px; border-radius: 4px; cursor: pointer; }
+    .pick { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px; border-radius: 4px; cursor: default; }
     .pick:hover { background: var(--hover); }
     .pick.on { background: var(--sel); }
     .pick input { margin: 0; accent-color: var(--accent); }
@@ -5517,8 +5521,12 @@
       if (key === "F5" || (ctrl && /^r$/i.test(key) && !alt)) {
         event.preventDefault();
       }
+      if (ctrl && !alt && /^(=|\+|-|_|0)$/.test(key)) event.preventDefault();
       return false;
     }
+    window.addEventListener("wheel", (event) => {
+      if (event.ctrlKey && !window.__ftDebug) event.preventDefault();
+    }, { passive: false, capture: true });
     document.addEventListener("keydown", (event) => {
       if (eatBrowserChrome(event)) return;
       const typing = event.target.closest && event.target.closest("textarea, input, select, [contenteditable=true]");

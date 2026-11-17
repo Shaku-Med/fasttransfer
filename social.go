@@ -20,7 +20,12 @@ import (
 
 const socialRootName = "Social media"
 
-const socialMissing = "Put yt-dlp.exe in the same folder as FastTransfer. Add ffmpeg.exe there too when a video needs to be merged."
+var socialMissing = func() string {
+	if runtime.GOOS == "windows" {
+		return "Put yt-dlp.exe in the same folder as FastTransfer. Add ffmpeg.exe there too when a video needs to be merged."
+	}
+	return "Install yt-dlp, or put it in the same folder as FastTransfer. Install ffmpeg too when a video needs to be merged."
+}()
 
 var (
 	lookupYT     = func() string { return findBesideThenPath("yt-dlp") }

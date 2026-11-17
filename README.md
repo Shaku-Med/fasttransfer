@@ -6,7 +6,16 @@ Send files from your phone to this PC over the same Wi‑Fi. Screenshots for the
 
 On Windows, double-click `FastTransfer.exe`.
 
-On macOS or Linux:
+On Linux, download `fasttransfer-linux-amd64` (most PCs) or `fasttransfer-linux-arm64` (ARM boards like a Raspberry Pi) from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest), put it in a folder you own, and run:
+
+```bash
+chmod +x fasttransfer-linux-amd64
+./fasttransfer-linux-amd64
+```
+
+It is one static file that works on any distro. ffmpeg and yt-dlp are used when they are installed. Remote control, PC sound and Hide PC screen are Windows only.
+
+To build it yourself on macOS or Linux:
 
 ```bash
 go build -o fasttransfer .
@@ -33,7 +42,7 @@ Share this one exe. Edge or WebView2 is required. The first launch may extract h
 
 ## Updates
 
-Get the latest `FastTransfer.exe` from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest). Put it in a folder you own, like Documents, since it keeps its files beside itself.
+Get the latest `FastTransfer.exe`, or the Linux file for your PC, from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest). Put it in a folder you own, like Documents, since it keeps its files beside itself.
 
 The app checks this repo for a newer release every few hours and asks before installing it. Each release is signed, and the app refuses any download that does not match that signature, so only releases made with the author's key ever install. You can also check by hand under Connect.
 
@@ -51,10 +60,10 @@ Run that once. It saves the signing key in your user folder, outside the repo, a
 
 ```bash
 go run ./cmd/release -version 1.2.0
-gh release create v1.2.0 release/FastTransfer.exe release/update.json release/update.json.sig --title "FastTransfer 1.2.0" --notes "What changed"
+gh release create v1.2.0 release/* --title "FastTransfer 1.2.0" --notes "What changed"
 ```
 
-The first line builds and signs into `release/`. The second publishes it, and every copy offers the update within a few hours. The tag has to be `v` plus the same version.
+The first line builds and signs the Windows app and both Linux builds into `release/`, each with its own signed manifest. The second publishes it, and every copy offers the update within a few hours. The tag has to be `v` plus the same version.
 
 ## Many phones at once
 

@@ -49,6 +49,9 @@ func lockWebView(w webview2.WebView) {
 	_ = settings.PutAreDefaultContextMenusEnabled(debug)
 	_ = settings.PutAreBrowserAcceleratorKeysEnabled(debug)
 	_ = settings.PutIsStatusBarEnabled(false)
+	_ = settings.PutIsZoomControlEnabled(false)
+	_ = settings.PutIsPinchZoomEnabled(false)
+	_ = settings.PutIsSwipeNavigationEnabled(false)
 }
 
 func chromiumOf(w webview2.WebView) *edge.Chromium {
