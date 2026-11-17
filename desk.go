@@ -204,7 +204,12 @@ func deskPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self'; font-src 'self' data:; worker-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	writeShipped(w, r, "web/desk.html", b)
+	name := "web/desk.html"
+	if css := accentCSS(); css != "" {
+		b = bytes.Replace(b, []byte("</head>"), []byte(css+"</head>"), 1)
+		name += "#" + css
+	}
+	writeShipped(w, r, name, b)
 }
 
 // playerPage is the media window the desk opens. Like the desk it only

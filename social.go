@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,7 +21,12 @@ import (
 
 const socialRootName = "Social media"
 
-const socialMissing = "Put yt-dlp.exe in the same folder as FastTransfer. Add ffmpeg.exe there too when a video needs to be merged."
+var socialMissing = func() string {
+	if runtime.GOOS == "windows" {
+		return "Put yt-dlp.exe in the same folder as FastTransfer. Add ffmpeg.exe there too when a video needs to be merged."
+	}
+	return "Install yt-dlp, or put it in the same folder as FastTransfer. Install ffmpeg too when a video needs to be merged."
+}()
 
 var (
 	lookupYT     = func() string { return findBesideThenPath("yt-dlp") }
@@ -184,12 +190,13 @@ func socialArgs(pageURL, dir, ffmpeg string) []string {
 		"--newline",
 		"--restrict-filenames",
 		"--no-playlist",
+		"-S", "vcodec:h264,res,acodec:aac",
 		"--paths", "temp:" + filepath.ToSlash(dir),
 		"--paths", "home:" + filepath.ToSlash(dir),
 		"-o", out,
 	}
 	if ffmpeg != "" {
-		args = append(args, "--ffmpeg-location", ffmpeg)
+		args = append(args, "--ffmpeg-location", ffmpeg, "--merge-output-format", "mp4")
 	}
 	args = append(args, "--", pageURL)
 	return args
@@ -351,6 +358,16 @@ func runSocial(ctx context.Context, cancel context.CancelFunc, bin string, args 
 	social.mu.Lock()
 	cancelled := social.phase == "cancelled"
 	social.mu.Unlock()
+	name := ""
+	if err == nil && !cancelled {
+		name = newestSocialFile(dir, before)
+		if ff := lookupFF(); ff != "" && name != "" {
+			name = convertSocial(ctx, ff, dir, name)
+			social.mu.Lock()
+			cancelled = social.phase == "cancelled"
+			social.mu.Unlock()
+		}
+	}
 	cancel()
 	<-done
 
@@ -374,7 +391,6 @@ func runSocial(ctx context.Context, cancel context.CancelFunc, bin string, args 
 		social.note = social.errLine
 		return
 	}
-	name := newestSocialFile(dir, before)
 	social.file = name
 	social.phase = "done"
 	social.percent = 100
@@ -389,6 +405,29 @@ func runSocial(ctx context.Context, cancel context.CancelFunc, bin string, args 
 	social.sent = sent
 	social.note = note
 	social.line = note
+}
+
+func convertSocial(ctx context.Context, ff, dir, name string) string {
+	social.mu.Lock()
+	social.line = "Making it play on every phone"
+	social.percent = 0
+	social.mu.Unlock()
+	got, err := makePlayable(ctx, ff, dir, name, func(pct float64) {
+		social.mu.Lock()
+		if social.phase != "cancelled" {
+			social.percent = pct
+			social.line = fmt.Sprintf("Making it play on every phone (%.0f%%)", pct)
+		}
+		social.mu.Unlock()
+	}, func(cmd *exec.Cmd) {
+		social.mu.Lock()
+		social.cmd = cmd
+		social.mu.Unlock()
+	})
+	if err != nil {
+		return name
+	}
+	return got
 }
 
 func noteSocialLine(line string) {

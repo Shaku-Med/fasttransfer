@@ -4,6 +4,9 @@
 //	go run ./cmd/release -genkey        once, makes the signing key
 //	go run ./cmd/release -version 1.2.0 builds and signs into release/
 //
+// Windows gets the app with ffmpeg and yt-dlp inside. Linux builds are plain
+// static binaries that use ffmpeg and yt-dlp from the system when present.
+//
 // The private key lives outside the repo, in the user's profile. Lose it and
 // installed copies can no longer be updated, so keep a backup somewhere safe.
 package main
@@ -26,7 +29,22 @@ import (
 	"strings"
 )
 
+var relayRe = regexp.MustCompile(`^https://[a-z0-9.-]{1,190}$`)
+
 var versionRe = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`)
+
+// target is one download on the release page. The Windows names never
+// change because copies already installed look for exactly those.
+type target struct {
+	goos, goarch, file, manifest string
+	tags, ldflags                string
+}
+
+var targets = []target{
+	{"windows", "amd64", "FastTransfer.exe", "update.json", "bundletools", "-H windowsgui "},
+	{"linux", "amd64", "fasttransfer-linux-amd64", "update-linux-amd64.json", "", ""},
+	{"linux", "arm64", "fasttransfer-linux-arm64", "update-linux-arm64.json", "", ""},
+}
 
 type manifest struct {
 	App     string `json:"app"`
@@ -44,6 +62,7 @@ func main() {
 	keyPath := flag.String("key", filepath.Join(home, ".fasttransfer", "release-key"), "signing key file")
 	genkey := flag.Bool("genkey", false, "make a new signing key")
 	version := flag.String("version", "", "version to build, like 1.2.0")
+	relayURL := flag.String("relay", "", "college mode relay built in, like https://fasttransfer-relay.you.workers.dev")
 	flag.Parse()
 
 	if *genkey {
@@ -51,6 +70,9 @@ func main() {
 			fail(err)
 		}
 		return
+	}
+	if *relayURL != "" && !relayRe.MatchString(*relayURL) {
+		fail(errors.New("give -relay as a bare https address"))
 	}
 	if !versionRe.MatchString(*version) {
 		fail(errors.New("give -version as three numbers, like 1.2.0"))
@@ -72,32 +94,45 @@ func main() {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		fail(err)
 	}
-	exe := filepath.Join(out, "FastTransfer.exe")
-	build := exec.Command("go", "build", "-tags", "bundletools", "-trimpath",
-		"-ldflags", "-H windowsgui -s -w -X main.appVersion="+*version, "-o", exe, ".")
-	build.Env = append(os.Environ(), "GOOS=windows", "GOARCH=amd64", "CGO_ENABLED=0")
+	var files []string
+	for _, t := range targets {
+		if err := buildTarget(t, out, *version, *relayURL, priv); err != nil {
+			fail(fmt.Errorf("%s/%s: %w", t.goos, t.goarch, err))
+		}
+		files = append(files, filepath.Join(out, t.file), filepath.Join(out, t.manifest), filepath.Join(out, t.manifest+".sig"))
+	}
+	fmt.Printf("Upload these to a GitHub release tagged v%s:\n  %s\n", *version, strings.Join(files, "\n  "))
+}
+
+func buildTarget(t target, out, version, relayURL string, priv ed25519.PrivateKey) error {
+	exe := filepath.Join(out, t.file)
+	args := []string{"build", "-trimpath", "-ldflags", t.ldflags + "-s -w -X main.appVersion=" + version + " -X main.relayDefault=" + relayURL, "-o", exe}
+	if t.tags != "" {
+		args = append(args, "-tags", t.tags)
+	}
+	build := exec.Command("go", append(args, ".")...)
+	build.Env = append(os.Environ(), "GOOS="+t.goos, "GOARCH="+t.goarch, "CGO_ENABLED=0")
 	build.Stdout, build.Stderr = os.Stdout, os.Stderr
 	if err := build.Run(); err != nil {
-		fail(err)
+		return err
 	}
-
 	size, sum, err := hashFile(exe)
 	if err != nil {
-		fail(err)
+		return err
 	}
-	m := manifest{App: "fasttransfer", Version: *version, File: "FastTransfer.exe", Size: size, SHA256: sum}
-	body, err := json.Marshal(m)
+	body, err := json.Marshal(manifest{App: "fasttransfer", Version: version, File: t.file, Size: size, SHA256: sum})
 	if err != nil {
-		fail(err)
+		return err
 	}
 	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, body))
-	if err := os.WriteFile(filepath.Join(out, "update.json"), body, 0o644); err != nil {
-		fail(err)
+	if err := os.WriteFile(filepath.Join(out, t.manifest), body, 0o644); err != nil {
+		return err
 	}
-	if err := os.WriteFile(filepath.Join(out, "update.json.sig"), []byte(sig), 0o644); err != nil {
-		fail(err)
+	if err := os.WriteFile(filepath.Join(out, t.manifest+".sig"), []byte(sig), 0o644); err != nil {
+		return err
 	}
-	fmt.Printf("Built and signed %s (%.1f MB)\nUpload release/FastTransfer.exe, release/update.json and release/update.json.sig to a GitHub release tagged v%s\n", exe, float64(size)/(1<<20), *version)
+	fmt.Printf("Built and signed %s (%.1f MB)\n", exe, float64(size)/(1<<20))
+	return nil
 }
 
 func makeKey(path string) error {

@@ -35,11 +35,12 @@ func fakeGitHub(t *testing.T, rel *fakeRelease) {
 		switch r.URL.Path {
 		case "/latest":
 			assets := []map[string]any{
-				{"name": "update.json", "browser_download_url": srv.URL + "/update.json", "size": len(body)},
-				{"name": "FastTransfer.exe", "browser_download_url": srv.URL + "/FastTransfer.exe", "size": rel.manifest.Size},
+				{"name": updateManifest, "browser_download_url": srv.URL + "/update.json", "size": len(body)},
+				{"name": updateExeName, "browser_download_url": srv.URL + "/FastTransfer.exe", "size": rel.manifest.Size},
+				{"name": "fasttransfer-plan9-mips", "browser_download_url": srv.URL + "/other", "size": 1},
 			}
 			if !rel.noSig {
-				assets = append(assets, map[string]any{"name": "update.json.sig", "browser_download_url": srv.URL + "/update.json.sig", "size": len(sig)})
+				assets = append(assets, map[string]any{"name": updateManifest + ".sig", "browser_download_url": srv.URL + "/update.json.sig", "size": len(sig)})
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"tag_name": rel.tag, "body": "Faster sends\r\nand fixes", "assets": assets})
 		case "/update.json":
@@ -75,7 +76,7 @@ func newRelease(t *testing.T, version string, exe []byte) (*fakeRelease, ed25519
 	sum := sha256.Sum256(exe)
 	return &fakeRelease{
 		tag:      "v" + version,
-		manifest: signedManifest{App: "fasttransfer", Version: version, File: "FastTransfer.exe", Size: int64(len(exe)), SHA256: hex.EncodeToString(sum[:])},
+		manifest: signedManifest{App: "fasttransfer", Version: version, File: updateExeName, Size: int64(len(exe)), SHA256: hex.EncodeToString(sum[:])},
 		exe:      exe,
 		signWith: priv,
 	}, pub
@@ -227,6 +228,33 @@ func TestUpdateInstallPutsTheOldAppBackIfTheNewOneWillNotStart(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(exe); string(got) != "old app" {
 		t.Fatalf("the old app should be back, found %q", got)
+	}
+}
+
+// A Linux copy must never take the Windows app, and copies already out
+// there must keep finding the Windows files under their first names.
+func TestReleaseAssetsPerPlatform(t *testing.T) {
+	cases := []struct{ goos, goarch, exe, manifest string }{
+		{"windows", "amd64", "FastTransfer.exe", "update.json"},
+		{"linux", "amd64", "fasttransfer-linux-amd64", "update-linux-amd64.json"},
+		{"linux", "arm64", "fasttransfer-linux-arm64", "update-linux-arm64.json"},
+	}
+	for _, c := range cases {
+		if exe, m := releaseAssets(c.goos, c.goarch); exe != c.exe || m != c.manifest {
+			t.Errorf("%s/%s got %s and %s", c.goos, c.goarch, exe, m)
+		}
+	}
+}
+
+// A manifest signed for another platform names another file, so it is
+// refused even though the signature is good.
+func TestUpdateRefusesAManifestForAnotherPlatform(t *testing.T) {
+	rel, pub := newRelease(t, "1.2.0", []byte("new app"))
+	rel.manifest.File = "fasttransfer-plan9-mips"
+	fakeGitHub(t, rel)
+	verifyKey = pub
+	if err := updates.check(context.Background(), true); err == nil {
+		t.Fatal("a manifest for another platform must be refused")
 	}
 }
 

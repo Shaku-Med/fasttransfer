@@ -101,9 +101,11 @@ func runApp(pageURL string) {
 	}
 	_ = os.MkdirAll(data, 0o755)
 	// The player opens in its own window, which has had no click yet, so
-	// media there may start without one. The profile is this app's alone.
+	// media there may start without one. The overlay scrollbars are the thin
+	// Windows 11 ones instead of the classic web gutter. The profile is this
+	// app's alone.
 	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
-		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required")
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required --enable-features=msOverlayScrollbarWinStyle,msOverlayScrollbarWinStyleAnimation")
 	}
 
 	w := webview2.NewWithOptions(webview2.WebViewOptions{

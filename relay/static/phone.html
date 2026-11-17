@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="referrer" content="no-referrer" />
+  <title>FastTransfer</title>
+  <link rel="stylesheet" href="/phone.css" />
+</head>
+<body>
+  <header>
+    <div class="brand"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="3.5" class="mark"/><path d="M8 4.2v6.2M5.2 7.8 8 10.6l2.8-2.8M5 12h6" class="arrow"/></svg>FastTransfer</div>
+    <span id="status" class="status">Connecting</span>
+  </header>
+
+  <main>
+    <p id="nolink" class="empty" hidden>Scan the code shown under College mode on the PC to open this page with its key.</p>
+
+    <section id="app" hidden>
+      <div class="actions">
+        <label class="btn primary" id="pickbtn">
+          <input id="pick" type="file" multiple hidden />
+          Send files
+        </label>
+      </div>
+
+      <form id="textform" class="textrow" autocomplete="off">
+        <textarea id="text" rows="2" maxlength="20000" placeholder="Type or paste text for the PC" aria-label="Text for the PC"></textarea>
+        <button class="btn" id="textbtn" type="submit">Send</button>
+      </form>
+
+      <h2>Activity</h2>
+      <ul id="items"></ul>
+      <p id="noitems" class="empty">Files and text from the PC show up here. Everything is encrypted on your phone and the PC, so the relay in between cannot read it.</p>
+    </section>
+  </main>
+  <script src="/phone.js"></script>
+</body>
+</html>

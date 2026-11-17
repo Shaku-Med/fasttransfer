@@ -6,7 +6,18 @@ Send files from your phone to this PC over the same Wi‑Fi. Screenshots for the
 
 On Windows, double-click `FastTransfer.exe`.
 
-On macOS or Linux:
+On Linux, download `fasttransfer-linux-amd64` (most PCs) or `fasttransfer-linux-arm64` (ARM boards like a Raspberry Pi) from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest), put it in a folder you own, and run:
+
+```bash
+chmod +x fasttransfer-linux-amd64
+./fasttransfer-linux-amd64
+```
+
+It is one static file that works on any distro, Fedora included. The window opens in Chrome, Chromium, Edge or Brave when one is installed, and in your default browser otherwise. ffmpeg and yt-dlp are used when they are installed; on Fedora that is `sudo dnf install ffmpeg-free yt-dlp`. Remote control, PC sound and Hide PC screen are Windows only.
+
+If your phone cannot open the link, the firewall is closed. On Fedora run `sudo firewall-cmd --permanent --add-port=8787/tcp` and then `sudo firewall-cmd --reload`; on Ubuntu run `sudo ufw allow 8787/tcp`.
+
+To build it yourself on macOS or Linux:
 
 ```bash
 go build -o fasttransfer .
@@ -33,7 +44,7 @@ Share this one exe. Edge or WebView2 is required. The first launch may extract h
 
 ## Updates
 
-Get the latest `FastTransfer.exe` from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest). Put it in a folder you own, like Documents, since it keeps its files beside itself.
+Get the latest `FastTransfer.exe`, or the Linux file for your PC, from [Releases](https://github.com/Shaku-Med/fasttransfer/releases/latest). Put it in a folder you own, like Documents, since it keeps its files beside itself.
 
 The app checks this repo for a newer release every few hours and asks before installing it. Each release is signed, and the app refuses any download that does not match that signature, so only releases made with the author's key ever install. You can also check by hand under Connect.
 
@@ -51,10 +62,37 @@ Run that once. It saves the signing key in your user folder, outside the repo, a
 
 ```bash
 go run ./cmd/release -version 1.2.0
-gh release create v1.2.0 release/FastTransfer.exe release/update.json release/update.json.sig --title "FastTransfer 1.2.0" --notes "What changed"
+gh release create v1.2.0 release/* --title "FastTransfer 1.2.0" --notes "What changed"
 ```
 
-The first line builds and signs into `release/`. The second publishes it, and every copy offers the update within a few hours. The tag has to be `v` plus the same version.
+The first line builds and signs the Windows app and both Linux builds into `release/`, each with its own signed manifest. The second publishes it, and every copy offers the update within a few hours. The tag has to be `v` plus the same version.
+
+## College mode
+
+Use it when the phone cannot reach the PC directly, like a college lab where letting FastTransfer through the firewall needs admin, or campus Wi-Fi that keeps devices apart. The PC and the phone both connect out to a small relay on the internet, the same way a web page loads, so no admin rights and no firewall changes are needed.
+
+Files and text are encrypted on the phone and the PC with AES-256-GCM. The key is in the part of the link after `#`, which browsers never send anywhere, so the relay only ever sees sealed pieces. Nothing is stored on the relay: it hands each piece straight to the other side, and refuses it when the other side is not connected. Every Start makes a new key, so an old QR code stops working.
+
+Files from the phone land in the `files` folder and show up under Received. Files sent to the phone are kept in the phone's browser until you tap Save, so very large files depend on the phone's memory.
+
+### Setting up the relay (once)
+
+The relay is `relay/`, a Cloudflare Worker. The free plan is enough and never bills: past the daily limit it just stops answering until the next day.
+
+1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up).
+2. In `relay/`, sign in and publish it:
+
+```bash
+npx wrangler login
+```
+
+```bash
+npx wrangler deploy
+```
+
+3. Wrangler prints an address like `https://fasttransfer-relay.you.workers.dev`. Paste it under Connect, College mode, then press Start and scan the code.
+
+To put the address into a release so friends get it already filled in, add `-relay https://fasttransfer-relay.you.workers.dev` to `go run ./cmd/release`. Everyone sharing a relay shares its free daily allowance, and nobody sharing it can read anyone else's files.
 
 ## Many phones at once
 

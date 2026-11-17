@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +33,6 @@ import (
 const (
 	updateRepo    = "Shaku-Med/fasttransfer"
 	updatePubKey  = "1PbIDLO+8CSitAE+3p6kDV9XdtUjvsb0ByCdxylHnQc="
-	updateExeName = "FastTransfer.exe"
 	maxUpdateSize = 1 << 30
 	maxNotes      = 1500
 	updateEvery   = 6 * time.Hour
@@ -54,8 +54,20 @@ var (
 	trustedHost = githubHost
 	selfPath    = currentExe
 	relaunch    = startUpdated
-	closeApp    = stopWindow
+	closeApp    = func() { requestStop(); stopWindow() }
+
+	updateExeName, updateManifest = releaseAssets(runtime.GOOS, runtime.GOARCH)
 )
+
+// releaseAssets names the files a release carries for one platform. Windows
+// keeps the names the first releases used so copies already out there still
+// find their update; every other platform gets its own app and manifest.
+func releaseAssets(goos, goarch string) (exe, manifest string) {
+	if goos == "windows" && goarch == "amd64" {
+		return "FastTransfer.exe", "update.json"
+	}
+	return "fasttransfer-" + goos + "-" + goarch, "update-" + goos + "-" + goarch + ".json"
+}
 
 func decodePubKey(s string) ed25519.PublicKey {
 	raw, err := base64.StdEncoding.DecodeString(s)
@@ -245,14 +257,14 @@ func fetchOffer(ctx context.Context) (*updateOffer, error) {
 			exeSize = a.Size
 		}
 	}
-	if assets["update.json"] == "" || assets["update.json.sig"] == "" || assets[updateExeName] == "" {
-		return nil, errors.New("the latest release is not signed, so it was skipped")
+	if assets[updateManifest] == "" || assets[updateManifest+".sig"] == "" || assets[updateExeName] == "" {
+		return nil, errors.New("the latest release has no signed build for this computer, so it was skipped")
 	}
-	body, err := fetchSmall(ctx, client, assets["update.json"], 4<<10)
+	body, err := fetchSmall(ctx, client, assets[updateManifest], 4<<10)
 	if err != nil {
 		return nil, errors.New("could not fetch the release details")
 	}
-	sigText, err := fetchSmall(ctx, client, assets["update.json.sig"], 1<<10)
+	sigText, err := fetchSmall(ctx, client, assets[updateManifest+".sig"], 1<<10)
 	if err != nil {
 		return nil, errors.New("could not fetch the release signature")
 	}

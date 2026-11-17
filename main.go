@@ -214,6 +214,10 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/phone/control/screen", s.guard(s.phoneControlScreen))
 	mux.HandleFunc("GET /api/phone/control/sound", s.guard(s.phoneControlSound))
 	mux.HandleFunc("POST /api/phone/control/end", s.guard(s.phoneControlEnd))
+	mux.HandleFunc("GET /api/desk/relay", guardLocal(s.deskRelay))
+	mux.HandleFunc("POST /api/desk/relay", guardLocal(s.deskRelaySet))
+	mux.HandleFunc("POST /api/desk/relay/send", guardLocal(s.deskRelaySend))
+	mux.HandleFunc("GET /relay-qr.png", guardLocal(s.relayQR))
 	mux.HandleFunc("GET /api/desk/update", guardLocal(s.deskUpdate))
 	mux.HandleFunc("POST /api/desk/update", guardLocal(s.deskUpdateSet))
 	mux.HandleFunc("GET /api/desk/control", guardLocal(s.deskControl))
@@ -469,7 +473,13 @@ func uploadErrorText(err error, anyFile bool) string {
 }
 
 func saveOne(dir, stamp string, n int, part *multipart.Part, anyFile bool) (string, error) {
-	base := filepath.Base(strings.ReplaceAll(part.FileName(), "\\", "/"))
+	return saveNamed(dir, stamp, n, part.FileName(), part, anyFile)
+}
+
+// saveNamed writes one incoming file under a cleaned, unique name. The name
+// the sender gave is only a suggestion.
+func saveNamed(dir, stamp string, n int, given string, src io.Reader, anyFile bool) (string, error) {
+	base := filepath.Base(strings.ReplaceAll(given, "\\", "/"))
 	ext := strings.ToLower(filepath.Ext(base))
 	stem := safeName.ReplaceAllString(strings.TrimSuffix(base, filepath.Ext(base)), "_")
 	ext = safeName.ReplaceAllString(ext, "")
@@ -505,7 +515,7 @@ func saveOne(dir, stamp string, n int, part *multipart.Part, anyFile bool) (stri
 			return "", fmt.Errorf("could not save %s: %w", base, err)
 		}
 	}
-	if _, err := io.Copy(dst, part); err != nil {
+	if _, err := io.Copy(dst, src); err != nil {
 		_ = dst.Close()
 		_ = os.Remove(dstPath)
 		return "", err
