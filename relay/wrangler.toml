@@ -3,10 +3,11 @@ main = "worker.js"
 compatibility_date = "2025-06-01"
 workers_dev = true
 
+# The phone page's files are bundled as plain text and served by worker.js.
 [[rules]]
 type = "Text"
-globs = ["static/*"]
-fallthrough = false
+globs = ["**/static/*.html", "**/static/*.css", "**/static/*.js"]
+fallthrough = true
 
 [[durable_objects.bindings]]
 name = "ROOMS"
