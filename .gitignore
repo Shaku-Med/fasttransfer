@@ -22,3 +22,6 @@ receive-check.bin
 ft-probe.*
 docs/
 control.json
+relay.json
+relay/.wrangler/
+relay/node_modules/

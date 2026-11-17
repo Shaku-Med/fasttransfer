@@ -13,7 +13,9 @@ chmod +x fasttransfer-linux-amd64
 ./fasttransfer-linux-amd64
 ```
 
-It is one static file that works on any distro. ffmpeg and yt-dlp are used when they are installed. Remote control, PC sound and Hide PC screen are Windows only.
+It is one static file that works on any distro, Fedora included. The window opens in Chrome, Chromium, Edge or Brave when one is installed, and in your default browser otherwise. ffmpeg and yt-dlp are used when they are installed; on Fedora that is `sudo dnf install ffmpeg-free yt-dlp`. Remote control, PC sound and Hide PC screen are Windows only.
+
+If your phone cannot open the link, the firewall is closed. On Fedora run `sudo firewall-cmd --permanent --add-port=8787/tcp` and then `sudo firewall-cmd --reload`; on Ubuntu run `sudo ufw allow 8787/tcp`.
 
 To build it yourself on macOS or Linux:
 
@@ -64,6 +66,33 @@ gh release create v1.2.0 release/* --title "FastTransfer 1.2.0" --notes "What ch
 ```
 
 The first line builds and signs the Windows app and both Linux builds into `release/`, each with its own signed manifest. The second publishes it, and every copy offers the update within a few hours. The tag has to be `v` plus the same version.
+
+## College mode
+
+Use it when the phone cannot reach the PC directly, like a college lab where letting FastTransfer through the firewall needs admin, or campus Wi-Fi that keeps devices apart. The PC and the phone both connect out to a small relay on the internet, the same way a web page loads, so no admin rights and no firewall changes are needed.
+
+Files and text are encrypted on the phone and the PC with AES-256-GCM. The key is in the part of the link after `#`, which browsers never send anywhere, so the relay only ever sees sealed pieces. Nothing is stored on the relay: it hands each piece straight to the other side, and refuses it when the other side is not connected. Every Start makes a new key, so an old QR code stops working.
+
+Files from the phone land in the `files` folder and show up under Received. Files sent to the phone are kept in the phone's browser until you tap Save, so very large files depend on the phone's memory.
+
+### Setting up the relay (once)
+
+The relay is `relay/`, a Cloudflare Worker. The free plan is enough and never bills: past the daily limit it just stops answering until the next day.
+
+1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up).
+2. In `relay/`, sign in and publish it:
+
+```bash
+npx wrangler login
+```
+
+```bash
+npx wrangler deploy
+```
+
+3. Wrangler prints an address like `https://fasttransfer-relay.you.workers.dev`. Paste it under Connect, College mode, then press Start and scan the code.
+
+To put the address into a release so friends get it already filled in, add `-relay https://fasttransfer-relay.you.workers.dev` to `go run ./cmd/release`. Everyone sharing a relay shares its free daily allowance, and nobody sharing it can read anyone else's files.
 
 ## Many phones at once
 

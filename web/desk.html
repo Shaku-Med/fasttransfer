@@ -986,6 +986,8 @@
     .btn.primary { border-color: transparent; background: var(--accent); color: var(--on-accent); }
     .btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
     .btn.quiet { border-color: transparent; background: transparent; }
+    label.btn { display: inline-flex; align-items: center; }
+    .btn.disabled { opacity: 0.45; pointer-events: none; }
     .btn.quiet:hover:not(:disabled) { background: var(--hover); }
 
     #list.grid .head { display: none; }
@@ -1243,6 +1245,22 @@
     #phonesnow .none { justify-content: center; min-height: 64px; color: var(--muted); font-size: 12px; }
     .sum { color: var(--muted); font-size: 12px; padding-right: 8px; white-space: nowrap; }
     #updsub { white-space: normal; }
+    .relaylede { margin: 0; padding: 12px 16px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    #relayurlrow .what input { margin-top: 6px; }
+    .relaylink { display: flex; gap: 16px; align-items: center; padding: 14px 16px; }
+    #relayqr { width: 160px; height: 160px; flex: none; padding: 6px; box-sizing: border-box; background: #fff; border-radius: 6px; }
+    .relaysteps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .relaysteps span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .relaybtns { display: flex; gap: 8px; margin-top: 8px; }
+    #relayon .setting { border-top: 1px solid var(--line); }
+    #relaytextrow input { flex: 1; min-width: 0; }
+    #relaybar { height: 4px; margin: 0 16px 14px; border-radius: 2px; background: var(--hover); overflow: hidden; }
+    #relaybar span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 200ms var(--ease); }
+    #relaytexts { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow: auto; }
+    #relaytexts li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 8px 10px 16px; border-top: 1px solid var(--line); }
+    #relaytexts .what { flex: 1; min-width: 0; }
+    #relaytexts p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; max-height: 6.75em; overflow: auto; }
+    #relaytexts small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
     #updbar { height: 4px; margin: 0 16px 14px; border-radius: 2px; background: var(--hover); overflow: hidden; }
     #updbar span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 200ms var(--ease); }
     #updnotes { margin: 0; padding: 12px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; white-space: pre-line; max-height: 160px; overflow: auto; }
@@ -1475,6 +1493,42 @@
                   <div class="cardhead"><h2>Devices</h2><span id="phonesum" class="sum"></span></div>
                   <div class="findrow" id="devfindrow" hidden><input id="devq" class="find" type="search" placeholder="Find a device by name" aria-label="Find a device" maxlength="40" autocomplete="off" spellcheck="false" /></div>
                   <ul id="phonesnow"></ul>
+                </div>
+                <div class="card" id="relaycard">
+                  <div class="cardhead"><h2>College mode</h2><span id="relaysum" class="sum"></span></div>
+                  <p class="relaylede">For when the phone cannot reach this PC, like a college lab or guest Wi-Fi. Both go through your relay on the internet instead, and everything is encrypted so the relay cannot read it. No admin rights needed.</p>
+                  <form id="relayurlrow" class="setting" hidden>
+                    <div class="what"><b>Relay address</b><input id="relayurl" class="find" type="url" placeholder="https://fasttransfer-relay.you.workers.dev" maxlength="200" autocomplete="off" spellcheck="false" aria-label="Relay address" /></div>
+                    <button id="relayurlsave" class="btn" type="submit">Save</button>
+                  </form>
+                  <div id="relayoff" class="setting" hidden>
+                    <div class="what"><b>Relay</b><span id="relayhost"></span></div>
+                    <button id="relayedit" class="btn quiet" type="button">Change</button>
+                    <button id="relaystart" class="btn primary" type="button">Start</button>
+                  </div>
+                  <div id="relayon" hidden>
+                    <div class="relaylink">
+                      <img id="relayqr" alt="QR code for college mode" width="160" height="160" />
+                      <div class="relaysteps">
+                        <b id="relayline">Waiting for the phone</b>
+                        <span>Scan the code with the phone's camera. A new code is made every time you start, so an old one stops working.</span>
+                        <div class="relaybtns">
+                          <button id="relaycopy" class="btn small" type="button">Copy link</button>
+                          <button id="relaystop" class="btn small" type="button">Stop</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="setting">
+                      <div class="what"><b>Send to the phone</b><span id="relaysendline">Files go one at a time, up to 4 GB each</span></div>
+                      <label id="relaypickbtn" class="btn primary"><input id="relaypick" type="file" multiple hidden />Pick files</label>
+                    </div>
+                    <div id="relaybar" hidden><span></span></div>
+                    <form id="relaytextrow" class="setting">
+                      <input id="relaytext" class="find" type="text" maxlength="20000" placeholder="Text for the phone" autocomplete="off" aria-label="Text for the phone" />
+                      <button class="btn" type="submit">Send</button>
+                    </form>
+                    <ul id="relaytexts"></ul>
+                  </div>
                 </div>
                 <div class="card" id="updcard">
                   <div class="cardhead"><h2>FastTransfer</h2><span id="updver" class="sum"></span></div>
@@ -4130,6 +4184,8 @@
         noteInbox(ev);
       } else if (ev.kind === "update") {
         loadUpdate();
+      } else if (ev.kind === "relay") {
+        loadRelay(ev.text === "text");
       } else if (ev.kind === "control-ask" || ev.kind === "control") {
         loadControl();
         if (ev.kind === "control" && ev.text === "start" && ev.name) {
@@ -4207,6 +4263,154 @@
       if (upd && upd.state === "available") installUpdate();
       else updateAction("check");
     });
+
+    // College mode. The phone and this PC meet through the relay instead of
+    // the local network, for places where they cannot see each other.
+    const relayEls = {
+      sum: document.getElementById("relaysum"), urlRow: document.getElementById("relayurlrow"), url: document.getElementById("relayurl"),
+      off: document.getElementById("relayoff"), host: document.getElementById("relayhost"), on: document.getElementById("relayon"),
+      qr: document.getElementById("relayqr"), line: document.getElementById("relayline"), sendLine: document.getElementById("relaysendline"),
+      pickBtn: document.getElementById("relaypickbtn"), pick: document.getElementById("relaypick"), bar: document.getElementById("relaybar"),
+      text: document.getElementById("relaytext"), texts: document.getElementById("relaytexts"),
+    };
+    let relayState = null;
+    let relayEditing = false;
+    let relayLink = "";
+    let relayQueue = Promise.resolve();
+    let relayQueued = 0;
+
+    function paintRelay(v) {
+      if (!v) return;
+      relayState = v;
+      const hasURL = !!v.url;
+      relayEls.urlRow.hidden = v.on || !(relayEditing || !hasURL);
+      relayEls.off.hidden = !hasURL || v.on || relayEditing;
+      relayEls.on.hidden = !v.on;
+      relayEls.host.textContent = hasURL ? v.url.replace(/^https?:\/\//, "") : "";
+      relayEls.sum.textContent = !v.on ? "Off" : v.peer ? "Connected" : "Waiting";
+      if (v.on && v.link !== relayLink) {
+        relayLink = v.link;
+        relayEls.qr.src = "/relay-qr.png?t=" + Date.now();
+      }
+      if (!v.on) relayLink = "";
+      const who = v.peerName || "the phone";
+      relayEls.line.textContent = v.peer ? "Connected to " + who : v.error || "Waiting for the phone";
+      const busy = v.sending || v.receiving;
+      if (busy) {
+        const verb = v.sending ? "Sending " : "Receiving ";
+        relayEls.sendLine.textContent = verb + busy.name + " · " + megabytes(busy.done) + " of " + megabytes(busy.total);
+      } else {
+        relayEls.sendLine.textContent = relayQueued ? relayQueued + " waiting to send" : v.peer ? "Files go one at a time, up to 4 GB each" : "Connect the phone first";
+      }
+      relayEls.bar.hidden = !busy;
+      relayEls.bar.firstElementChild.style.width = busy && busy.total ? Math.floor((busy.done / busy.total) * 100) + "%" : "0%";
+      relayEls.pickBtn.classList.toggle("disabled", !v.peer);
+      paintRelayTexts(v.texts || []);
+    }
+
+    function paintRelayTexts(texts) {
+      relayEls.texts.replaceChildren(...texts.slice().reverse().map((t) => {
+        const li = document.createElement("li");
+        const what = document.createElement("div");
+        what.className = "what";
+        const p = document.createElement("p");
+        p.textContent = t.text;
+        const small = document.createElement("small");
+        small.textContent = t.mine ? "Sent to the phone" : "From the phone";
+        what.append(p, small);
+        li.append(what);
+        if (!t.mine) {
+          const copy = document.createElement("button");
+          copy.className = "btn small";
+          copy.type = "button";
+          copy.textContent = "Copy";
+          copy.addEventListener("click", () => copyText(t.text, "Text copied"));
+          li.append(copy);
+        }
+        return li;
+      }));
+    }
+
+    async function loadRelay(newText) {
+      try {
+        const res = await fetch("/api/desk/relay", { cache: "no-store" });
+        if (!res.ok) return;
+        const v = await res.json();
+        if (newText && v.texts && v.texts.length) {
+          const last = v.texts[v.texts.length - 1];
+          if (!last.mine) toast("Text from the phone", last.text.slice(0, 120), { label: "Copy", run: () => copyText(last.text, "Text copied") });
+        }
+        paintRelay(v);
+      } catch (err) {}
+    }
+
+    async function relayAction(body) {
+      try {
+        const res = await fetch("/api/desk/relay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (data.error) toast("College mode", sentence(data.error));
+          paintRelay(data.relay);
+          return false;
+        }
+        paintRelay(data);
+        return true;
+      } catch (err) {
+        toast("College mode", "Could not reach FastTransfer");
+        return false;
+      }
+    }
+
+    function relaySendFile(file) {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        const q = "name=" + encodeURIComponent(file.name) + "&type=" + encodeURIComponent(file.type || "");
+        xhr.open("POST", "/api/desk/relay/send?" + q);
+        xhr.onload = () => {
+          if (xhr.status !== 200) {
+            let msg = "Could not send " + file.name;
+            try { msg = sentence(JSON.parse(xhr.responseText).error) || msg; } catch (err) {}
+            toast("Not sent", msg);
+          }
+          resolve();
+        };
+        xhr.onerror = () => { toast("Not sent", "Could not reach FastTransfer"); resolve(); };
+        xhr.send(file);
+      });
+    }
+
+    relayEls.urlRow.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (await relayAction({ action: "url", url: relayEls.url.value })) {
+        relayEditing = false;
+        paintRelay(relayState);
+      }
+    });
+    document.getElementById("relayedit").addEventListener("click", () => {
+      relayEditing = true;
+      relayEls.url.value = relayState ? relayState.url : "";
+      paintRelay(relayState);
+      relayEls.url.focus();
+    });
+    document.getElementById("relaystart").addEventListener("click", () => relayAction({ action: "start" }));
+    document.getElementById("relaystop").addEventListener("click", () => relayAction({ action: "stop" }));
+    document.getElementById("relaycopy").addEventListener("click", () => { if (relayLink) copyText(relayLink, "Link copied"); });
+    relayEls.pick.addEventListener("change", () => {
+      const files = Array.from(relayEls.pick.files || []);
+      relayEls.pick.value = "";
+      for (const file of files) {
+        relayQueued++;
+        relayQueue = relayQueue.then(() => { relayQueued--; return relaySendFile(file); });
+      }
+      paintRelay(relayState);
+    });
+    document.getElementById("relaytextrow").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = relayEls.text.value;
+      if (!text.trim()) return;
+      if (await relayAction({ action: "text", text })) relayEls.text.value = "";
+    });
+    loadRelay(false);
 
     // Remote control. A phone's request pops up here and waits for a person.
     // Deny has the focus, so a stray Enter while typing never lets one in.

@@ -1,0 +1,18 @@
+name = "fasttransfer-relay"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[[rules]]
+type = "Text"
+globs = ["static/*"]
+fallthrough = false
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# The free plan only runs SQLite backed Durable Objects.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
